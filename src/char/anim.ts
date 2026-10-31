@@ -161,9 +161,115 @@ const PA = makeClass({
   },
 });
 // Spears use ready_overswing_spear: shaft lifted over the shoulder, stabbed down-forward.
+
+// ===================================================================================
+// Poses matched to the user's Warband recordings (2026-10-31). Torso space: +X = left,
+// +Y up, +Z forward, origin ~ waist (1.05 m); right shoulder ≈ (-0.17, 0.35, 0).
+//   guard: blade upright in front of the right chest, fist at the belt
+//   overhead ready: fist above the head, blade hanging back behind it
+//   right ready: fist above the right shoulder, blade flat behind the head toward the left
+//   left ready: arm across the face, fist by the left cheek, blade up over the left shoulder
+//   thrust: fist drawn back to the right hip, then a full arm extension with a lunge
+//   no shield: the free hand hangs loose at the side
+// ===================================================================================
+function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
+{
+  const A = OH;
+  A.guard = K([-0.19, -0.04, 0.24], [0.06, 0.97, 0.22], [0, -0.22, 0.97], 0.15, 0.02);
+  A.arcs.over = arcOf([
+    K([-0.1, 0.8, -0.04], [0.05, -0.35, -0.94], [0, 0.94, -0.35], -0.12, -0.14),     // ready: blade hangs behind the head
+    K([-0.12, 0.84, 0.12], [0.03, 0.9, 0.43], [0, -0.43, 0.9], -0.04, -0.02),
+    K([-0.12, 0.62, 0.42], [0.02, 0.35, 0.94], [0, -0.94, 0.35], 0.06, 0.14),
+    K([-0.1, 0.3, 0.6], [0.02, -0.1, 0.99], [0, -0.99, -0.1], 0.12, 0.3),            // impact: arm nearly straight
+    K([-0.08, 0.02, 0.48], [0.05, -0.75, 0.66], [0, -0.66, -0.75], 0.16, 0.36),
+    K([-0.06, -0.1, 0.34], [0.06, -0.92, 0.38], [0, -0.38, -0.92], 0.16, 0.3),
+  ], 3);
+  A.arcs.right = arcOf([
+    K([-0.3, 0.72, 0.0], [0.85, 0.22, -0.48], [0.45, 0.05, 0.89], -0.75, -0.04),     // ready: above the right shoulder
+    K([-0.42, 0.6, 0.24], [-0.4, 0.3, -0.86], [-0.9, 0, 0.42], -0.5, 0.0),
+    K([-0.38, 0.42, 0.48], [-0.85, 0.12, 0.5], [0.5, 0, 0.86], -0.15, 0.06),
+    K([-0.08, 0.36, 0.6], [0.2, 0.0, 0.98], [0.98, 0, -0.2], 0.25, 0.12),             // impact in front, arm out
+    K([0.24, 0.26, 0.46], [0.92, -0.1, 0.38], [0.38, 0, -0.92], 0.7, 0.14),
+    K([0.28, 0.12, 0.3], [0.88, -0.3, -0.36], [-0.36, 0, -0.93], 0.75, 0.12),
+  ], 3);
+  A.arcs.left = arcOf([
+    K([0.1, 0.56, 0.26], [-0.3, 0.82, -0.48], [0.95, 0.05, 0.3], 0.7, -0.02),        // ready: across the face, blade over left shoulder
+    K([0.2, 0.46, 0.4], [0.5, 0.6, -0.6], [0.8, 0, 0.6], 0.5, 0.02),
+    K([0.16, 0.38, 0.54], [0.92, 0.2, 0.33], [-0.34, 0, 0.94], 0.2, 0.06),
+    K([-0.16, 0.34, 0.6], [-0.2, 0.0, 0.98], [-0.98, 0, -0.2], -0.2, 0.12),          // impact
+    K([-0.46, 0.24, 0.36], [-0.92, -0.12, 0.36], [-0.36, 0, -0.93], -0.6, 0.14),
+    K([-0.5, 0.1, 0.12], [-0.8, -0.35, -0.48], [0.5, 0, -0.85], -0.7, 0.12),
+  ], 3);
+  A.arcs.thrust = arcOf([
+    K([-0.28, 0.0, -0.14], [0.06, 0.16, 0.98], [0, 0.98, -0.16], -0.7, -0.04),       // ready: fist at the right hip
+    K([-0.2, 0.18, 0.26], [0.04, 0.08, 0.99], [0, 1, -0.08], -0.1, 0.12),
+    K([-0.12, 0.3, 0.62], [0.03, 0.0, 1], [0, 1, 0], 0.35, 0.34),                     // impact: full extension + lunge
+    K([-0.12, 0.29, 0.63], [0.03, -0.02, 1], [0, 1, 0.02], 0.36, 0.34),
+  ], 2);
+  A.blocks.up = K([-0.12, 0.66, 0.3], [0.98, 0.12, 0.12], [0, 1, 0], 0.05, -0.05);
+  A.blocks.right = K([-0.36, 0.22, 0.34], [-0.1, 0.98, 0.12], [-1, 0, 0], -0.35, 0);
+  A.blocks.left = K([0.14, 0.28, 0.34], [0.12, 0.98, 0.12], [1, 0, 0], 0.4, 0);
+  A.blocks.down = K([-0.08, 0.16, 0.4], [0.1, -0.96, 0.24], [1, 0, 0], 0.08, 0.1);
+}
+{
+  // two-handed: same shapes, both fists on the grip, a little closer to the body
+  const A = TH;
+  A.guard = K([-0.1, 0.1, 0.3], [0.04, 0.97, 0.24], [0, -0.24, 0.97], 0.12, 0.03);
+  A.arcs.over = arcOf([
+    K([-0.04, 0.74, 0.02], [0.04, -0.3, -0.95], [0, 0.95, -0.3], -0.1, -0.14),
+    K([-0.05, 0.78, 0.16], [0.02, 0.9, 0.43], [0, -0.43, 0.9], -0.03, -0.02),
+    K([-0.04, 0.56, 0.4], [0.02, 0.35, 0.94], [0, -0.94, 0.35], 0.04, 0.14),
+    K([-0.03, 0.28, 0.52], [0.02, -0.12, 0.99], [0, -0.99, -0.12], 0.08, 0.3),
+    K([-0.02, 0.02, 0.42], [0.04, -0.75, 0.66], [0, -0.66, -0.75], 0.1, 0.36),
+    K([-0.02, -0.08, 0.32], [0.04, -0.92, 0.38], [0, -0.38, -0.92], 0.1, 0.3),
+  ], 3);
+  A.arcs.right = arcOf([
+    K([-0.2, 0.66, 0.06], [0.9, 0.12, -0.42], [0.42, 0.05, 0.9], -0.7, -0.04),       // ready: flat over the right shoulder (45.5 s in the recording)
+    K([-0.3, 0.54, 0.26], [-0.35, 0.25, -0.9], [-0.92, 0, 0.36], -0.45, 0),
+    K([-0.28, 0.38, 0.44], [-0.85, 0.1, 0.5], [0.5, 0, 0.86], -0.12, 0.06),
+    K([-0.04, 0.32, 0.52], [0.2, 0.0, 0.98], [0.98, 0, -0.2], 0.22, 0.12),
+    K([0.2, 0.22, 0.4], [0.92, -0.12, 0.36], [0.36, 0, -0.93], 0.62, 0.14),
+    K([0.24, 0.08, 0.28], [0.85, -0.35, -0.4], [-0.42, 0, -0.9], 0.68, 0.12),
+  ], 3);
+  A.arcs.left = arcOf([
+    K([0.12, 0.54, 0.3], [-0.25, 0.85, -0.46], [0.95, 0.05, 0.3], 0.62, -0.02),
+    K([0.18, 0.44, 0.4], [0.5, 0.6, -0.6], [0.8, 0, 0.6], 0.45, 0.02),
+    K([0.14, 0.36, 0.5], [0.92, 0.2, 0.33], [-0.34, 0, 0.94], 0.18, 0.06),
+    K([-0.1, 0.32, 0.52], [-0.2, 0.0, 0.98], [-0.98, 0, -0.2], -0.18, 0.12),
+    K([-0.36, 0.22, 0.34], [-0.92, -0.12, 0.36], [-0.36, 0, -0.93], -0.55, 0.14),
+    K([-0.38, 0.08, 0.14], [-0.8, -0.35, -0.48], [0.5, 0, -0.85], -0.62, 0.12),
+  ], 3);
+  A.arcs.thrust = arcOf([
+    K([-0.2, 0.02, -0.06], [0.05, 0.14, 0.99], [0, 0.99, -0.14], -0.6, -0.04),
+    K([-0.12, 0.16, 0.24], [0.03, 0.06, 1], [0, 1, -0.06], -0.08, 0.12),
+    K([-0.06, 0.26, 0.5], [0.02, 0.0, 1], [0, 1, 0], 0.3, 0.32),
+    K([-0.06, 0.25, 0.51], [0.02, -0.02, 1], [0, 1, 0.02], 0.31, 0.32),
+  ], 2);
+}
+{
+  // polearm (spear recording): guard diagonal across the body, butt low at the right foot
+  const A = PA;
+  A.guard = K([-0.22, -0.04, 0.12], [0.62, 0.26, 0.74], [0, 0.94, -0.33], 0.2, 0.04);
+  A.blocks.up = K([-0.34, 0.66, 0.18], [1, 0.02, 0.04], [0, 1, 0], 0, -0.04);      // shaft flat above the head
+  A.blocks.down = K([-0.32, 0.06, 0.32], [1, 0.0, 0.06], [0, 1, 0], 0, 0.04);       // shaft flat at the belly
+  A.blocks.right = K([-0.3, -0.16, 0.3], [0.02, 0.99, 0.1], [-1, 0, 0], -0.2, 0);   // shaft upright on the right
+  A.blocks.left = K([0.16, -0.16, 0.3], [0.02, 0.99, 0.1], [1, 0, 0], 0.25, 0);     // shaft upright on the left
+  // thrust: drawn back at the hip, driven forward at chest height
+  A.arcs.thrust = arcOf([
+    K([-0.24, -0.02, -0.18], [0.3, 0.06, 0.95], [0, 1, -0.06], 0.35, -0.04),
+    K([-0.2, 0.1, 0.0], [0.3, 0.04, 0.95], [0, 1, -0.04], 0.05, 0.12),
+    K([-0.18, 0.2, 0.12], [0.3, 0.02, 0.95], [0, 1, -0.02], -0.2, 0.28),
+    K([-0.18, 0.2, 0.13], [0.3, 0.0, 0.95], [0, 1, 0], -0.21, 0.28),
+  ], 2);
+}
 const PA_SPEAR: ClassAnims = {
   ...PA,
-  arcs: { ...PA.arcs, over: { keys: [K([-0.24, 0.46, -0.2], [0.18, 0.02, 0.98], [0, 1, 0.02], -0.35, -0.06), K([-0.14, 0.4, 0.13], [0.16, -0.4, 0.9], [0, 0.9, 0.4], 0.18, 0.22), K([-0.13, 0.38, 0.15], [0.16, -0.45, 0.88], [0, 0.88, 0.45], 0.2, 0.24)], impact: 1 } },
+  arcs: { ...PA.arcs, over: arcOf([
+    K([-0.22, 0.74, -0.2], [0.22, 0.22, 0.95], [0, 0.95, -0.22], -0.3, -0.08),   // ready: both hands above the head (7.3–8.3 s)
+    K([-0.18, 0.62, 0.0], [0.18, -0.12, 0.98], [0, 0.98, 0.12], -0.05, 0.08),
+    K([-0.14, 0.46, 0.18], [0.14, -0.42, 0.9], [0, 0.9, 0.42], 0.15, 0.24),
+    K([-0.13, 0.44, 0.19], [0.14, -0.46, 0.88], [0, 0.88, 0.46], 0.16, 0.24),
+  ], 2) },
 };
 const CLASSES: Record<WClass, ClassAnims> = { oh: OH, th: TH, pa: PA };
 function classFor(w: WeaponId): ClassAnims { return w === "spear" ? PA_SPEAR : CLASSES[WEAPONS[w].cls]; }
@@ -363,12 +469,21 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     // combat: upper body from the attack, lower body planted (or walking, layered like Warband)
     const smp = sampleTL(timeline(spec.id, eq.move ?? "all", shieldArm), t);
     key = smp.k; blocking = !!smp.block; shieldDir = smp.block;
-    if (!walking) { legs = STANCE; bob = -0.02; }
+    if (!walking) {
+      // weight on the back leg while winding up, onto the front leg (lunge) as the strike lands
+      const fw = Math.max(-1, Math.min(1, key.tp / 0.3));
+      const L = Math.max(0, fw), Bk = Math.max(0, -fw);
+      legs = {
+        thighL: [-0.25 - 0.45 * L + 0.1 * Bk, -0.1, 0.06], shinL: [0.22 + 0.6 * L, 0, 0], footL: [0.03 - 0.15 * L, 0.1, 0],
+        thighR: [0.12 + 0.3 * L - 0.05 * Bk, 0.15, -0.08], shinR: [0.2 + 0.1 * L + 0.25 * Bk, 0, 0], footR: [-0.32 - 0.25 * L, 0, 0],
+      };
+      bob = -0.02 - 0.09 * L - 0.03 * Bk;
+    }
     const sb = shieldArm && blocking;
     pose.r = {
       pelvis: add3(walkPelvis, [0, key.ty * 0.3, 0]) as V3, torso: add3(walkTorso, [key.tp, key.ty * 0.62, 0]) as V3, head: [-key.tp * 0.6, -key.ty * 0.55, 0],
-      uarmL: shieldArm ? (sb ? (shieldDir === "up" ? [-1.75, 0.3, 0.25] : [-1.2, 0.35, 0.2]) : [-0.75, 0.25, 0.12]) : [-0.3, 0.2, 0.25],
-      farmL: shieldArm ? [sb ? (shieldDir === "up" ? -0.9 : -1.25) : -1.15, 0, 0] : [-0.95, 0, 0], handL: [0, 0, 0],
+      uarmL: shieldArm ? (sb ? (shieldDir === "up" ? [-1.75, 0.3, 0.25] : [-1.2, 0.35, 0.2]) : [-0.75, 0.25, 0.12]) : [0.06, 0, 0.18],
+      farmL: shieldArm ? [sb ? (shieldDir === "up" ? -0.9 : -1.25) : -1.15, 0, 0] : [-0.3, 0, 0], handL: [0, 0, 0.05],
     };
   }
   pose.r = { ...pose.r, ...legs };
@@ -415,7 +530,7 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
       // shield placed relative to the chest, then the left arm reaches into its straps (IK)
       let pos: Vec = [0.2, 0.2, 0.3], yaw = 0.25, pitch = -0.08;
       if (blocking) {
-        pos = [0.06, 0.3, 0.42]; yaw = 0.05; pitch = -0.04;              // defend_shield_forward
+        pos = [0.04, 0.12, 0.34]; yaw = 0.05; pitch = -0.04;             // defend_shield_forward: covers chest to knees
         if (shieldDir === "up") { pos = [0.04, 0.52, 0.34]; pitch = -0.85; }
         if (shieldDir === "left") { pos = [0.2, 0.3, 0.38]; yaw = 0.55; }
         if (shieldDir === "right") { pos = [-0.12, 0.3, 0.4]; yaw = -0.4; }
