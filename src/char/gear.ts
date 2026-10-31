@@ -235,7 +235,7 @@ export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hid
   const coifK = 0.013;
   if (has.coif) {
     hide.add("ears");
-    if (lo !== "knight") mailP("head", (t) => t.loft(I(), sub(inflate(HEAD.slice(0, -1), coifK, coifK).concat([[0.322, 0.03, 0.035, 0, -0.01]])), L.head, GREG.coif, { ...sm, capTop: true }));
+    if (lo !== "knight") piece("head", (t) => { t.mat = 1; t.loft(I(), sub(inflate(HEAD.slice(0, -1), coifK, coifK).concat([[0.322, 0.03, 0.035, 0, -0.01]])), L.head, GREG.coif, { ...sm, capTop: true }); });
     // mantle over the shoulders, wider than the hauberk so it never sinks in
     mailP("torso", (t) => t.loft(I(), sub([[0.29, 0.19 + kM + 0.018, 0.116 + kM + 0.02], [0.36, 0.175 + kM + 0.016, 0.108 + kM + 0.016], [0.42, 0.12 + kM, 0.094 + kM * 0.8], [0.48, 0.068, 0.074]]), L.torso, GREG.mailFine, { ...sm, tile: [12, 2] }));
   }
