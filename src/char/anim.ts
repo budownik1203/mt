@@ -54,7 +54,7 @@ const K = (g: Vec, d: Vec, e: Vec, ty = 0, tp = 0): WK => ({ g, d, e, ty, tp });
  */
 
 type Dir = "over" | "right" | "left" | "thrust";
-interface Arc { keys: WK[]; impact: number /* index of the impact key */ }
+interface Arc { keys: WK[]; impact: number /* index of the impact key */; wind?: WK /* optional pose on the way into the ready */ }
 interface ClassAnims {
   guard: WK; idle: WK;
   arcs: Record<Dir, Arc>;
@@ -143,7 +143,7 @@ const TH = makeClass({
     up: K([-0.02, 0.6, 0.26], [-0.99, 0.1, 0.05], [0, 1, 0], 0, -0.05),
     right: K([-0.22, 0.2, 0.34], [-0.1, 0.98, 0.12], [-1, 0, 0], -0.3, 0),
     left: K([0.2, 0.16, 0.32], [0.1, 0.98, 0.12], [1, 0, 0], 0.35, 0),
-    down: K([-0.04, 0.42, 0.36], [0.05, -0.97, 0.2], [1, 0, 0], 0, 0.06),
+    down: K([-0.06, 0.16, 0.38], [0.28, -0.36, 0.89], [0.95, 0, -0.3], 0, 0.06),
   },
 });
 // Polearm: right fist at the rear of the grip, left fist 0.45 m up the shaft.
@@ -178,12 +178,14 @@ function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
   A.guard = K([-0.19, -0.04, 0.24], [0.06, 0.97, 0.22], [0, -0.22, 0.97], 0.15, 0.02);
   A.arcs.over = arcOf([
     K([-0.1, 0.8, -0.04], [0.05, -0.35, -0.94], [0, 0.94, -0.35], -0.12, -0.14),     // ready: blade hangs behind the head
+    K([-0.11, 0.84, 0.03], [0.04, 0.45, -0.89], [0, 0.89, 0.45], -0.08, -0.08),       // blade swings up over the back
     K([-0.12, 0.84, 0.12], [0.03, 0.9, 0.43], [0, -0.43, 0.9], -0.04, -0.02),
     K([-0.12, 0.62, 0.42], [0.02, 0.35, 0.94], [0, -0.94, 0.35], 0.06, 0.14),
     K([-0.1, 0.3, 0.6], [0.02, -0.1, 0.99], [0, -0.99, -0.1], 0.12, 0.3),            // impact: arm nearly straight
     K([-0.08, 0.02, 0.48], [0.05, -0.75, 0.66], [0, -0.66, -0.75], 0.16, 0.36),
     K([-0.06, -0.1, 0.34], [0.06, -0.92, 0.38], [0, -0.38, -0.92], 0.16, 0.3),
-  ], 3);
+  ], 4);
+  A.arcs.over.wind = K([-0.17, 0.6, 0.14], [0.04, 0.62, -0.78], [0, 0.78, 0.62], -0.08, -0.08);
   A.arcs.right = arcOf([
     K([-0.3, 0.72, 0.0], [0.85, 0.22, -0.48], [0.45, 0.05, 0.89], -0.75, -0.04),     // ready: above the right shoulder
     K([-0.42, 0.6, 0.24], [-0.4, 0.3, -0.86], [-0.9, 0, 0.42], -0.5, 0.0),
@@ -209,7 +211,7 @@ function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
   A.blocks.up = K([-0.12, 0.66, 0.3], [0.98, 0.12, 0.12], [0, 1, 0], 0.05, -0.05);
   A.blocks.right = K([-0.36, 0.22, 0.34], [-0.1, 0.98, 0.12], [-1, 0, 0], -0.35, 0);
   A.blocks.left = K([0.14, 0.28, 0.34], [0.12, 0.98, 0.12], [1, 0, 0], 0.4, 0);
-  A.blocks.down = K([-0.08, 0.16, 0.4], [0.1, -0.96, 0.24], [1, 0, 0], 0.08, 0.1);
+  A.blocks.down = K([-0.1, 0.12, 0.38], [0.3, -0.38, 0.87], [0.95, 0, -0.3], 0.08, 0.1);   // parry vs thrust: blade forward-down across the line
 }
 {
   // two-handed: same shapes, both fists on the grip, a little closer to the body
@@ -217,12 +219,14 @@ function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
   A.guard = K([-0.1, 0.1, 0.3], [0.04, 0.97, 0.24], [0, -0.24, 0.97], 0.12, 0.03);
   A.arcs.over = arcOf([
     K([-0.04, 0.74, 0.02], [0.04, -0.3, -0.95], [0, 0.95, -0.3], -0.1, -0.14),
+    K([-0.05, 0.78, 0.08], [0.03, 0.45, -0.89], [0, 0.89, 0.45], -0.07, -0.08),
     K([-0.05, 0.78, 0.16], [0.02, 0.9, 0.43], [0, -0.43, 0.9], -0.03, -0.02),
     K([-0.04, 0.56, 0.4], [0.02, 0.35, 0.94], [0, -0.94, 0.35], 0.04, 0.14),
     K([-0.03, 0.28, 0.52], [0.02, -0.12, 0.99], [0, -0.99, -0.12], 0.08, 0.3),
     K([-0.02, 0.02, 0.42], [0.04, -0.75, 0.66], [0, -0.66, -0.75], 0.1, 0.36),
     K([-0.02, -0.08, 0.32], [0.04, -0.92, 0.38], [0, -0.38, -0.92], 0.1, 0.3),
-  ], 3);
+  ], 4);
+  A.arcs.over.wind = K([-0.09, 0.56, 0.16], [0.03, 0.62, -0.78], [0, 0.78, 0.62], -0.06, -0.08);
   A.arcs.right = arcOf([
     K([-0.2, 0.66, 0.06], [0.9, 0.12, -0.42], [0.42, 0.05, 0.9], -0.7, -0.04),       // ready: flat over the right shoulder (45.5 s in the recording)
     K([-0.3, 0.54, 0.26], [-0.35, 0.25, -0.9], [-0.92, 0, 0.36], -0.45, 0),
@@ -267,8 +271,8 @@ const PA_SPEAR: ClassAnims = {
   arcs: { ...PA.arcs, over: arcOf([
     K([-0.22, 0.74, -0.2], [0.22, 0.22, 0.95], [0, 0.95, -0.22], -0.3, -0.08),   // ready: both hands above the head (7.3–8.3 s)
     K([-0.18, 0.62, 0.0], [0.18, -0.12, 0.98], [0, 0.98, 0.12], -0.05, 0.08),
-    K([-0.14, 0.46, 0.18], [0.14, -0.42, 0.9], [0, 0.9, 0.42], 0.15, 0.24),
-    K([-0.13, 0.44, 0.19], [0.14, -0.46, 0.88], [0, 0.88, 0.46], 0.16, 0.24),
+    K([-0.14, 0.48, 0.18], [0.16, -0.28, 0.95], [0, 0.95, 0.28], 0.15, 0.24),
+    K([-0.13, 0.46, 0.19], [0.16, -0.31, 0.94], [0, 0.94, 0.31], 0.16, 0.24),
   ], 2) },
 };
 const CLASSES: Record<WClass, ClassAnims> = { oh: OH, th: TH, pa: PA };
@@ -290,7 +294,8 @@ function timeline(w: WeaponId, move: Move, shield: boolean): Seg[] {
     const d = d0 === "thrust" && !spec.thrust ? "over" : d0;   // axes and maces: thrust becomes an overhead
     const arc = A.arcs[d];
     out.push({ t, k: A.guard, ease: "smooth", label: "garda" });
-    push(Tm.ready, arc.keys[0], "out", "zamach");                 // ready_
+    if (arc.wind) { push(Tm.ready * 0.45, arc.wind, "smooth", "zamach"); push(Tm.ready * 0.55, arc.keys[0], "out", "zamach"); }
+    else push(Tm.ready, arc.keys[0], "out", "zamach");                 // ready_
     push(Tm.hold, { ...arc.keys[0], g: add3(arc.keys[0].g, [0, 0.008, -0.01]) }, "smooth", "trzymanie");
     const n = arc.impact;
     for (let i = 1; i <= n; i++) push(Tm.release / n, arc.keys[i], i === 1 ? "in" : "lin", "cios");   // release_
@@ -325,16 +330,44 @@ function timeline(w: WeaponId, move: Move, shield: boolean): Seg[] {
 
 const nlerp = (a: Vec, b: Vec, k: number): Vec => nrm([lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)]);
 function easeK(e: Ease, k: number) { return e === "in" ? k * k : e === "out" ? 1 - (1 - k) * (1 - k) : e === "lin" ? k : k * k * (3 - 2 * k); }
+/*
+ * Natural motion: positions and directions follow a cubic Hermite spline through the keys
+ * (no corners between arc keys). Tangents are zeroed where the motion stops or reverses
+ * (holds, wind-up apex, end of follow-through) so those settle softly, while keys in the
+ * middle of an arc are passed through at full speed.
+ */
+type Num = number[];
+function keyVec(k: WK): Num { return [...k.g, ...k.d, ...k.e, k.ty, k.tp]; }
+function tangent(tl: Seg[], i: number): Num {
+  const n = tl.length, cur = keyVec(tl[i].k);
+  if (i === 0 || i === n - 1) return cur.map(() => 0);
+  const p = keyVec(tl[i - 1].k), q = keyVec(tl[i + 1].k);
+  const dtIn = tl[i].t - tl[i - 1].t, dtOut = tl[i + 1].t - tl[i].t;
+  if (dtIn < 1e-4 || dtOut < 1e-4) return cur.map(() => 0);
+  const vin = cur.map((c, j) => (c - p[j]) / dtIn), vout = q.map((c, j) => (c - cur[j]) / dtOut);
+  // reversal or hold on the fist path: stop here
+  const gi = vin.slice(0, 3), go = vout.slice(0, 3);
+  const dotg = gi[0] * go[0] + gi[1] * go[1] + gi[2] * go[2];
+  const li = Math.hypot(gi[0], gi[1], gi[2]), lo = Math.hypot(go[0], go[1], go[2]);
+  if (li < 1e-3 || lo < 1e-3 || dotg < 0.15 * li * lo) return cur.map(() => 0);
+  // harmonic-style blend keeps the curve from overshooting when speeds differ a lot
+  // monotone (Fritsch–Carlson style) per component: never overshoots past a key
+  return vin.map((a, j) => { const b = vout[j]; return a * b <= 0 ? 0 : (2 * a * b) / (a + b); });
+}
 function sampleTL(tl: Seg[], t: number): { k: WK; block: string | null; label: string } {
   const len = tl[tl.length - 1].t;
   t = ((t % len) + len) % len;
   let i = 0;
   while (i < tl.length - 2 && t >= tl[i + 1].t) i++;
   const a = tl[i], b = tl[i + 1];
-  const k = easeK(b.ease, b.t > a.t ? (t - a.t) / (b.t - a.t) : 1);
-  const g: Vec = [lerp(a.k.g[0], b.k.g[0], k), lerp(a.k.g[1], b.k.g[1], k), lerp(a.k.g[2], b.k.g[2], k)];
-  const blk = (b.block && k > 0.3) ? b.block : a.block && k < 0.7 ? a.block : null;
-  return { k: { g, d: nlerp(a.k.d, b.k.d, k), e: nlerp(a.k.e, b.k.e, k), ty: lerp(a.k.ty, b.k.ty, k), tp: lerp(a.k.tp, b.k.tp, k) }, block: blk ?? null, label: b.label };
+  const dt = b.t - a.t;
+  const u = easeK(b.ease, dt > 0 ? (t - a.t) / dt : 1);
+  const A = keyVec(a.k), B = keyVec(b.k), mA = tangent(tl, i), mB = tangent(tl, i + 1);
+  const h00 = 2 * u * u * u - 3 * u * u + 1, h10 = u * u * u - 2 * u * u + u, h01 = -2 * u * u * u + 3 * u * u, h11 = u * u * u - u * u;
+  const v = A.map((x, j) => h00 * x + h10 * dt * mA[j] + h01 * B[j] + h11 * dt * mB[j]);
+  const k: WK = { g: [v[0], v[1], v[2]], d: nrm([v[3], v[4], v[5]]), e: nrm([v[6], v[7], v[8]]), ty: v[9], tp: v[10] };
+  const blk = (b.block && u > 0.3) ? b.block : a.block && u < 0.7 ? a.block : null;
+  return { k, block: blk ?? null, label: b.label };
 }
 export function loopLength(w: WeaponId, move: Move, shield = false) { const tl = timeline(w, move, shield); return tl[tl.length - 1].t; }
 export function phaseAt(w: WeaponId, move: Move, shield: boolean, t: number) { return sampleTL(timeline(w, move, shield), t).label; }
@@ -361,12 +394,19 @@ function pushOut(p: Vec, r: number): Vec {
 function avoidKey(k: WK, tip: number, back = 0, blade = true): WK {
   const g = pushOut(k.g, 0.055);
   let d = k.d;
-  for (let it = 0; it < (blade ? 8 : 0); it++) {
-    let worst = 0, at: Vec | null = null;
-    for (let s = -back; s <= tip; s += 0.08) { if (Math.abs(s) < 0.1) continue; const p = add3(g, sc(d, s)); const pe = bodyPen(p, 0.02); if (pe > worst) { worst = pe; at = p; } }
-    if (!at || worst < 0.005) break;
-    const out = nrm(sub3(pushOut(at, 0.03), at));
-    d = nrm(add3(d, sc(out, 0.35)));
+  // continuous correction: every penetrating sample along the blade pushes it outward in
+  // proportion to its depth, so the pose never jumps between frames
+  for (let it = 0; it < (blade ? 5 : 0); it++) {
+    let acc: Vec = [0, 0, 0];
+    for (let s = -back; s <= tip; s += 0.04) {
+      if (Math.abs(s) < 0.1) continue;
+      const p = add3(g, sc(d, s)); const pe = bodyPen(p, 0.02);
+      if (pe <= 0) continue;
+      const rad = p[1] > 0.47 ? nrm(sub3(p, [0, 0.58, 0.01])) : nrm([p[0] / 0.21, 0, (p[2] - 0.01) / 0.14]);
+      acc = add3(acc, sc(rad, pe * Math.sign(s)));
+    }
+    if (Math.hypot(...acc) < 1e-5) break;
+    d = nrm(add3(d, sc(acc, 4)));
   }
   const e = nrm(sub3(k.e, sc(d, dot(k.e, d))));
   return { ...k, g, d, e: isFinite(e[0]) ? e : k.e };
@@ -467,8 +507,17 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     if (spec) key = classFor(spec.id).idle;
   } else if (spec) {
     // combat: upper body from the attack, lower body planted (or walking, layered like Warband)
-    const smp = sampleTL(timeline(spec.id, eq.move ?? "all", shieldArm), t);
+    const tl = timeline(spec.id, eq.move ?? "all", shieldArm);
+    const smp = sampleTL(tl, t);
     key = smp.k; blocking = !!smp.block; shieldDir = smp.block;
+    // overlapping action: hips and shoulders start turning a moment before the arm
+    const lead = sampleTL(tl, t + 0.07).k;
+    key = { ...key, ty: key.ty * 0.35 + lead.ty * 0.65, tp: key.tp * 0.5 + lead.tp * 0.5 };
+    // guard is never perfectly still: slow breathing and a little drift of the weapon
+    if (smp.label === "garda" || smp.label === "trzymanie") {
+      const br = Math.sin(t * 2.1), dr = Math.sin(t * 1.3 + 1.1);
+      key = { ...key, g: add3(key.g, [dr * 0.008, br * 0.01, Math.sin(t * 0.9) * 0.008]), tp: key.tp + br * 0.012 };
+    }
     if (!walking) {
       // weight on the back leg while winding up, onto the front leg (lunge) as the strike lands
       const fw = Math.max(-1, Math.min(1, key.tp / 0.3));
@@ -481,7 +530,7 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     }
     const sb = shieldArm && blocking;
     pose.r = {
-      pelvis: add3(walkPelvis, [0, key.ty * 0.3, 0]) as V3, torso: add3(walkTorso, [key.tp, key.ty * 0.62, 0]) as V3, head: [-key.tp * 0.6, -key.ty * 0.55, 0],
+      pelvis: add3(walkPelvis, [0, key.ty * 0.3, 0]) as V3, torso: add3(walkTorso, [key.tp, key.ty * 0.62, 0]) as V3, head: [-key.tp * 0.7, -key.ty * 0.82, 0],
       uarmL: shieldArm ? (sb ? (shieldDir === "up" ? [-1.75, 0.3, 0.25] : [-1.2, 0.35, 0.2]) : [-0.75, 0.25, 0.12]) : [0.06, 0, 0.18],
       farmL: shieldArm ? [sb ? (shieldDir === "up" ? -0.9 : -1.25) : -1.15, 0, 0] : [-0.3, 0, 0], handL: [0, 0, 0.05],
     };
