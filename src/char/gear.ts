@@ -1,9 +1,10 @@
 // Wearable gear: every piece is a separate rigid layer bound to a body joint,
 // textured from its own 256x256 atlas. Pieces stack: gambeson -> mail -> surcoat -> plate.
-import { m4, trs, rng } from "../core/math.ts";
+import { m4, mul, trs, rng } from "../core/math.ts";
 import { TMesh, Ring } from "./tmesh.ts";
 import { Region } from "./atlas.ts";
-import { LevelSpec, Joint } from "./human.ts";
+import { LevelSpec, Joint, skirt } from "./human.ts";
+import type { WeaponId } from "./weapons.ts";
 
 export const GREG = {
   gamTorso: { x: 0, y: 0, w: 64, h: 64 }, gamSkirt: { x: 64, y: 0, w: 64, h: 32 }, gamArm: { x: 128, y: 0, w: 32, h: 32 }, gamCollar: { x: 160, y: 0, w: 32, h: 8 },
@@ -33,9 +34,9 @@ export function paintGear(): ImageData {
   // --- gambeson: off-white linen, vertical quilting channels, stitch dots
   const linen = hex(0xa89a72);
   const quilt = (x: number, y: number, side: number): C => {
-    const ch = x % 6, k = ch === 0 ? 0.8 : ch === 1 || ch === 5 ? 0.92 : 1.02;
+    const ch = x % 8, k = ch === 0 ? 0.86 : ch === 1 || ch === 7 ? 0.95 : 1.01;
     let c = sh(linen, k * (1 - side * 0.12) * n(0.04));
-    if (ch === 0 && y % 3 === 1) c = sh(linen, 0.66);
+    if (ch === 0 && y % 4 === 1) c = sh(linen, 0.72);
     if (r() < 0.012) c = sh(hex(0x6b5a3a), 1);       // grime
     return c;
   };
@@ -114,14 +115,14 @@ export function paintGear(): ImageData {
   fill(G.gauntlet, (x, y) => { let c = steel(x, y * 1.3, 32, 32); if (y % 5 === 0) c = sh(c, 0.6); if (y > 18) c = sh(hex(0x4a3524), n(0.08)); return c; });
 
   // --- surcoat: black field, blood-red border, white raven on front (heraldry of the Raven Lord)
-  const raven = ["....##......", "...####.....", "..##.###....", "##..#####...", "....######..", "....#######.", "...########.", "..#######...", "..######....", "...####.....", "....#..#....", "...##..##..."];
+  const raven = ["................", ".....###........", "....#####.......", "..#######.......", "....######......", ".....#######....", ".....#########..", "....###########.", "....############", ".....#########..", "......######....", ".......####.....", "........#.#.....", ".......##.##....", "................", "................"];
   const field = hex(0x1d1b1f), red = hex(0x7d1a14), bone = hex(0xd9d2c0);
   fill(G.surcoat, (x, y) => {
     let c = sh(field, n(0.06) * (1 - Math.abs(x - 31.5) / 32 * 0.15));
     if (x % 10 === 0) c = sh(c, 0.75);                       // cloth folds
     if (Math.abs(x - 15.5) < 1 || Math.abs(x - 47.5) < 1) c = sh(red, 0.7);   // side seams (arm holes)
-    const rx = Math.floor((x - 20) / 2), ry = Math.floor((y - 14) / 2);
-    if (rx >= 0 && rx < 12 && ry >= 0 && ry < 12 && raven[ry][rx] === "#") c = sh(bone, n(0.05));
+    const rx = Math.floor((x - 16) / 2), ry = Math.floor((y - 12) / 2);
+    if (rx >= 0 && rx < 16 && ry >= 0 && ry < 16 && raven[ry][rx] === "#") c = sh(bone, n(0.05));
     if (y < 3) c = red;
     return c;
   });
@@ -130,8 +131,8 @@ export function paintGear(): ImageData {
   fill(G.shieldFront, (x, y) => {
     let c = sh(field, n(0.05));
     if (x < 4 || x > 59 || y < 4) c = red;
-    const rx = Math.floor((x - 14) / 3), ry = Math.floor((y - 12) / 3);
-    if (rx >= 0 && rx < 12 && ry >= 0 && ry < 12 && raven[ry][rx] === "#") c = sh(bone, n(0.05));
+    const rx = Math.floor((x - 8) / 3), ry = Math.floor((y - 6) / 3);
+    if (rx >= 0 && rx < 16 && ry >= 0 && ry < 16 && raven[ry][rx] === "#") c = sh(bone, n(0.05));
     if (r() < 0.02) c = sh(hex(0x6a5a44), 1);                 // chipped paint shows wood
     return c;
   });
@@ -160,12 +161,13 @@ export function paintMailTile(): ImageData {
 }
 
 export type Loadout = "base" | "levy" | "sergeant" | "knight" | "plate";
-export const LOADOUTS: Record<Loadout, { name: string; desc: string }> = {
-  base: { name: "Chłop", desc: "tunika, owijacze" },
-  levy: { name: "Pachołek", desc: "przeszywanica, kapalin, sakwa, nóż" },
-  sergeant: { name: "Zbrojny", desc: "przeszywanica, kolczuga, czepiec, szyszak z nosalem, miecz u pasa, tarcza na plecach" },
-  knight: { name: "Rycerz", desc: "kolczuga, czepiec, wappenrock, hełm garnczkowy, nakolanniki, nagolenniki, tarcza, miecz" },
-  plate: { name: "Zbrojny w płytach", desc: "kolczuga, napierśnik, naramienniki, zarękawia, nagolenniki, rękawice, kapalin, buzdygan" },
+export interface LoadoutSpec { name: string; desc: string; weapon: WeaponId; shield: "none" | "arm" | "back"; scabbard: boolean }
+export const LOADOUTS: Record<Loadout, LoadoutSpec> = {
+  base: { name: "Chłop", desc: "tunika, owijacze, siekiera", weapon: "hatchet", shield: "none", scabbard: false },
+  levy: { name: "Pachołek", desc: "przeszywanica, kapalin, sakwa, nóż, włócznia oburącz", weapon: "spear", shield: "none", scabbard: false },
+  sergeant: { name: "Zbrojny", desc: "przeszywanica, kolczuga, czepiec, szyszak z nosalem, miecz, pochwa, tarcza na plecach", weapon: "sword", shield: "back", scabbard: true },
+  knight: { name: "Rycerz", desc: "przeszywanica (pod spodem), kolczuga, czepiec, wappenrock, hełm garnczkowy, nakolanniki, nagolenniki, rękawice, miecz i tarcza", weapon: "sword", shield: "arm", scabbard: true },
+  plate: { name: "Zbrojny w płytach", desc: "kolczuga, napierśnik z fartuchem, naramienniki, zarękawia, nałokietniki, nabiodrki, nagolenniki, rękawice, kapalin, buzdygan", weapon: "mace", shield: "none", scabbard: false },
 };
 
 const inflate = (rings: Ring[], k: number, kz = k): Ring[] => rings.map((r) => [r[0], r[1] + k, r[2] + kz, r[3], r[4]]);
@@ -176,8 +178,11 @@ const UARM: Ring[] = [[-0.3, 0.043, 0.043], [-0.16, 0.05, 0.05], [-0.04, 0.058, 
 const FARM: Ring[] = [[-0.27, 0.031, 0.029], [-0.16, 0.041, 0.04], [-0.05, 0.046, 0.044], [0.02, 0.042, 0.042]];
 const HEAD: Ring[] = [[-0.02, 0.05, 0.05], [0.06, 0.053, 0.057, 0, 0.004], [0.085, 0.07, 0.08, 0, 0.012], [0.125, 0.082, 0.096, 0, 0.012], [0.17, 0.088, 0.1, 0, 0.008], [0.215, 0.091, 0.103], [0.255, 0.087, 0.099, 0, -0.005], [0.282, 0.073, 0.084, 0, -0.009], [0.3, 0.048, 0.056, 0, -0.011], [0.308, 0.018, 0.022, 0, -0.011]];
 
-export function buildGear(L: LevelSpec, lo: Loadout): { joint: Joint; mesh: TMesh; tex: number }[] {
-  const out: { joint: Joint; mesh: TMesh; tex: number }[] = [];
+export interface GearPiece { joint: Joint; mesh: TMesh; tex: number }
+/** Returns gear meshes plus which body parts they fully cover (so the body is not drawn under them). */
+export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hide: Set<string>; gauntlets: boolean } {
+  const out: GearPiece[] = [];
+  const hide = new Set<string>();
   const sub = (rings: Ring[]): Ring[] => {
     if (!L.subdiv) return rings;
     const o: Ring[] = [];
@@ -185,136 +190,133 @@ export function buildGear(L: LevelSpec, lo: Loadout): { joint: Joint; mesh: TMes
     o.push(rings[rings.length - 1]); return o;
   };
   const piece = (joint: Joint, f: (t: TMesh) => void, tex = 1) => { const t = new TMesh(256); f(t); out.push({ joint, mesh: t, tex }); };
-  const mail = (joint: Joint, f: (t: TMesh) => void) => piece(joint, (t) => { t.mat = 1; f(t); }, 2);
+  const mailP = (joint: Joint, f: (t: TMesh) => void) => piece(joint, (t) => { t.mat = 1; f(t); }, 2);
+  const sk = (rings: Ring[], R: Region, o: Record<string, unknown>, tex = 1, mat = 0) => skirt((j, f) => piece(j, f, tex), rings, L.torso, R, o, mat);
   const sm = { smooth: L.smooth };
   const I = () => m4();
-  const sides = { limb: L.limb, torso: L.torso, head: L.head };
   const has = {
-    gam: lo === "levy" || lo === "sergeant",
+    gam: lo === "levy" || lo === "sergeant" || lo === "knight",
+    gamShow: lo === "levy" || lo === "sergeant",
     mail: lo === "sergeant" || lo === "knight" || lo === "plate",
     coif: lo === "sergeant" || lo === "knight",
     sur: lo === "knight",
-    breast: lo === "plate",
-    pauld: lo === "plate",
-    vamb: lo === "plate",
+    plate: lo === "plate",
     legs: lo === "knight" || lo === "plate",
     gaunt: lo === "plate" || lo === "knight",
   };
-  let layer = 0;
-  const step = () => (++layer) * 0.016 + 0.006;
+  // layer offsets over the body (metres); each one clears the layer below
+  const kG = 0.022, kM = has.gam ? 0.038 : 0.02, kS = kM + 0.014;
 
-  if (has.gam) {
-    const k = step();
+  if (has.gamShow) {
+    hide.add("torso"); hide.add("uarm"); hide.add("farm"); hide.add("skirt");
     piece("torso", (t) => {
-      t.loft(I(), sub(inflate(TORSO, k, k * 0.9)), sides.torso, GREG.gamTorso, sm);
-      t.loft(I(), [[0.4, 0.105, 0.085], [0.47, 0.085, 0.078]], sides.torso, GREG.gamCollar, sm);   // stand collar
+      t.loft(I(), sub(inflate(TORSO, kG, kG * 0.9)), L.torso, GREG.gamTorso, sm);
+      if (!has.coif) t.loft(I(), [[0.4, 0.112, 0.09], [0.47, 0.088, 0.08]], L.torso, GREG.gamCollar, sm);   // stand collar
     });
-    piece("pelvis", (t) => t.loft(I(), sub([[-0.4, 0.245, 0.19, 0, 0.01], [-0.22, 0.225, 0.17], [-0.04, 0.2, 0.145], [0.14, 0.168 + k, 0.112 + k]]), sides.torso, GREG.gamSkirt, sm));
+    if (has.gamShow) sk(sub([[-0.4, 0.25, 0.195, 0, 0.01], [-0.22, 0.232, 0.178], [-0.04, 0.205, 0.15], [0.12, 0.178, 0.124]]), GREG.gamSkirt, sm);
     for (const s of ["L", "R"] as const) {
-      piece(`uarm${s}`, (t) => t.loft(I(), sub(inflate(UARM, k)), sides.limb, GREG.gamArm, { ...sm, capTop: true }));
-      piece(`farm${s}`, (t) => t.loft(I(), sub(inflate(FARM.slice(1), k * 0.8)), sides.limb, GREG.gamArm, sm));
+      piece(`uarm${s}`, (t) => t.loft(I(), sub(inflate(UARM, kG)), L.limb, GREG.gamArm, { ...sm, capTop: true }));
+      piece(`farm${s}`, (t) => t.loft(I(), sub(inflate(FARM, kG * 0.8)), L.limb, GREG.gamArm, sm));
     }
   }
   if (has.mail) {
-    const k = step();
-    const len = has.gam ? -0.3 : -0.32;
-    mail("torso", (t) => t.loft(I(), sub(inflate(TORSO, k, k * 0.9)), sides.torso, GREG.mail, { ...sm, tile: [12, 5] }));
-    mail("pelvis", (t) => t.loft(I(), sub([[len, 0.24, 0.18, 0, 0.01], [-0.1, 0.212, 0.16], [0.14, 0.168 + k, 0.112 + k]]), sides.torso, GREG.mail, { ...sm, tile: [14, 5] }));
-    piece("pelvis", (t) => { t.mat = 2; t.loft(I(), [[len - 0.015, 0.243, 0.183, 0, 0.01], [len + 0.01, 0.241, 0.181, 0, 0.01]], sides.torso, GREG.mailHem, sm); });
+    hide.add("torso"); hide.add("uarm"); hide.add("farm"); hide.add("skirt");
+    const len = has.gamShow ? -0.3 : -0.36;
+    mailP("torso", (t) => t.loft(I(), sub(inflate(TORSO, kM, kM * 0.9)), L.torso, GREG.mail, { ...sm, tile: [12, 5] }));
+    const skR: Ring[] = has.gamShow ? [[len, 0.262, 0.205, 0, 0.01], [-0.1, 0.232, 0.178], [0.12, 0.196 + 0.004, 0.14]] : [[len, 0.25, 0.19, 0, 0.01], [-0.1, 0.215, 0.162], [0.12, 0.185, 0.13]];
+    sk(sub(skR), GREG.mail, { ...sm, tile: [7, 5] }, 2, 1);
+    const hem = skR[0];
+    sk([[len - 0.012, hem[1] + 0.006, hem[2] + 0.006, 0, 0.01], [len + 0.014, hem[1] + 0.003, hem[2] + 0.003, 0, 0.01]], GREG.mailHem, sm, 1, 2);
     for (const s of ["L", "R"] as const) {
-      mail(`uarm${s}`, (t) => t.loft(I(), sub(inflate(UARM, k)), sides.limb, GREG.mailFine, { ...sm, capTop: true, tile: [5, 4] }));
-      mail(`farm${s}`, (t) => t.loft(I(), sub(inflate(FARM, k * 0.8)), sides.limb, GREG.mailFine, { ...sm, tile: [4, 4] }));
+      mailP(`uarm${s}`, (t) => t.loft(I(), sub(inflate(UARM, kM)), L.limb, GREG.mailFine, { ...sm, capTop: true, tile: [5, 4] }));
+      mailP(`farm${s}`, (t) => t.loft(I(), sub(inflate(FARM, kM * 0.75)), L.limb, GREG.mailFine, { ...sm, tile: [4, 4] }));
     }
   }
+  const coifK = 0.013;
   if (has.coif) {
-    piece("head", (t) => { t.mat = 1; t.loft(I(), sub(inflate(HEAD.slice(0, -1), 0.012, 0.012).concat([[0.322, 0.03, 0.035, 0, -0.01]])), sides.head, GREG.coif, { ...sm, capTop: true }); });
-    // mantle over the shoulders
-    mail("torso", (t) => t.loft(I(), sub([[0.3, 0.215, 0.15], [0.37, 0.19, 0.135], [0.42, 0.12, 0.1], [0.47, 0.068, 0.074]]), sides.torso, GREG.mailFine, { ...sm, tile: [12, 2] }));
+    hide.add("ears");
+    if (lo !== "knight") mailP("head", (t) => t.loft(I(), sub(inflate(HEAD.slice(0, -1), coifK, coifK).concat([[0.322, 0.03, 0.035, 0, -0.01]])), L.head, GREG.coif, { ...sm, capTop: true }));
+    // mantle over the shoulders, wider than the hauberk so it never sinks in
+    mailP("torso", (t) => t.loft(I(), sub([[0.29, 0.19 + kM + 0.018, 0.116 + kM + 0.02], [0.36, 0.175 + kM + 0.016, 0.108 + kM + 0.016], [0.42, 0.12 + kM, 0.094 + kM * 0.8], [0.48, 0.068, 0.074]]), L.torso, GREG.mailFine, { ...sm, tile: [12, 2] }));
   }
   if (has.sur) {
-    const k = step() + 0.004;
-    piece("torso", (t) => t.loft(I(), sub(inflate(TORSO.slice(0, 5), k, k * 0.9).concat([[0.4, 0.15, 0.1]])), sides.torso, GREG.surcoat, sm));
-    piece("pelvis", (t) => t.loft(I(), sub([[-0.47, 0.27, 0.22, 0, 0.015], [-0.2, 0.235, 0.18], [0.14, 0.168 + k, 0.112 + k]]), sides.torso, GREG.surSkirt, sm));
-    piece("pelvis", (t) => t.loft(I(), [[0.09, 0.19, 0.135], [0.125, 0.185, 0.13]], sides.torso, GREG.leather, sm));   // sword belt
+    piece("torso", (t) => t.loft(I(), sub(inflate(TORSO.slice(0, 5), kS, kS * 0.9).concat([[0.4, 0.15 + kS * 0.5, 0.1 + kS * 0.5]])), L.torso, GREG.surcoat, sm));
+    sk(sub([[-0.47, 0.3, 0.245, 0, 0.015], [-0.2, 0.264, 0.212], [0.12, 0.2 + 0.01, 0.152]]), GREG.surSkirt, sm);
+    piece("pelvis", (t) => t.loft(I(), [[0.08, 0.212, 0.162], [0.12, 0.208, 0.158]], L.torso, GREG.leather, sm));   // sword belt over the surcoat
+  } else if (lo === "sergeant") {
+    piece("pelvis", (t) => t.loft(I(), [[0.08, 0.205, 0.15], [0.12, 0.202, 0.147]], L.torso, GREG.leather, sm));
   }
-  if (has.breast) {
+  if (has.plate) {
+    // breastplate + backplate shaped over the mail, keel forward
+    const kP = kM + 0.02;
     piece("torso", (t) => {
       t.mat = 2;
-      t.loft(I(), sub([[0.02, 0.18, 0.13, 0, 0.012], [0.12, 0.19, 0.145, 0, 0.03], [0.22, 0.205, 0.155, 0, 0.034], [0.31, 0.205, 0.138, 0, 0.016], [0.37, 0.18, 0.118], [0.4, 0.12, 0.095]]), sides.torso, GREG.plate, sm);
+      t.loft(I(), sub([[0.02, 0.152 + kP, 0.102 + kP, 0, 0.014], [0.12, 0.168 + kP, 0.112 + kP + 0.012, 0, 0.026], [0.22, 0.185 + kP, 0.122 + kP + 0.012, 0, 0.032], [0.31, 0.19 + kP, 0.116 + kP, 0, 0.014], [0.37, 0.17 + kP * 0.8, 0.102 + kP * 0.8], [0.405, 0.12 + kP * 0.4, 0.09 + kP * 0.4]]), L.torso, GREG.plate, sm);
     });
-    piece("pelvis", (t) => { t.mat = 2; for (let i = 0; i < 3; i++) { const y = 0.1 - i * 0.07; t.loft(I(), [[y - 0.075, 0.2 + i * 0.012, 0.15 + i * 0.012, 0, 0.012], [y, 0.19 + i * 0.012, 0.14 + i * 0.012, 0, 0.012]], sides.torso, GREG.plateLimb, sm); } });
+    // fauld: three lames, each wider than the one above
+    for (let i = 0; i < 3; i++) {
+      const y = 0.06 - i * 0.065;
+      piece("pelvis", (t) => { t.mat = 2; t.loft(I(), [[y - 0.07, 0.226 + i * 0.01, 0.174 + i * 0.01, 0, 0.014], [y, 0.214 + i * 0.01, 0.162 + i * 0.01, 0, 0.014]], L.torso, GREG.plateLimb, sm); });
+    }
   }
   for (const s of ["L", "R"] as const) {
     const side = s === "L" ? 1 : -1;
-    if (has.pauld) piece(`uarm${s}`, (t) => { t.mat = 2; t.loft(I(), sub([[-0.13, 0.082, 0.078, side * 0.012], [-0.06, 0.088, 0.084, side * 0.012], [0.01, 0.084, 0.08, side * 0.008], [0.06, 0.06, 0.058, side * 0.004], [0.085, 0.02, 0.02]]), sides.limb, GREG.plateLimb, { ...sm, capTop: true }); });
-    if (has.vamb) piece(`farm${s}`, (t) => {
-      t.mat = 2;
-      t.loft(I(), sub([[-0.24, 0.044, 0.042], [-0.12, 0.054, 0.052], [-0.03, 0.058, 0.056]]), sides.limb, GREG.plateLimb, sm);
-      t.loft(I(), [[-0.03, 0.06, 0.06, 0, -0.01], [0.03, 0.065, 0.062, 0, -0.012], [0.06, 0.03, 0.03, 0, -0.012]], sides.limb, GREG.plateDark, { ...sm, capTop: true });  // couter
-    });
-    if (has.gaunt) piece(`hand${s}`, (t) => { t.mat = 2; t.loft(I(), [[-0.15, 0.02, 0.04, 0, 0.012], [-0.09, 0.026, 0.054, 0, 0.006], [-0.03, 0.03, 0.054], [0.03, 0.04, 0.044]], Math.max(5, sides.limb - 1), GREG.gauntlet, { ...sm, capBot: true }); });
+    if (has.plate) {
+      piece(`uarm${s}`, (t) => { t.mat = 2; t.loft(I(), sub([[-0.14, 0.096, 0.092, side * 0.012], [-0.06, 0.104, 0.1, side * 0.014], [0.01, 0.1, 0.096, side * 0.01], [0.065, 0.07, 0.068, side * 0.004], [0.095, 0.02, 0.02]]), L.limb, GREG.plateLimb, { ...sm, capTop: true }); });
+      piece(`farm${s}`, (t) => {
+        t.mat = 2;
+        t.loft(I(), sub([[-0.25, 0.058, 0.056], [-0.13, 0.07, 0.068], [-0.04, 0.074, 0.072]]), L.limb, GREG.plateLimb, sm);
+        t.loft(I(), [[-0.035, 0.08, 0.08, 0, -0.012], [0.03, 0.084, 0.082, 0, -0.016], [0.065, 0.034, 0.034, 0, -0.016]], L.limb, GREG.plateDark, { ...sm, capTop: true });  // couter
+      });
+      piece(`thigh${s}`, (t) => { t.mat = 2; t.loft(I(), sub([[-0.38, 0.072, 0.08, 0, 0.006], [-0.2, 0.09, 0.1, 0, 0.008], [-0.08, 0.1, 0.106, 0, 0.008]]), L.limb, GREG.plateLimb, sm); });
+    }
     if (has.legs) {
       piece(`shin${s}`, (t) => {
         t.mat = 2;
-        t.loft(I(), sub([[-0.38, 0.056, 0.06, 0, 0.004], [-0.18, 0.068, 0.078, 0, 0.004], [-0.05, 0.064, 0.072, 0, 0.006]]), sides.limb, GREG.plateLimb, sm);
-        t.loft(I(), [[-0.04, 0.07, 0.07, 0, 0.018], [0.03, 0.078, 0.078, 0, 0.022], [0.08, 0.04, 0.045, 0, 0.018]], sides.limb, GREG.plateDark, { ...sm, capTop: true });  // poleyn
+        t.loft(I(), sub([[-0.37, 0.062, 0.066, 0, 0.004], [-0.18, 0.074, 0.086, 0, 0.004], [-0.05, 0.07, 0.08, 0, 0.006]]), L.limb, GREG.plateLimb, sm);
+        t.loft(I(), [[-0.045, 0.078, 0.078, 0, 0.018], [0.03, 0.086, 0.086, 0, 0.022], [0.085, 0.044, 0.05, 0, 0.018]], L.limb, GREG.plateDark, { ...sm, capTop: true });  // poleyn
+      });
+    }
+    if (has.gaunt) {
+      hide.add("hand" + s);
+      piece(`hand${s}`, (t) => {
+        t.mat = 2;
+        t.loft(I(), [[-0.12, 0.03, 0.058, 0, 0.004], [-0.09, 0.036, 0.062], [-0.045, 0.034, 0.058], [-0.005, 0.03, 0.046], [0.03, 0.05, 0.056], [0.05, 0.054, 0.058]], Math.max(5, L.limb - 1), GREG.gauntlet, { ...sm, capBot: true });
       });
     }
   }
-  // --- helmets
+  // --- helmets (sized to sit over the coif when one is worn)
+  const hb = has.coif ? coifK + 0.014 : 0.012;
   if (lo === "levy" || lo === "plate") piece("head", (t) => {
     t.mat = 2;
-    t.loft(I(), sub([[0.195, 0.1, 0.112, 0, -0.004], [0.255, 0.097, 0.108, 0, -0.006], [0.305, 0.075, 0.084, 0, -0.01], [0.335, 0.032, 0.036, 0, -0.01], [0.343, 0.005, 0.005, 0, -0.01]]), sides.head, GREG.kettle, { ...sm, capTop: true });
-    t.loft(I(), [[0.165, 0.185, 0.195, 0, -0.004], [0.2, 0.102, 0.114, 0, -0.004]], sides.head, GREG.brim, sm);
+    t.loft(I(), sub([[0.19, 0.09 + hb, 0.102 + hb, 0, -0.002], [0.25, 0.088 + hb, 0.1 + hb, 0, -0.005], [0.3, 0.062 + hb, 0.072 + hb, 0, -0.01], [0.33 + hb * 0.6, 0.026, 0.03, 0, -0.01], [0.338 + hb * 0.6, 0.004, 0.004, 0, -0.01]]), L.head, GREG.kettle, { ...sm, capTop: true });
+    t.loft(I(), [[0.165, 0.2, 0.21, 0, -0.004], [0.2, 0.094 + hb, 0.106 + hb, 0, -0.004]], L.head, GREG.brim, sm);
   });
   if (lo === "sergeant") piece("head", (t) => {
     t.mat = 2;
-    t.loft(I(), sub([[0.185, 0.104, 0.116, 0, -0.002], [0.24, 0.102, 0.113, 0, -0.004], [0.3, 0.078, 0.088, 0, -0.008], [0.355, 0.03, 0.034, 0, -0.01], [0.375, 0.004, 0.004, 0, -0.01]]), sides.head, GREG.nasal, { ...sm, capTop: true });
-    t.box(trs(m4(), 0, 0.15, 0.118, 0, -0.05), 0.02, 0.085, 0.008, GREG.steelDark);
+    t.loft(I(), sub([[0.2, 0.09 + hb, 0.102 + hb, 0, -0.002], [0.25, 0.087 + hb, 0.099 + hb, 0, -0.005], [0.3, 0.058 + hb, 0.068 + hb, 0, -0.01], [0.35 + hb, 0.022, 0.026, 0, -0.012], [0.372 + hb, 0.003, 0.003, 0, -0.012]]), L.head, GREG.nasal, { ...sm, capTop: true });
+    t.box(trs(m4(), 0, 0.165, 0.103 + hb + 0.008, 0, -0.08), 0.02, 0.085, 0.008, GREG.steelDark);    // nasal
   });
-  if (lo === "knight") piece("head", (t) => {
-    t.mat = 2;
-    t.loft(I(), sub([[0.01, 0.112, 0.124, 0, 0.004], [0.12, 0.118, 0.13, 0, 0.006], [0.25, 0.115, 0.127, 0, 0.002], [0.315, 0.104, 0.115], [0.345, 0.07, 0.078], [0.352, 0.004, 0.004]]), sides.head, GREG.greathelm, { ...sm, capTop: true });
-  });
-  // --- equipment
-  if (lo === "levy") {
-    piece("pelvis", (t) => { t.box(trs(m4(), 0.17, -0.04, 0.09, 0.6), 0.09, 0.1, 0.045, GREG.pouch); t.box(trs(m4(), -0.17, -0.08, 0.05, -0.3, 0, 0.15), 0.025, 0.18, 0.03, GREG.leather); });
-  }
-  if (lo === "sergeant" || lo === "knight") {
-    // sword in scabbard on the left hip, hilt forward
-    piece("pelvis", (t) => {
-      const m = trs(m4(), 0.19, -0.04, 0.03, 0, 0.62, 0.1);
-      const M = (x: number, y: number, z: number, w: number, h: number, d: number, R: Region, mat = 0) => { t.mat = mat; const mm = m4(); for (let i = 0; i < 16; i++) mm[i] = m[i]; const local = trs(m4(), x, y, z); const r = new Float32Array(16); for (let c = 0; c < 4; c++) for (let rr = 0; rr < 4; rr++) { let s = 0; for (let k = 0; k < 4; k++) s += mm[k * 4 + rr] * local[c * 4 + k]; r[c * 4 + rr] = s; } t.box(r, w, h, d, R); };
-      M(0, -0.33, 0, 0.045, 0.7, 0.025, GREG.scabbard);
-      M(0, 0.06, 0, 0.17, 0.025, 0.03, GREG.brass, 2);         // cross guard
-      M(0, 0.14, 0, 0.032, 0.14, 0.032, GREG.grip);
-      M(0, 0.23, 0, 0.05, 0.04, 0.035, GREG.brass, 2);         // pommel
-    });
-  }
-  if (lo === "sergeant") {
-    // heater shield slung on the back
-    piece("torso", (t) => { t.mat = 0; t.plate2d(trs(m4(), 0, 0.2, -0.17, Math.PI), heater(0.5, 0.62), 0.03, GREG.shieldFront, GREG.wood, GREG.rim); });
-  }
   if (lo === "knight") {
-    // shield on the left forearm, face outward
-    piece("farmL", (t) => { t.plate2d(trs(m4(), 0.07, -0.12, 0.02, Math.PI / 2, 0, 0), heater(0.5, 0.62), 0.03, GREG.shieldFront, GREG.wood, GREG.rim); });
-  }
-  if (lo === "plate") {
-    // flanged mace in the right hand, head down
-    piece("handR", (t) => {
-      t.box(trs(m4(), 0, -0.05, 0.03, 0, -0.5), 0.03, 0.52, 0.03, GREG.grip);
+    hide.add("head");
+    piece("head", (t) => {
       t.mat = 2;
-      const hm = trs(m4(), 0, -0.27, 0.15, 0, -0.5);
-      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI; const r = new Float32Array(16); const rot = trs(m4(), 0, 0, 0, a); for (let c = 0; c < 4; c++) for (let rr = 0; rr < 4; rr++) { let s = 0; for (let k = 0; k < 4; k++) s += hm[k * 4 + rr] * rot[c * 4 + k]; r[c * 4 + rr] = s; } t.box(r, 0.13, 0.12, 0.012, GREG.plateLimb); }
+      t.loft(I(), sub([[-0.005, 0.118, 0.13, 0, 0.006], [0.12, 0.124, 0.137, 0, 0.008], [0.25, 0.121, 0.133, 0, 0.004], [0.318, 0.108, 0.12], [0.345, 0.074, 0.082], [0.353, 0.004, 0.004]]), L.head, GREG.greathelm, { ...sm, capTop: true });
     });
   }
-  return out;
-}
-
-function heater(w: number, h: number): number[][] {
-  const pts: number[][] = [];
-  pts.push([-w / 2, h * 0.5], [w / 2, h * 0.5]);
-  for (let i = 0; i <= 6; i++) { const t = i / 6; pts.push([w / 2 * (1 - t * t), h * 0.5 - h * 0.35 - t * h * 0.65 + h * 0.35 * (1 - t)]); }
-  for (let i = 5; i >= 1; i--) { const t = i / 6; pts.push([-w / 2 * (1 - t * t), h * 0.5 - h * 0.35 - t * h * 0.65 + h * 0.35 * (1 - t)]); }
-  return pts;
+  // --- equipment carried on the body
+  if (lo === "levy") piece("pelvis", (t) => {
+    t.box(trs(m4(), 0.205, 0.0, 0.1, 0.6), 0.09, 0.1, 0.045, GREG.pouch);
+    t.mat = 2; t.box(trs(m4(), -0.21, -0.04, 0.06, -0.3, 0, -0.15), 0.012, 0.16, 0.03, GREG.blade);
+    t.mat = 0; t.box(trs(m4(), -0.21, 0.07, 0.07, -0.3, 0, -0.15), 0.025, 0.08, 0.025, GREG.grip);
+  });
+  if (LOADOUTS[lo].scabbard) piece("pelvis", (t) => {
+    const r = has.sur ? 0.225 : 0.215;
+    const m = trs(m4(), r, 0.08, 0.05, 0.15, 0.38, 0.26);
+    const at = (x: number, y: number, z: number) => mul(m4(), m, trs(m4(), x, y, z));
+    t.box(at(0, -0.32, 0), 0.03, 0.64, 0.05, GREG.scabbard);
+    t.mat = 2; t.box(at(0, -0.63, 0), 0.034, 0.03, 0.054, GREG.brass); t.box(at(0, -0.02, 0), 0.034, 0.03, 0.056, GREG.brass);
+    t.mat = 0; t.box(at(0.0, 0.0, 0.0), 0.02, 0.015, 0.11, GREG.leather);   // hanger strap
+  });
+  return { pieces: out, hide, gauntlets: has.gaunt };
 }

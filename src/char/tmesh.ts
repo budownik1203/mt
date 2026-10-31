@@ -25,7 +25,7 @@ export class TMesh {
   tri(p: number[][], n: number[][], t: number[][]) { for (let k = 0; k < 3; k++) this.push(p[k], n[k], t[k]); }
 
   /** Loft along +Y. smooth = shared normals per ring (Gouraud), else faceted. */
-  loft(m: Mat4, rings: Ring[], sides: number, R: Region, o: { smooth?: boolean; capTop?: boolean; capBot?: boolean; u0?: number; u1?: number; tile?: [number, number] } = {}) {
+  loft(m: Mat4, rings: Ring[], sides: number, R: Region, o: { smooth?: boolean; capTop?: boolean; capBot?: boolean; u0?: number; u1?: number; tile?: [number, number]; arc?: [number, number] } = {}) {
     const smooth = o.smooth ?? true, u0 = o.u0 ?? 0, u1 = o.u1 ?? 1;
     const yTop = rings[rings.length - 1][0], yBot = rings[0][0];
     const P: number[][][] = [], N: number[][][] = [], UV: number[][][] = [];
@@ -35,7 +35,7 @@ export class TMesh {
       const dr = ((next[1] + next[2]) - (prev[1] + prev[2])) / 2, dy = next[0] - prev[0] || 1;
       const row: number[][] = [], nrow: number[][] = [], urow: number[][] = [];
       for (let i = 0; i <= sides; i++) {
-        const u = i / sides, a = 2 * Math.PI * u - Math.PI / 2;
+        const u = o.arc ? o.arc[0] + (o.arc[1] - o.arc[0]) * (i / sides) : i / sides, a = 2 * Math.PI * u - Math.PI / 2;
         const c = Math.cos(a), s = Math.sin(a);
         row.push(xform(m, c * rx + ox, y, s * rz + oz));
         let hx = c / Math.max(rx, 1e-3), hz = s / Math.max(rz, 1e-3);

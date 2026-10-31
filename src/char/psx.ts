@@ -9,8 +9,8 @@ import { TMesh } from "./tmesh.ts";
 const VS = `#version 300 es
 layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNor; layout(location=2) in vec2 aUV; layout(location=3) in float aMat;
 uniform mat4 uModel, uVP; uniform vec2 uRes; uniform float uSnap, uVertexSpec;
-uniform vec3 uLDir, uLCol, uAmb, uRim, uCam, uPPos, uPCol, uSkyUp, uSkyHor, uSkyDn; uniform float uPRad, uStyle;
-out vec3 vAff; out vec2 vUV; out vec3 vLight; out float vFog; out vec3 vN; out vec3 vW; out float vMat; out vec3 vSpec;
+uniform vec3 uLDir, uLCol, uAmb, uRim, uCam, uPPos, uPCol, uSkyUp, uSkyHor, uSkyDn; uniform float uPRad, uStyle; uniform vec2 uFogP;
+out vec3 vAff; flat out vec2 vFlatUV; out vec2 vUV; out vec3 vLight; out float vFog; out vec3 vN; out vec3 vW; out float vMat; out vec3 vSpec;
 vec3 env(vec3 r){ float y = r.y; vec3 c = y > 0.0 ? mix(uSkyHor, uSkyUp, pow(y,0.6)) : mix(uSkyHor*0.6, uSkyDn, pow(-y,0.4)); c += uSkyHor * 0.8 * exp(-abs(y)*14.0); return c; }
 void main(){
   vec4 w = uModel*vec4(aPos,1.0);
@@ -33,12 +33,13 @@ void main(){
     vSpec = uLCol*s*(aMat > 1.5 ? 0.9 : 0.4) + env(reflect(-v,n)) * (aMat > 1.5 ? 0.3 : 0.1);
     if(uPRad > 0.0){ vec3 d = normalize(uPPos - w.xyz); vSpec += uPCol * pow(max(dot(n, normalize(d+v)),0.0), 20.0) * 0.8 * clamp(1.0 - length(uPPos-w.xyz)/uPRad,0.0,1.0); }
   }
-  vFog = clamp((length(uCam - w.xyz) - 3.5)/9.0, 0.0, 1.0);
+  vFog = clamp((length(uCam - w.xyz) - uFogP.x)/uFogP.y, 0.0, 1.0);
+  vFlatUV = aUV;
 }`;
 
 const FS = `#version 300 es
 precision highp float;
-in vec3 vAff; in vec2 vUV; in vec3 vLight; in float vFog; in vec3 vN; in vec3 vW; in float vMat; in vec3 vSpec;
+in vec3 vAff; flat in vec2 vFlatUV; in vec2 vUV; in vec3 vLight; in float vFog; in vec3 vN; in vec3 vW; in float vMat; in vec3 vSpec;
 uniform sampler2D uTex; uniform float uAffine, uDither, uWire, uStyle, uVertexSpec, uPRad;
 uniform vec3 uFog, uLDir, uLCol, uCam, uSkyUp, uSkyHor, uSkyDn, uPPos, uPCol; uniform vec4 uWireCol;
 out vec4 o;
@@ -48,9 +49,11 @@ void main(){
   if(uWire > 0.5){ o = uWireCol; return; }
   vec2 uv = uAffine > 0.5 ? vAff.xy/vAff.z : vUV;
   vec4 t = texture(uTex, uv);
+  if(uStyle == 7.0){ vec4 tf = textureLod(uTex, vFlatUV, 8.0); t = vec4(mix(tf.rgb, t.rgb, 0.15), t.a); }
   if(t.a < (uDither > 0.5 ? bayer(gl_FragCoord.xy) : 0.5)) discard;
   vec3 base = t.rgb;
   vec3 light = vLight;
+  if(uStyle == 7.0){ vec3 fn = normalize(cross(dFdx(vW), dFdy(vW))); float nd = max(dot(fn, uLDir), 0.0); light = vLight*0.45 + uLCol*nd*0.75; }
   if(uStyle == 4.0){ // ink cel: three hard bands
     float L = dot(light, vec3(0.333));
     float b = L < 0.32 ? 0.28 : L < 0.75 ? 0.62 : 1.0;
@@ -90,7 +93,13 @@ void main(){
 const POST_VS = `#version 300 es
 out vec2 vP; void main(){ vec2 p = vec2((gl_VertexID<<1)&2, gl_VertexID&2); vP = p; gl_Position = vec4(p*2.0-1.0,0.0,1.0); }`;
 const POST_FS = `#version 300 es
-precision highp float; in vec2 vP; uniform sampler2D uC, uD; uniform vec2 uRes; uniform float uOutline, uNear, uFar; uniform vec3 uInk; out vec4 o;
+precision highp float; in vec2 vP; uniform sampler2D uC, uD; uniform vec2 uRes; uniform float uOutline, uNear, uFar, uPost, uTime; uniform vec3 uInk; out vec4 o;
+float bayer(vec2 p){ ivec2 i = ivec2(mod(p,4.0)); int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5); return (float(m[i.y*4+i.x])+0.5)/16.0; }
+const vec3 PAL[16] = vec3[16](vec3(0.067,0.059,0.071),vec3(0.149,0.122,0.118),vec3(0.267,0.208,0.176),vec3(0.420,0.322,0.231),vec3(0.596,0.486,0.341),vec3(0.792,0.725,0.580),
+  vec3(0.165,0.180,0.200),vec3(0.310,0.329,0.361),vec3(0.502,0.522,0.549),vec3(0.737,0.749,0.765),vec3(0.329,0.090,0.071),vec3(0.565,0.161,0.110),
+  vec3(0.208,0.235,0.153),vec3(0.365,0.380,0.235),vec3(0.722,0.502,0.275),vec3(0.180,0.216,0.290));
+vec3 pal(vec3 c){ float bd = 1e9; vec3 b = c; for(int i=0;i<16;i++){ vec3 d = c-PAL[i]; float dd = dot(d,d); if(dd<bd){bd=dd;b=PAL[i];} } return b; }
+float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)))*43758.5453); }
 float lin(float d){ float z = d*2.0-1.0; return 2.0*uNear*uFar/(uFar+uNear-z*(uFar-uNear)); }
 void main(){
   vec2 px = floor(vP*uRes) + 0.5;
@@ -101,12 +110,21 @@ void main(){
       float d = lin(texture(uD, (px+off)/uRes).r); e = max(e, d - d0); }
     if(d0 < 7.0 && e > 0.035 + d0*0.012) c = uInk;
   }
+  if(uPost == 1.0){   // horror: crushed, sickly grade, grain, heavy vignette
+    float g = dot(c, vec3(0.299,0.587,0.114));
+    c = mix(vec3(g), c, 0.55) * vec3(0.95,1.0,0.86);
+    c = pow(c, vec3(1.15));
+    c += (hash(px + fract(uTime)*91.0) - 0.5) * 0.09;
+    vec2 q = vP - 0.5; c *= 1.0 - dot(q,q)*1.6;
+  } else if(uPost == 2.0){
+    c = pal(c + (bayer(px) - 0.5) * 0.09);
+  }
   o = vec4(c,1.0);
 }`;
 
 export interface GMesh { vao: WebGLVertexArrayObject; count: number; wvao: WebGLVertexArrayObject; wcount: number; tex: number }
 export interface Light { dir: number[]; col: number[]; amb: number[]; rim: number[]; fog: number[]; sky: number[][]; point?: { pos: number[]; col: number[]; rad: number } }
-export interface Mode { res: number; snap: boolean; affine: boolean; dither: boolean; bilinear: boolean; shader: number; outline: boolean; vertexSpec: boolean }
+export interface Mode { res: number; snap: boolean; affine: boolean; dither: boolean; bilinear: boolean; shader: number; outline: boolean; vertexSpec: boolean; post: number; fog: [number, number] }
 
 function program(gl: WebGL2RenderingContext, vs: string, fs: string) {
   const sh = (t: number, s: string) => { const x = gl.createShader(t)!; gl.shaderSource(x, s); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x)!); return x; };
@@ -214,6 +232,7 @@ export class PSX {
     gl.uniform1f(u.uDither, mode.dither ? 1 : 0);
     gl.uniform1f(u.uStyle, mode.shader);
     gl.uniform1f(u.uVertexSpec, mode.vertexSpec ? 1 : 0);
+    gl.uniform2f(u.uFogP, mode.fog[0], mode.fog[1]);
     gl.uniform3fv(u.uLDir, light.dir); gl.uniform3fv(u.uLCol, light.col); gl.uniform3fv(u.uAmb, light.amb);
     gl.uniform3fv(u.uRim, light.rim); gl.uniform3fv(u.uFog, light.fog); gl.uniform3fv(u.uCam, cam);
     gl.uniform3fv(u.uSkyUp, light.sky[0]); gl.uniform3fv(u.uSkyHor, light.sky[1]); gl.uniform3fv(u.uSkyDn, light.sky[2]);
@@ -241,7 +260,7 @@ export class PSX {
     const pu = this.post.u;
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.ctex); gl.uniform1i(pu.uC, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.dtex); gl.uniform1i(pu.uD, 1);
-    gl.uniform2f(pu.uRes, w, h); gl.uniform1f(pu.uOutline, mode.outline ? 1 : 0);
+    gl.uniform2f(pu.uRes, w, h); gl.uniform1f(pu.uOutline, mode.outline ? 1 : 0); gl.uniform1f(pu.uPost, mode.post); gl.uniform1f(pu.uTime, performance.now() / 1000);
     gl.uniform1f(pu.uNear, near); gl.uniform1f(pu.uFar, far);
     gl.uniform3fv(pu.uInk, mode.shader === 3 ? [0.1, 0.09, 0.11] : [0.06, 0.05, 0.06]);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

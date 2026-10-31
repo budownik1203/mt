@@ -4,7 +4,9 @@ import { PSX, GMesh, Light } from "./char/psx.ts";
 import { paintAtlas, downsample, REG } from "./char/atlas.ts";
 import { paintGear, paintMailTile, buildGear, LOADOUTS, Loadout } from "./char/gear.ts";
 import { TMesh } from "./char/tmesh.ts";
-import { LEVELS, Level, buildHuman, solve, poseIdle, poseT, poseWalk, Joint, Pose } from "./char/human.ts";
+import { LEVELS, Level, buildHuman, Joint } from "./char/human.ts";
+import { buildWeapon, buildShield } from "./char/weapons.ts";
+import { frame as poseFrame, Anim } from "./char/anim.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $("view") as HTMLCanvasElement;
@@ -12,9 +14,9 @@ const R = new PSX(canvas);
 const atlas = paintAtlas(), gearAtlas = paintGear(), mailTile = paintMailTile();
 
 type View = "front" | "q" | "side" | "back" | "face" | "bust";
-type PoseName = "idle" | "t" | "walk";
+type PoseName = Anim;
 type LightName = "day" | "dusk" | "torch";
-const S = { level: "ps1b" as Level, loadout: "sergeant" as Loadout, view: "q" as View, pose: "idle" as PoseName, light: "day" as LightName, wire: false, spin: true, yaw: 0.7, pitch: 0.12, dist: 3.2, time: -1 };
+const S = { level: "hybrid" as Level, loadout: "sergeant" as Loadout, view: "q" as View, pose: "idle" as PoseName, light: "day" as LightName, wire: false, spin: true, yaw: 0.7, pitch: 0.12, dist: 3.2, time: -1 };
 
 const LIGHTS: Record<LightName, Light & { bg: number[] }> = {
   day: { dir: norm([0.45, 0.8, 0.55]), col: [0.92, 0.88, 0.8], amb: [0.5, 0.51, 0.55], rim: [0.14, 0.15, 0.18], fog: [0.44, 0.46, 0.49], bg: [0.44, 0.46, 0.49], sky: [[0.55, 0.6, 0.68], [0.95, 0.95, 0.92], [0.2, 0.17, 0.13]] },
@@ -24,6 +26,7 @@ const LIGHTS: Record<LightName, Light & { bg: number[] }> = {
 function norm(v: number[]) { const l = Math.hypot(v[0], v[1], v[2]); return v.map((x) => x / l); }
 
 let parts: { joint: Joint; mesh: GMesh }[] = [];
+let weaponG: GMesh | null = null, shieldG: GMesh | null = null;
 let tris = 0;
 const ground = (() => {
   const t = new TMesh(256), up = [0, 1, 0], g = REG.ground;
@@ -43,10 +46,16 @@ function rebuild() {
   R.setTexture(0, downsample(atlas, L.tex), L.bilinear);
   R.setTexture(1, downsample(gearAtlas, L.tex), L.bilinear);
   R.setTexture(2, mailTile, L.bilinear, true);
-  const h = buildHuman(L);
+  const lo = LOADOUTS[S.loadout];
   const g = buildGear(L, S.loadout);
-  parts = h.parts.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, 0) })).concat(g.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, p.tex) })));
-  tris = h.tris + g.reduce((a, p) => a + p.mesh.tris, 0);
+  const twoHand = lo.weapon === "spear";
+  const h = buildHuman(L, { fistR: true, fistL: twoHand, hide: g.hide });
+  parts = h.parts.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, 0) })).concat(g.pieces.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, p.tex) })));
+  const wm = buildWeapon(lo.weapon, L.smooth, L.limb);
+  weaponG = R.upload(wm, 1);
+  const sm = lo.shield !== "none" ? buildShield() : null;
+  shieldG = sm ? R.upload(sm, 1) : null;
+  tris = h.tris + g.pieces.reduce((a, p) => a + p.mesh.tris, 0) + wm.tris + (sm ? sm.tris : 0);
   groundG = R.upload(ground, 0); groundG.wcount = 0;
   blobG = R.upload(blob, 0); blobG.wcount = 0;
   $("sTris").textContent = String(tris);
@@ -109,9 +118,11 @@ function frame(now: number) {
   perspective(proj, (S.view === "face" ? 40 : 45) * Math.PI / 180, canvas.width / Math.max(1, canvas.height), near, far);
   lookAt(view, eye as never, [0, ty, 0]);
   mul(vp, proj, view);
-  const pose: Pose = S.pose === "t" ? poseT() : S.pose === "walk" ? poseWalk(clock) : poseIdle(clock);
-  const J = solve(m4(), pose);
-  const items = parts.map((p) => ({ mesh: p.mesh, model: J[p.joint] }));
+  const lo = LOADOUTS[S.loadout];
+  const F = poseFrame(m4(), S.pose, clock, { weapon: lo.weapon, shield: lo.shield });
+  const items = parts.map((p) => ({ mesh: p.mesh, model: F.J[p.joint] }));
+  if (weaponG && F.weapon) items.push({ mesh: weaponG, model: F.weapon });
+  if (shieldG && F.shield) items.push({ mesh: shieldG, model: F.shield });
   items.sort((a, b) => a.mesh.tex - b.mesh.tex);
   items.unshift({ mesh: blobG, model: m4() }, { mesh: groundG, model: m4() });
   const lt = LIGHTS[S.light];
@@ -122,7 +133,7 @@ function frame(now: number) {
 function rebuildRes() { const [w, h] = R.size(LEVELS[S.level]); $("sRes").textContent = `${w}×${h}`; }
 
 (window as unknown as { lab: unknown }).lab = {
-  set(o: Partial<typeof S>) { const re = (o.level && o.level !== S.level) || (o.loadout && o.loadout !== S.loadout); Object.assign(S, o); if (o.view) applyView(o.view); if (o.yaw !== undefined) S.yaw = o.yaw; if (re) rebuild(); syncButtons(); },
+  set(o: Partial<typeof S>) { const re = (o.level && o.level !== S.level) || (o.loadout && o.loadout !== S.loadout); Object.assign(S, o); if (o.view) applyView(o.view); if (o.yaw !== undefined) S.yaw = o.yaw; if (o.dist !== undefined) S.dist = o.dist; if (o.pitch !== undefined) S.pitch = o.pitch; if (re) rebuild(); syncButtons(); },
   get tris() { return tris; },
 };
 
