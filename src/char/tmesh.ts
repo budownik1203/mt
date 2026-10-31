@@ -6,7 +6,9 @@ import { Region } from "./atlas.ts";
 export type Ring = [number, number, number, number?, number?];
 
 export class TMesh {
-  pos: number[] = []; nor: number[] = []; uv: number[] = [];
+  pos: number[] = []; nor: number[] = []; uv: number[] = []; mats: number[] = [];
+  /** Material for following geometry: 0 matte, 1 mail/dull metal, 2 polished plate. */
+  mat = 0;
   constructor(public atlasSize = 256) {}
 
   private nx(m: Mat4, n: number[]) {
@@ -19,11 +21,11 @@ export class TMesh {
     const s = this.atlasSize, i = 0.5;
     return [(R.x + i + u * (R.w - 2 * i)) / s, (R.y + i + v * (R.h - 2 * i)) / s];
   }
-  push(p: number[], n: number[], t: number[]) { this.pos.push(p[0], p[1], p[2]); this.nor.push(n[0], n[1], n[2]); this.uv.push(t[0], t[1]); }
+  push(p: number[], n: number[], t: number[]) { this.pos.push(p[0], p[1], p[2]); this.nor.push(n[0], n[1], n[2]); this.uv.push(t[0], t[1]); this.mats.push(this.mat); }
   tri(p: number[][], n: number[][], t: number[][]) { for (let k = 0; k < 3; k++) this.push(p[k], n[k], t[k]); }
 
   /** Loft along +Y. smooth = shared normals per ring (Gouraud), else faceted. */
-  loft(m: Mat4, rings: Ring[], sides: number, R: Region, o: { smooth?: boolean; capTop?: boolean; capBot?: boolean; u0?: number; u1?: number } = {}) {
+  loft(m: Mat4, rings: Ring[], sides: number, R: Region, o: { smooth?: boolean; capTop?: boolean; capBot?: boolean; u0?: number; u1?: number; tile?: [number, number] } = {}) {
     const smooth = o.smooth ?? true, u0 = o.u0 ?? 0, u1 = o.u1 ?? 1;
     const yTop = rings[rings.length - 1][0], yBot = rings[0][0];
     const P: number[][][] = [], N: number[][][] = [], UV: number[][][] = [];
@@ -39,7 +41,8 @@ export class TMesh {
         let hx = c / Math.max(rx, 1e-3), hz = s / Math.max(rz, 1e-3);
         const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
         nrow.push(this.nx(m, [hx, -dr / dy, hz]));
-        urow.push(this.uvOf(R, u0 + (u1 - u0) * u, (yTop - y) / (yTop - yBot || 1)));
+        const vv = (yTop - y) / (yTop - yBot || 1);
+        urow.push(o.tile ? [u * o.tile[0], vv * o.tile[1]] : this.uvOf(R, u0 + (u1 - u0) * u, vv));
       }
       P.push(row); N.push(nrow); UV.push(urow);
     });
@@ -60,7 +63,7 @@ export class TMesh {
       const rg = rings[ri];
       const ctr = xform(m, rg[3] ?? 0, rg[0], rg[4] ?? 0);
       const nn = this.nx(m, [0, up ? 1 : -1, 0]);
-      const tcen = this.uvOf(R, 0.5, up ? 0 : 1);
+      const tcen = o.tile ? [0.5, up ? 0 : o.tile[1]] : this.uvOf(R, 0.5, up ? 0 : 1);
       for (let i = 0; i < sides; i++) {
         const a = P[ri][i], b = P[ri][i + 1];
         if (up) this.tri([ctr, a, b], [nn, nn, nn], [tcen, UV[ri][i], UV[ri][i + 1]]);
@@ -82,6 +85,26 @@ export class TMesh {
       this.tri([v[a], v[c], v[dd]], [n, n, n], [t[0], t[2], t[3]]);
     };
     f(4, 5, 6, 7); f(1, 0, 3, 2); f(5, 1, 2, 6); f(0, 4, 7, 3); f(7, 6, 2, 3); f(0, 1, 5, 4);
+  }
+
+  /** Flat outline (x,y pairs, convex fan from centroid) extruded along Z; front faces +Z. */
+  plate2d(m: Mat4, pts: number[][], depth: number, front: Region, back: Region, rim: Region) {
+    let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+    for (const p of pts) { minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); miny = Math.min(miny, p[1]); maxy = Math.max(maxy, p[1]); }
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    const uvF = (x: number, y: number, R: Region, flip: boolean) => this.uvOf(R, flip ? 1 - (x - minx) / (maxx - minx) : (x - minx) / (maxx - minx), 1 - (y - miny) / (maxy - miny));
+    const z = depth / 2;
+    const nf = this.nx(m, [0, 0, 1]), nb = this.nx(m, [0, 0, -1]);
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      // bulge: centre sits a little proud of the rim, like a curved shield
+      this.tri([xform(m, cx, cy, z + depth), xform(m, a[0], a[1], z), xform(m, b[0], b[1], z)], [nf, nf, nf], [uvF(cx, cy, front, false), uvF(a[0], a[1], front, false), uvF(b[0], b[1], front, false)]);
+      this.tri([xform(m, cx, cy, -z), xform(m, b[0], b[1], -z), xform(m, a[0], a[1], -z)], [nb, nb, nb], [uvF(cx, cy, back, true), uvF(b[0], b[1], back, true), uvF(a[0], a[1], back, true)]);
+      const A = xform(m, a[0], a[1], z), B = xform(m, b[0], b[1], z), C = xform(m, b[0], b[1], -z), D = xform(m, a[0], a[1], -z);
+      const n = this.nx(m, [b[1] - a[1], a[0] - b[0], 0]);
+      const t0 = this.uvOf(rim, 0, 0), t1 = this.uvOf(rim, 1, 0), t2 = this.uvOf(rim, 1, 1), t3 = this.uvOf(rim, 0, 1);
+      this.tri([A, B, C], [n, n, n], [t0, t1, t2]); this.tri([A, C, D], [n, n, n], [t0, t2, t3]);
+    }
   }
 
   get tris() { return this.pos.length / 9; }

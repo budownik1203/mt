@@ -5,19 +5,28 @@ import { Mat4, m4, mul, trs } from "../core/math.ts";
 import { TMesh, Ring } from "./tmesh.ts";
 import { REG, Region } from "./atlas.ts";
 
-export type Level = "ps1a" | "ps1b" | "ps2";
+export type Level = "ps1b" | "hybrid" | "ps2" | "n64" | "painted" | "print" | "ink" | "ps1a";
 export interface LevelSpec {
-  id: Level; name: string; era: string;
+  id: Level; name: string; era: string; origin: string;
   limb: number; torso: number; head: number; subdiv: boolean; smooth: boolean;
   tex: 1 | 2 | 4;                 // atlas downsample factor (256 / tex)
   res: number;                    // internal render height
   snap: boolean; affine: boolean; dither: boolean; bilinear: boolean;
   extras: boolean;                // nose, ears, thumbs
+  shader: number;                 // 0 standard, 1 n64, 2 painted, 3 1-bit print, 4 ink cel
+  outline: boolean; vertexSpec: boolean;
 }
+const lo = { limb: 6, torso: 8, head: 9, subdiv: false };
+const hi = { limb: 8, torso: 12, head: 14, subdiv: true };
 export const LEVELS: Record<Level, LevelSpec> = {
-  ps1a: { id: "ps1a", name: "PS1 wczesne", era: "ok. 1996", limb: 4, torso: 6, head: 6, subdiv: false, smooth: false, tex: 4, res: 240, snap: true, affine: true, dither: true, bilinear: false, extras: false },
-  ps1b: { id: "ps1b", name: "PS1 późne", era: "ok. 1999", limb: 6, torso: 8, head: 9, subdiv: false, smooth: true, tex: 2, res: 240, snap: true, affine: true, dither: true, bilinear: false, extras: true },
-  ps2: { id: "ps2", name: "PS2", era: "ok. 2003", limb: 8, torso: 12, head: 14, subdiv: true, smooth: true, tex: 1, res: 448, snap: false, affine: false, dither: false, bilinear: true, extras: true },
+  ps1a: { id: "ps1a", name: "PS1 wczesne", era: "ok. 1996", origin: "Pierwsze gry 3D na PlayStation: płaskie fasety, tekstury 64 px.", limb: 4, torso: 6, head: 6, subdiv: false, smooth: false, tex: 4, res: 240, snap: true, affine: true, dither: true, bilinear: false, extras: false, shader: 0, outline: false, vertexSpec: true },
+  ps1b: { id: "ps1b", name: "PS1 późne", era: "ok. 1999", origin: "Schyłek PlayStation (Vagrant Story, MGS, Medievil): drgające wierzchołki, falujące tekstury, dithering 15-bit, połysk liczony na wierzchołkach.", ...lo, smooth: true, tex: 2, res: 240, snap: true, affine: true, dither: true, bilinear: false, extras: true, shader: 0, outline: false, vertexSpec: true },
+  hybrid: { id: "hybrid", name: "Hybryda PS1+PS2", era: "propozycja", origin: "Bryła i odbicia z PS2, ostre piksele tekstur i dithering z PS1, obraz 360 linii bez drgań. Współczesne indie retro (Dusk, Ultrakill, Iron Lung) idą tą drogą.", ...hi, smooth: true, tex: 2, res: 360, snap: false, affine: false, dither: true, bilinear: false, extras: true, shader: 0, outline: false, vertexSpec: false },
+  ps2: { id: "ps2", name: "PS2", era: "ok. 2003", origin: "PlayStation 2 (Shadow of the Colossus, Drakengard): więcej trójkątów, wygładzone tekstury 256 px, odbicia z mapy otoczenia.", ...hi, smooth: true, tex: 1, res: 448, snap: false, affine: false, dither: false, bilinear: true, extras: true, shader: 0, outline: false, vertexSpec: false },
+  n64: { id: "n64", name: "N64", era: "ok. 1998", origin: "Nintendo 64 (Ocarina of Time): bardzo małe tekstury rozmyte filtrem, miękkie cieniowanie, gęsta mgła.", ...lo, smooth: true, tex: 4, res: 240, snap: false, affine: false, dither: true, bilinear: true, extras: true, shader: 1, outline: false, vertexSpec: true },
+  painted: { id: "painted", name: "Ręcznie malowany", era: "ok. 2002–2004", origin: "Blizzard (Warcraft III, World of Warcraft): mało trójkątów, cała robota w malowanej teksturze, miękkie owinięte światło, nasycone barwy.", ...hi, smooth: true, tex: 1, res: 448, snap: false, affine: false, dither: false, bilinear: true, extras: true, shader: 2, outline: false, vertexSpec: false },
+  print: { id: "print", name: "Drzeworyt 1-bit", era: "2018", origin: "Return of the Obra Dinn (Lucas Pope), inspirowany grafiką starych Macintoshy: dwa kolory, rastrowanie ditheringiem, kontury. Pasuje do grimdark jak ryciny z kronik.", ...hi, smooth: true, tex: 1, res: 360, snap: false, affine: false, dither: false, bilinear: false, extras: true, shader: 3, outline: true, vertexSpec: false },
+  ink: { id: "ink", name: "Tusz i cień", era: "2016–2020", origin: "Komiksy Mike'a Mignoli (Hellboy) i Darkest Dungeon, w 3D jak Hades czy Mordheim: twarde pasma cienia, czarny kontur, ostry refleks na metalu.", ...hi, smooth: true, tex: 2, res: 400, snap: false, affine: false, dither: false, bilinear: false, extras: true, shader: 4, outline: true, vertexSpec: false },
 };
 
 export type Joint = "pelvis" | "torso" | "head" | "uarmL" | "farmL" | "handL" | "uarmR" | "farmR" | "handR" | "thighL" | "shinL" | "footL" | "thighR" | "shinR" | "footR";

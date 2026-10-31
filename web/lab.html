@@ -31,6 +31,7 @@ button[aria-pressed="true"]{background:var(--press);border-color:var(--accent);c
 button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:14px}
 dt{color:var(--dim)} dd{margin:0;font-variant-numeric:tabular-nums;min-width:0}
+.origin{margin:4px 0 0;font-size:13px;color:var(--dim);line-height:1.45;max-width:46ch}
 .note{font-size:13px;color:var(--dim);line-height:1.45;border-top:1px solid var(--line);padding-top:12px}
 @media (max-width:720px){
   body{grid-template-columns:1fr;grid-template-rows:62vh auto;overflow:auto;height:auto}
@@ -43,11 +44,15 @@ dt{color:var(--dim)} dd{margin:0;font-variant-numeric:tabular-nums;min-width:0}
   <div class="hint">Przeciągnij, by obrócić · kółko myszy: przybliż</div>
 </div>
 <aside>
-  <div><h1>Pracownia modeli</h1><div class="sub">Montablate 2.0 · bazowy człowiek</div></div>
-  <div class="grp"><label>Poziom</label><div class="seg" id="gLevel">
-    <button data-v="ps1a" type="button">PS1 wczesne</button><button data-v="ps1b" type="button">PS1 późne</button><button data-v="ps2" type="button">PS2</button></div></div>
+  <div><h1>Pracownia modeli</h1><div class="sub">Montablate 2.0 · człowiek i wyposażenie</div></div>
+  <div class="grp"><label>Styl</label><div class="seg" id="gLevel">
+    <button data-v="ps1b" type="button">PS1 późne</button><button data-v="hybrid" type="button">Hybryda</button><button data-v="ps2" type="button">PS2</button><button data-v="n64" type="button">N64</button><button data-v="painted" type="button">Ręcznie malowany</button><button data-v="print" type="button">Drzeworyt 1-bit</button><button data-v="ink" type="button">Tusz i cień</button><button data-v="ps1a" type="button">PS1 wczesne</button></div>
+    <p class="origin" id="origin"></p></div>
+  <div class="grp"><label>Zestaw</label><div class="seg" id="gKit">
+    <button data-v="base" type="button">Chłop</button><button data-v="levy" type="button">Pachołek</button><button data-v="sergeant" type="button">Zbrojny</button><button data-v="knight" type="button">Rycerz</button><button data-v="plate" type="button">W płytach</button></div>
+    <p class="origin" id="kit"></p></div>
   <div class="grp"><label>Widok</label><div class="seg" id="gView">
-    <button data-v="front" type="button">Przód</button><button data-v="q" type="button">3/4</button><button data-v="side" type="button">Bok</button><button data-v="back" type="button">Tył</button><button data-v="face" type="button">Twarz</button></div></div>
+    <button data-v="front" type="button">Przód</button><button data-v="q" type="button">3/4</button><button data-v="side" type="button">Bok</button><button data-v="back" type="button">Tył</button><button data-v="bust" type="button">Popiersie</button><button data-v="face" type="button">Twarz</button></div></div>
   <div class="grp"><label>Poza</label><div class="seg" id="gPose">
     <button data-v="idle" type="button">Stoi</button><button data-v="walk" type="button">Chód</button><button data-v="t" type="button">T-poza</button></div></div>
   <div class="grp"><label>Światło</label><div class="seg" id="gLight">
@@ -58,9 +63,8 @@ dt{color:var(--dim)} dd{margin:0;font-variant-numeric:tabular-nums;min-width:0}
     <dt>Trójkąty</dt><dd id="sTris"></dd>
     <dt>Tekstura</dt><dd id="sTex"></dd>
     <dt>Obraz</dt><dd id="sRes"></dd>
-    <dt>Cieniowanie</dt><dd id="sShade"></dd>
-    <dt>Efekty</dt><dd id="sFx"></dd>
+        <dt>Efekty</dt><dd id="sFx"></dd>
   </dl>
-  <p class="note">Wszystko generowane kodem: bryła z przekrojów, tekstury malowane piksel po pikselu (twarz, tunika, owijacze, buty). Ciało to sztywne części na stawach, jak w większości gier z PS1.</p>
+  <p class="note">Wszystko generowane kodem. Każdy element stroju to osobna warstwa na stawie ciała (przeszywanica, kolczuga, wappenrock, płyty, hełm), więc zestawy da się dowolnie składać. Metal ma odbicia nieba i refleks światła.</p>
 </aside>
 <script>/*GAME*/</script>
