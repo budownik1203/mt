@@ -8,14 +8,26 @@ import { GREG } from "./gear.ts";
 /** Fist centre in hand-joint space. */
 export const GRIP = (): Mat4 => trs(m4(), 0, -0.07, 0.004);
 
-export type WeaponId = "sword" | "mace" | "spear" | "hatchet";
-export interface WeaponSpec { id: WeaponId; name: string; twoHand: number /* distance along -Z for the off hand, 0 = one-handed */; tip: number }
+/** Weapon classes share one set of animations, exactly like Mount & Blade: only the model in the hand changes. */
+export type WClass = "oh" | "th" | "pa";
+export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive";
+export interface WeaponSpec {
+  id: WeaponId; name: string; cls: WClass;
+  thrust: boolean;          // weapons that cannot thrust turn the thrust into an overhead (M&B rule)
+  offhand: number;          // left fist position along the weapon's Z from the right fist (0 = one-handed)
+  tip: number;
+}
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
-  sword: { id: "sword", name: "Miecz", twoHand: 0, tip: 0.92 },
-  mace: { id: "mace", name: "Buzdygan", twoHand: 0, tip: 0.6 },
-  spear: { id: "spear", name: "Włócznia", twoHand: 0.38, tip: 1.55 },
-  hatchet: { id: "hatchet", name: "Topór", twoHand: 0, tip: 0.55 },
+  sword: { id: "sword", name: "Miecz", cls: "oh", thrust: true, offhand: 0, tip: 0.92 },
+  kord: { id: "kord", name: "Kord", cls: "oh", thrust: true, offhand: 0, tip: 0.66 },
+  hatchet: { id: "hatchet", name: "Topór", cls: "oh", thrust: false, offhand: 0, tip: 0.55 },
+  mace: { id: "mace", name: "Buzdygan", cls: "oh", thrust: false, offhand: 0, tip: 0.6 },
+  longsword: { id: "longsword", name: "Miecz dwuręczny", cls: "th", thrust: true, offhand: -0.14, tip: 1.2 },
+  greataxe: { id: "greataxe", name: "Topór dwuręczny", cls: "th", thrust: false, offhand: -0.3, tip: 0.85 },
+  spear: { id: "spear", name: "Włócznia", cls: "pa", thrust: true, offhand: 0.45, tip: 1.6 },
+  glaive: { id: "glaive", name: "Glewia", cls: "pa", thrust: true, offhand: 0.45, tip: 1.75 },
 };
+export const CLASS_NAME: Record<WClass, string> = { oh: "jednoręczna", th: "dwuręczna", pa: "drzewcowa" };
 
 /** Loft along +Z: helper that turns the +Y loft into +Z. */
 function zl(t: TMesh, m: Mat4, rings: Ring[], sides: number, R: Region, o: Record<string, unknown> = {}) {
@@ -48,6 +60,44 @@ export function buildWeapon(id: WeaponId, smooth: boolean, detail: number): TMes
         t.box(trs(m4(), Math.cos(a) * 0.045, Math.sin(a) * 0.045, 0.53, 0, 0, a + Math.PI / 2), 0.009, 0.05, 0.13, GREG.plateLimb);
         t.box(trs(m4(), Math.cos(a) * 0.066, Math.sin(a) * 0.066, 0.545, 0, 0, a + Math.PI / 2), 0.008, 0.02, 0.07, GREG.plateLimb);
       }
+      break;
+    }
+    case "kord": {
+      t.mat = 0; zl(t, I, [[-0.06, 0.017, 0.017], [0.05, 0.019, 0.019]], rnd, GREG.grip, o);
+      t.mat = 2;
+      zl(t, I, [[-0.09, 0.012, 0.012], [-0.075, 0.022, 0.022], [-0.06, 0.016, 0.016]], 6, GREG.brass, { ...o, capBot: true });
+      t.box(trs(m4(), 0, 0, 0.062), 0.024, 0.13, 0.022, GREG.steelDark);
+      // broad single-edged blade, back edge straight, belly swelling toward the clipped point
+      zl(t, I, [[0.07, 0.008, 0.026, 0, 0.004], [0.4, 0.007, 0.034, 0, -0.006], [0.58, 0.006, 0.03, 0, -0.008], [0.66, 0.001, 0.004, 0, 0.012]], 4, GREG.blade, { smooth: false });
+      break;
+    }
+    case "longsword": {
+      t.mat = 0; zl(t, I, [[-0.22, 0.017, 0.017], [0.06, 0.019, 0.019]], rnd, GREG.grip, o);                       // hand-and-a-half grip
+      t.mat = 2;
+      zl(t, I, [[-0.27, 0.012, 0.012], [-0.255, 0.024, 0.024], [-0.225, 0.022, 0.022], [-0.215, 0.014, 0.014]], 6, GREG.brass, { ...o, capBot: true });   // scent-stopper pommel
+      t.box(trs(m4(), 0, 0, 0.075), 0.028, 0.28, 0.03, GREG.steelDark);
+      zl(t, I, [[0.085, 0.008, 0.03], [0.6, 0.007, 0.026], [1.05, 0.005, 0.016], [1.2, 0.001, 0.001]], 4, GREG.blade, { smooth: false });
+      break;
+    }
+    case "greataxe": {
+      t.mat = 0; zl(t, I, [[-0.42, 0.02, 0.022], [0.8, 0.018, 0.02]], rnd, GREG.wood, { ...o, capBot: true, capTop: true });
+      t.mat = 2;
+      t.box(trs(m4(), 0, 0, 0.74), 0.04, 0.06, 0.1, GREG.steelDark);
+      // long bearded Dane-axe blade, edge toward -Y
+      t.box(trs(m4(), 0, -0.1, 0.74), 0.012, 0.14, 0.09, GREG.plateLimb);
+      t.box(trs(m4(), 0, -0.2, 0.71, 0, 0.25, 0), 0.01, 0.1, 0.2, GREG.blade);
+      t.box(trs(m4(), 0, -0.25, 0.66, 0, 0.6, 0), 0.009, 0.05, 0.12, GREG.blade);
+      break;
+    }
+    case "glaive": {
+      t.mat = 0;
+      zl(t, I, [[-0.85, 0.017, 0.017], [1.3, 0.016, 0.016]], rnd, GREG.wood, o);
+      t.mat = 2;
+      zl(t, I, [[-0.89, 0.012, 0.012], [-0.85, 0.02, 0.02], [-0.8, 0.018, 0.018]], 6, GREG.steelDark, { ...o, capBot: true });
+      zl(t, I, [[1.25, 0.022, 0.022], [1.34, 0.018, 0.018]], 6, GREG.steelDark, o);
+      // knife-like single-edged head with a back spike
+      zl(t, I, [[1.33, 0.008, 0.03, 0, 0.006], [1.55, 0.007, 0.042, 0, -0.008], [1.7, 0.005, 0.03, 0, -0.012], [1.76, 0.001, 0.004, 0, 0.012]], 4, GREG.blade, { smooth: false });
+      t.box(trs(m4(), 0, 0.05, 1.38, 0, -0.5, 0), 0.012, 0.012, 0.08, GREG.steelDark);
       break;
     }
     case "spear": {

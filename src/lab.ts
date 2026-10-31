@@ -5,8 +5,8 @@ import { paintAtlas, downsample, REG } from "./char/atlas.ts";
 import { paintGear, paintMailTile, buildGear, LOADOUTS, Loadout } from "./char/gear.ts";
 import { TMesh } from "./char/tmesh.ts";
 import { LEVELS, Level, buildHuman, Joint } from "./char/human.ts";
-import { buildWeapon, buildShield } from "./char/weapons.ts";
-import { frame as poseFrame, Anim } from "./char/anim.ts";
+import { buildWeapon, buildShield, WEAPONS, WeaponId, CLASS_NAME } from "./char/weapons.ts";
+import { frame as poseFrame, Anim, Move } from "./char/anim.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $("view") as HTMLCanvasElement;
@@ -16,7 +16,7 @@ const atlas = paintAtlas(), gearAtlas = paintGear(), mailTile = paintMailTile();
 type View = "front" | "q" | "side" | "back" | "face" | "bust";
 type PoseName = Anim;
 type LightName = "day" | "dusk" | "torch";
-const S = { level: "hybrid" as Level, loadout: "sergeant" as Loadout, view: "q" as View, pose: "idle" as PoseName, light: "day" as LightName, wire: false, spin: true, yaw: 0.7, pitch: 0.12, dist: 3.2, time: -1 };
+const S = { level: "hfa" as Level, loadout: "sergeant" as Loadout, weapon: "kit" as WeaponId | "kit", move: "all" as Move, view: "q" as View, pose: "idle" as PoseName, light: "day" as LightName, wire: false, spin: true, yaw: 0.7, pitch: 0.12, dist: 3.2, time: -1 };
 
 const LIGHTS: Record<LightName, Light & { bg: number[] }> = {
   day: { dir: norm([0.45, 0.8, 0.55]), col: [0.92, 0.88, 0.8], amb: [0.5, 0.51, 0.55], rim: [0.14, 0.15, 0.18], fog: [0.44, 0.46, 0.49], bg: [0.44, 0.46, 0.49], sky: [[0.55, 0.6, 0.68], [0.95, 0.95, 0.92], [0.2, 0.17, 0.13]] },
@@ -41,6 +41,8 @@ const ground = (() => {
 const blob = (() => { const t = new TMesh(256); t.box(trs(m4(), 0, 0.004, 0), 0.75, 0.001, 0.62, REG.blob); return t; })();
 let groundG: GMesh, blobG: GMesh;
 
+function curWeapon(): WeaponId { return S.weapon === "kit" ? LOADOUTS[S.loadout].weapon : S.weapon; }
+
 function rebuild() {
   const L = LEVELS[S.level];
   R.setTexture(0, downsample(atlas, L.tex), L.bilinear, false, !!L.mips);
@@ -48,10 +50,12 @@ function rebuild() {
   R.setTexture(2, mailTile, L.bilinear, true);
   const lo = LOADOUTS[S.loadout];
   const g = buildGear(L, S.loadout);
-  const twoHand = lo.weapon === "spear";
+  const wid = curWeapon();
+  const twoHand = WEAPONS[wid].offhand !== 0;
   const h = buildHuman(L, { fistR: true, fistL: twoHand, hide: g.hide });
   parts = h.parts.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, 0) })).concat(g.pieces.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, p.tex) })));
-  const wm = buildWeapon(lo.weapon, L.smooth, L.limb);
+  const wm = buildWeapon(wid, L.smooth, L.limb);
+  $("wpn").textContent = `${WEAPONS[wid].name}: broń ${CLASS_NAME[WEAPONS[wid].cls]}${WEAPONS[wid].thrust ? "" : ", bez pchnięcia (pchnięcie zamienia się w cios z góry)"}`;
   weaponG = R.upload(wm, 1);
   const sm = lo.shield !== "none" ? buildShield() : null;
   shieldG = sm ? R.upload(sm, 1) : null;
@@ -81,21 +85,23 @@ canvas.addEventListener("pointermove", (e) => { if (!drag) return; S.yaw -= (e.c
 canvas.addEventListener("pointerup", () => { drag = false; });
 canvas.addEventListener("wheel", (e) => { e.preventDefault(); S.dist = clamp(S.dist * (1 + Math.sign(e.deltaY) * 0.1), 0.5, 7); }, { passive: false });
 
-function bindGroup(id: string, key: "level" | "view" | "pose" | "light" | "loadout") {
+function bindGroup(id: string, key: "level" | "view" | "pose" | "light" | "loadout" | "weapon" | "move") {
   $(id).addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest("button"); if (!b) return;
     const v = b.dataset.v!;
     if (key === "level") { S.level = v as Level; rebuild(); }
     else if (key === "loadout") { S.loadout = v as Loadout; rebuild(); }
+    else if (key === "weapon") { S.weapon = v as WeaponId | "kit"; rebuild(); }
+    else if (key === "move") { S.move = v as Move; S.pose = "combat"; clock = 0; syncButtons(); }
     else if (key === "view") applyView(v as View);
     else { (S as Record<string, unknown>)[key] = v; syncButtons(); }
   });
 }
-bindGroup("gLevel", "level"); bindGroup("gKit", "loadout"); bindGroup("gView", "view"); bindGroup("gPose", "pose"); bindGroup("gLight", "light");
+bindGroup("gLevel", "level"); bindGroup("gWpn", "weapon"); bindGroup("gMove", "move"); bindGroup("gKit", "loadout"); bindGroup("gView", "view"); bindGroup("gPose", "pose"); bindGroup("gLight", "light");
 $("bWire").addEventListener("click", () => { S.wire = !S.wire; syncButtons(); });
 $("bSpin").addEventListener("click", () => { S.spin = !S.spin; syncButtons(); });
 function syncButtons() {
-  for (const [g, k] of [["gLevel", S.level], ["gKit", S.loadout], ["gView", S.view], ["gPose", S.pose], ["gLight", S.light]] as const)
+  for (const [g, k] of [["gLevel", S.level], ["gKit", S.loadout], ["gView", S.view], ["gPose", S.pose], ["gLight", S.light], ["gWpn", S.weapon], ["gMove", S.move]] as const)
     $(g).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String((b as HTMLElement).dataset.v === k)));
   $("bWire").setAttribute("aria-pressed", String(S.wire));
   $("bSpin").setAttribute("aria-pressed", String(S.spin));
@@ -119,7 +125,9 @@ function frame(now: number) {
   lookAt(view, eye as never, [0, ty, 0]);
   mul(vp, proj, view);
   const lo = LOADOUTS[S.loadout];
-  const F = poseFrame(m4(), S.pose, clock, { weapon: lo.weapon, shield: lo.shield });
+  const wid = curWeapon();
+  const F = poseFrame(m4(), S.pose, clock, { weapon: wid, shield: WEAPONS[wid].cls === "oh" ? lo.shield : (lo.shield === "arm" ? "back" : lo.shield), move: S.move });
+  void lo;
   const items = parts.map((p) => ({ mesh: p.mesh, model: F.J[p.joint] }));
   if (weaponG && F.weapon) items.push({ mesh: weaponG, model: F.weapon });
   if (shieldG && F.shield) items.push({ mesh: shieldG, model: F.shield });
@@ -133,7 +141,7 @@ function frame(now: number) {
 function rebuildRes() { const [w, h] = R.size(LEVELS[S.level]); $("sRes").textContent = `${w}×${h}`; }
 
 (window as unknown as { lab: unknown }).lab = {
-  set(o: Partial<typeof S>) { const re = (o.level && o.level !== S.level) || (o.loadout && o.loadout !== S.loadout); Object.assign(S, o); if (o.view) applyView(o.view); if (o.yaw !== undefined) S.yaw = o.yaw; if (o.dist !== undefined) S.dist = o.dist; if (o.pitch !== undefined) S.pitch = o.pitch; if (re) rebuild(); syncButtons(); },
+  set(o: Partial<typeof S>) { const re = (o.level && o.level !== S.level) || (o.loadout && o.loadout !== S.loadout) || (o.weapon && o.weapon !== S.weapon); Object.assign(S, o); if (o.view) applyView(o.view); if (o.yaw !== undefined) S.yaw = o.yaw; if (o.dist !== undefined) S.dist = o.dist; if (o.pitch !== undefined) S.pitch = o.pitch; if (re) rebuild(); syncButtons(); },
   get tris() { return tris; },
 };
 
