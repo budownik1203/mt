@@ -56,6 +56,8 @@ function shieldMode(kit: Kit): "none" | "arm" | "back" {
 }
 
 let nextId = 1;
+/** Global combat tempo: below 1 = slower, heavier swings. */
+export const TEMPO = 0.78;
 
 export class Warrior {
   id = nextId++;
@@ -82,6 +84,10 @@ export class Warrior {
   cur: WK;
   hideHead = false;
   weaponMat: Mat4 | null = null;
+  shieldMat: Mat4 | null = null;
+  lastJ: Record<Joint, Mat4> | null = null;
+  severed = new Set<Joint>();
+  aimY = 0;
 
   constructor(R: PSX, kit: Kit, x: number, z: number, team: number) {
     this.kit = kit; this.x = x; this.z = z; this.team = team;
@@ -102,7 +108,7 @@ export class Warrior {
   get alive() { return this.state !== "dead"; }
   get attacking() { return this.state === "windup" || this.state === "hold" || this.state === "release"; }
   /** Attack speed: weapon speed, plus a little from skill. */
-  get speed() { return this.weapon.speed * (0.92 + this.kit.skill * 0.16); }
+  get speed() { return TEMPO * this.weapon.speed * (0.92 + this.kit.skill * 0.16); }
 
   private go(s: State, tr?: Track) {
     this.state = s; this.t = 0;
@@ -167,8 +173,7 @@ export class Warrior {
     this.x += this.vx * dt; this.z += this.vz * dt;
     this.y = ground(this.x, this.z);
     const speed = Math.hypot(this.vx, this.vz);
-    const back = (this.vx * fx + this.vz * fz) < -0.2;
-    this.walkT += dt * (speed / 3.2) * (back ? -1 : 1) * 1.05;
+    this.walkT += dt * Math.min(1.7, speed / 2.1);
   }
 
   faceTo(yaw: number, dt: number, rate = 8) {
@@ -189,16 +194,21 @@ export class Warrior {
       root = mul(m4(), root, trs(m4(), 0, -e * 0.08, -e * 0.25, 0, -e * 1.5, e * 0.25));
     }
     const sh = shieldMode(this.kit);
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), sp = Math.hypot(this.vx, this.vz);
+    const loco = { fwd: (this.vx * fx + this.vz * fz) / (sp || 1), side: (this.vx * fz - this.vz * fx) / (sp || 1), speed: sp };
     const F = frame(root, kind, kind === "walkcombat" ? this.walkT : this.t + this.id, {
-      weapon: this.kit.weapon, shield: sh,
+      weapon: this.kit.weapon, shield: sh, loco,
       drive: this.alive ? { key: s.k, lead: lead.k, block, label } : undefined,
     });
+    this.lastJ = F.J;
     for (const p of this.mesh.parts) {
       if (this.hideHead && p.joint === "head") continue;
+      if (this.severed.has(p.joint)) continue;
       items.push({ mesh: p.mesh, model: F.J[p.joint] });
     }
-    if (F.weapon) { items.push({ mesh: this.mesh.weapon, model: F.weapon }); this.weaponMat = F.weapon; }
-    if (F.shield && this.mesh.shield) items.push({ mesh: this.mesh.shield, model: F.shield });
+    this.weaponMat = F.weapon; this.shieldMat = F.shield;
+    if (F.weapon && !this.severed.has("handR")) items.push({ mesh: this.mesh.weapon, model: F.weapon });
+    if (F.shield && this.mesh.shield && !(sh === "arm" && this.severed.has("farmL"))) items.push({ mesh: this.mesh.shield, model: F.shield });
   }
 
   /** World position of the weapon tip (for sparks). */

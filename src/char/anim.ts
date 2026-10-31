@@ -14,7 +14,7 @@ import { GRIP, WeaponId, WEAPONS, WClass } from "./weapons.ts";
 
 export type Anim = "idle" | "walk" | "t" | "combat" | "walkcombat";
 export type Move = "all" | "over" | "right" | "left" | "thrust" | "blocks" | "parried";
-export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive }
+export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number } }
 /** Runtime-driven upper body (the game supplies the weapon key instead of the demo timeline). */
 export interface Drive { key: WK; lead: WK; block: string | null; label: string }
 
@@ -487,15 +487,26 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
   const walking = kind === "walk" || kind === "walkcombat";
   let walkTorso: V3 = [0, 0, 0], walkPelvis: V3 = [0, 0, 0], s = 0;
   if (walking) {
+    // direction-aware locomotion: forward/back stride, side-stepping, run lean
+    const lo = eq.loco ?? { fwd: 1, side: 0, speed: 3.2 };
+    const tot = Math.abs(lo.fwd) + Math.abs(lo.side) || 1;
+    const fa = lo.fwd / tot, sa = lo.side / tot;
+    const amp = Math.max(0.35, Math.min(1.45, lo.speed / 3.2));
+    const run = Math.max(0, Math.min(1, (lo.speed - 3.6) / 1.6));
     s = Math.sin(t * 5.2); const c = Math.cos(t * 5.2);
     const leg = (ph: number) => {
-      const sw = Math.sin(t * 5.2 + ph), knee = Math.max(0, Math.cos(t * 5.2 + ph)) * 0.75 + 0.06;
-      return { thigh: [-sw * 0.45, 0, 0] as V3, shin: [knee, 0, 0] as V3, foot: [-sw * 0.15 - 0.05, 0, 0] as V3 };
+      const sw = Math.sin(t * 5.2 + ph), lift = Math.max(0, Math.cos(t * 5.2 + ph));
+      const A = 0.42 * amp;
+      return {
+        thigh: [-sw * A * fa - lift * 0.18 * amp * Math.abs(sa) - run * 0.12, 0, sw * A * 0.55 * sa] as V3,
+        shin: [lift * (0.7 + run * 0.5) * amp + 0.08 + run * 0.15, 0, 0] as V3,
+        foot: [-sw * 0.15 * fa - 0.05 + lift * 0.1, 0, 0] as V3,
+      };
     };
     const l = leg(0), r = leg(Math.PI);
     legs = { thighL: l.thigh, shinL: l.shin, footL: l.foot, thighR: r.thigh, shinR: r.shin, footR: r.foot };
-    walkPelvis = [0, s * 0.06, 0]; walkTorso = [0.05, -s * 0.09, 0];
-    bob = Math.abs(c) * 0.035;
+    walkPelvis = [0, s * 0.07 * fa, -s * 0.04 * amp]; walkTorso = [0.04 + run * 0.18, -s * 0.08 * fa, s * 0.03 * amp];
+    bob = Math.abs(c) * 0.03 * amp - run * 0.03;
   }
 
   if (kind === "t") {

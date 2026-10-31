@@ -13,6 +13,9 @@ import { buildTerrain, height, WORLD } from "./world/terrain.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
 import { Brain } from "./game/ai.ts";
+import { locateHit, SEVER, Gib, Zone } from "./game/gore.ts";
+import { Joint } from "./char/human.ts";
+import { xform } from "./core/math.ts";
 import { ARMOURS, DIR, Dir, damage, hitPart, blockMatches, shieldCovers, dirFromMouse, mirror } from "./game/combat.ts";
 import { Audio } from "./core/audio.ts";
 import { t, lang, setLang, helpRows } from "./core/i18n.ts";
@@ -74,14 +77,16 @@ let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
 let firstPerson = false, hints = true, autoBlock = false, helpOpen = false;
 let camYaw = Math.PI, camPitch = -0.1;
-let botWish: [number, number] | null = null;   // test hook: drive the player without a keyboard
+let botWish: [number, number] | null = null;
+let noAI = false;   // test hook   // test hook: drive the player without a keyboard
 
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; life: number; s: number; spark: boolean }
 const parts: Particle[] = [];
-const decals: { x: number; y: number; z: number; r: number; s: number }[] = [];
+const decals: { x: number; y: number; z: number; r: number; s: number; s1: number }[] = [];
+let hurt = 0;
 
 function reset() {
-  fighters = []; brains.clear(); tokens.used = 0; parts.length = 0; decals.length = 0;
+  fighters = []; brains.clear(); tokens.used = 0; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0;
   wave = 0; kills = 0; waveBreak = 2.5;
   player = new Warrior(R, playerKit(), 0, 4, 0);
   player.yaw = camYaw;
@@ -227,31 +232,82 @@ function resolve(att: Warrior) {
     }
   }
   if (att.team === o.team && Math.random() < 0.5) return;
-  const part = hitPart(dir, Math.random());
+  // where does the blade land? (from the attacker's actual weapon pose)
+  const aimY = att === player ? camPitch * 0.9 : (Math.random() - 0.6) * 0.5;
+  let zone: Zone = "body", joint: Joint = "torso", hp: V3 = o.chest;
+  if (att.weaponMat && o.lastJ) {
+    const h = locateHit(att.weaponMat, WEAPONS[att.weaponId].tip, [fx, 0, fz], [att.x, att.y, att.z], o.lastJ, [o.x, o.y, o.z], aimY);
+    zone = h.zone; joint = h.joint; hp = h.point;
+  }
+  const part = zone === "arm" ? "body" : zone;
   const closing = (att.vx - o.vx) * dx + (att.vz - o.vz) * dz;
-  // too close for a full swing: Warband-style reduced damage
   const tooClose = dir !== DIR.THRUST && bd < 0.55 ? 0.55 : 1;
-  let dmg = Math.round(damage(raw, atk.type, o.kit.armour[part], part, closing) * tooClose);
+  const zoneMult = zone === "arm" ? 0.72 : 1;
+  let dmg = Math.round(damage(raw * zoneMult, atk.type, o.kit.armour[part], part, closing) * tooClose);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
   o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id;
   audio.hit(atk.type === "blunt", vol);
-  if (Math.random() < 0.55) audio.grunt(vol * 0.8);
-  const hy = o.y + (part === "head" ? 1.68 : part === "body" ? 1.28 : 0.6);
-  bleed([o.x - dx * 0.2, hy, o.z - dz * 0.2], dx, dz, 8 + Math.min(22, dmg / 2));
-  if (o.hp <= 0) {
-    o.hp = 0; o.die();
-    decals.push({ x: o.x + dx * 0.6, y: ground(o.x + dx * 0.6, o.z + dz * 0.6) + 0.02, z: o.z + dz * 0.6, r: Math.random() * 6, s: 1.4 + Math.random() * 0.6 });
+  if (Math.random() < 0.6) audio.grunt(vol * 0.8);
+  bleed(hp, dx, dz, 16 + Math.min(40, dmg));
+  if (o === player) hurt = Math.min(1, hurt + 0.35 + dmg / 80);
+  const lethal = o.hp <= 0;
+  // dismemberment: cutting blows that kill, or heavy cuts to limbs
+  let gore: string | null = null;
+  if (atk.type === "cut") {
+    if (zone === "head" && lethal) gore = "head";
+    else if (zone === "arm" && (lethal || dmg >= 30) && SEVER[joint]) gore = joint;
+    else if (zone === "legs" && (lethal || dmg >= 34) && SEVER[joint]) gore = joint;
+  }
+  if (gore) sever(o, gore as Joint, dx, dz, att);
+  if (lethal || gore) {
+    o.hp = 0;
+    if (o.alive) o.die();
+    decals.push({ x: o.x + dx * 0.5, y: ground(o.x + dx * 0.5, o.z + dz * 0.5) + 0.02, z: o.z + dz * 0.5, r: Math.random() * 6, s: 0.4, s1: 1.8 + Math.random() * 0.8 });
+    if (atk.type === "blunt" && zone === "head") bleed(hp, dx, dz, 50);
     if (o.aiToken) { o.aiToken = false; tokens.used = Math.max(0, tokens.used - 1); }
-    if (o !== player) { if (att === player) kills++; pushLog(t("killed", { who: nm(o) }), att === player ? "good" : ""); }
+    if (o !== player) { if (att === player) kills++; pushLog(goreText(gore, att, o) ?? t("killed", { who: nm(o) }), att === player ? "good" : ""); }
     else { $("dead").hidden = false; $("deadSub").textContent = t("deadSub", { n: Math.max(0, wave - 1) }); try { document.exitPointerLock(); } catch { /* */ } }
   } else if (dmg >= 6 || o.attacking) o.stagger();
-  if (att === player) pushLog(t("youHit", { who: nm(o), part: t(part), dmg, type: t(atk.type), arm: o.kit.armour.name[lang] }), "good");
-  else if (o === player) pushLog(t("hitYou", { who: nm(att), part: t(part), dmg, type: t(atk.type) }), "bad");
-  if (dmg > 2) decals.push({ x: o.x, y: ground(o.x, o.z) + 0.02, z: o.z, r: Math.random() * 6, s: 0.5 + Math.random() * 0.4 });
-  if (decals.length > 60) decals.shift();
+  const zn = zone === "arm" ? (lang === "pl" ? "ręka" : "arm") : t(zone);
+  if (att === player) pushLog(t("youHit", { who: nm(o), part: zn, dmg, type: t(atk.type), arm: o.kit.armour.name[lang] }), "good");
+  else if (o === player) pushLog(t("hitYou", { who: nm(att), part: zn, dmg, type: t(atk.type) }), "bad");
+  if (dmg > 2) decals.push({ x: hp[0], y: ground(hp[0], hp[2]) + 0.02, z: hp[2], r: Math.random() * 6, s: 0.3, s1: 0.5 + Math.random() * 0.5 });
+  while (decals.length > 160) decals.shift();
+}
+function goreText(g: string | null, a: Warrior, o: Warrior) {
+  if (!g) return null;
+  const pl = lang === "pl";
+  if (g === "head") return pl ? `${nm(a)} ścina głowę: ${nm(o)}` : `${nm(a)} beheads ${nm(o)}`;
+  if (g.startsWith("uarm") || g.startsWith("farm")) return pl ? `${nm(a)} odrąbuje rękę: ${nm(o)}` : `${nm(a)} hacks off an arm: ${nm(o)}`;
+  return pl ? `${nm(a)} odcina nogę: ${nm(o)}` : `${nm(a)} cuts off a leg: ${nm(o)}`;
+}
+
+// ---------- dismemberment ----------
+const gibs: Gib[] = [];
+const spurts: { w: Warrior; parent: Joint; at: V3; dir: V3; t: number }[] = [];
+function sever(o: Warrior, joint: Joint, dx: number, dz: number, att: Warrior) {
+  const info = SEVER[joint]; const J = o.lastJ;
+  if (!info || !J || o.severed.has(joint)) return;
+  const pieces: { mesh: GMesh; M0: Float32Array }[] = [];
+  for (const p of o.mesh.parts) if (info.chain.includes(p.joint)) pieces.push({ mesh: p.mesh, M0: J[p.joint] });
+  if (info.chain.includes("handR") && o.weaponMat) pieces.push({ mesh: o.mesh.weapon, M0: o.weaponMat });
+  if (info.chain.includes("farmL") && o.shieldMat && o.mesh.shield && o.hasShield) pieces.push({ mesh: o.mesh.shield, M0: o.shieldMat });
+  const c = xform(J[joint], 0, joint === "head" ? 0.14 : -0.16, 0) as V3;
+  const side = (Math.random() - 0.5) * 1.5;
+  const up = joint === "head" ? 3.4 : 2.2;
+  const vel: V3 = [dx * 2.4 - dz * side + att.vx * 0.3, up + Math.random() * 1.2, dz * 2.4 + dx * side + att.vz * 0.3];
+  gibs.push(new Gib(pieces, c, vel));
+  while (gibs.length > 40) gibs.shift();
+  for (const j of info.chain) o.severed.add(j);
+  spurts.push({ w: o, parent: info.parent, at: info.at, dir: info.dir, t: 0 });
+  const P = xform(J[info.parent], ...info.at) as V3;
+  bleed(P, dx, dz, 60);
 }
 function bleed(p: V3, dx: number, dz: number, n: number) {
-  for (let i = 0; i < n; i++) parts.push({ x: p[0], y: p[1], z: p[2], vx: dx * (1 + Math.random() * 2) + (Math.random() - 0.5) * 2, vy: Math.random() * 2.5, vz: dz * (1 + Math.random() * 2) + (Math.random() - 0.5) * 2, life: 0.6 + Math.random() * 0.6, s: 0.035 + Math.random() * 0.045, spark: false });
+  for (let i = 0; i < n && parts.length < 900; i++) {
+    const sp = 1 + Math.random() * 3.2;
+    parts.push({ x: p[0], y: p[1], z: p[2], vx: dx * sp + (Math.random() - 0.5) * 2.6, vy: Math.random() * 3.2 - 0.3, vz: dz * sp + (Math.random() - 0.5) * 2.6, life: 0.7 + Math.random() * 0.9, s: 0.03 + Math.random() * 0.06, spark: false });
+  }
 }
 function sparks(p: V3, n: number) {
   for (let i = 0; i < n; i++) parts.push({ x: p[0], y: p[1], z: p[2], vx: (Math.random() - 0.5) * 6, vy: Math.random() * 4, vz: (Math.random() - 0.5) * 6, life: 0.2 + Math.random() * 0.25, s: 0.022, spark: true });
@@ -292,7 +348,7 @@ function step(dt: number) {
 
   for (const f of fighters) {
     const b = brains.get(f.id);
-    if (b) b.update(dt, player, fighters, tokens);
+    if (b && !noAI) b.update(dt, player, fighters, tokens);
     let hold: boolean;
     if (f === player) hold = lmb;
     else { f.aiHold -= dt; hold = f.aiHold > 0; }
@@ -307,8 +363,30 @@ function step(dt: number) {
   for (const p of parts) {
     p.vy -= 9.8 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt;
     const g = ground(p.x, p.z);
-    if (p.y < g) { p.y = g + 0.01; p.vx *= 0.3; p.vz *= 0.3; p.vy = 0; }
+    if (p.y < g) {
+      if (!p.spark && p.vy < -1 && Math.random() < 0.12) decals.push({ x: p.x, y: g + 0.015, z: p.z, r: Math.random() * 6, s: 0.12, s1: 0.18 + Math.random() * 0.3 });
+      p.y = g + 0.01; p.vx *= 0.3; p.vz *= 0.3; p.vy = 0;
+    }
   }
+  while (decals.length > 160) decals.shift();
+  for (const d of decals) d.s = Math.min(d.s1, d.s + dt * 0.35);
+  // gibs fly and bleed; stumps pump blood for a few seconds
+  for (const g of gibs) {
+    g.step(dt, ground);
+    if (g.moving && Math.random() < 0.8) bleed(g.pos, 0, 0, 1);
+  }
+  for (let i = spurts.length - 1; i >= 0; i--) {
+    const sp = spurts[i]; sp.t += dt;
+    const J = sp.w.lastJ; if (!J || sp.t > 4) { spurts.splice(i, 1); continue; }
+    const M = J[sp.parent], P = xform(M, ...sp.at) as V3;
+    const D = [M[0] * sp.dir[0] + M[4] * sp.dir[1] + M[8] * sp.dir[2], M[1] * sp.dir[0] + M[5] * sp.dir[1] + M[9] * sp.dir[2], M[2] * sp.dir[0] + M[6] * sp.dir[1] + M[10] * sp.dir[2]];
+    const pulse = 0.5 + 0.5 * Math.sin(sp.t * 11), rate = (1 - sp.t / 4) * (2 + pulse * 6);
+    for (let k = 0; k < rate && parts.length < 900; k++) {
+      const v = 1.5 + pulse * 2.5;
+      parts.push({ x: P[0], y: P[1], z: P[2], vx: D[0] * v + (Math.random() - 0.5) * 0.8, vy: D[1] * v + 0.8 + Math.random(), vz: D[2] * v + (Math.random() - 0.5) * 0.8, life: 0.8 + Math.random() * 0.6, s: 0.03 + Math.random() * 0.04, spark: false });
+    }
+  }
+  hurt = Math.max(0, hurt - dt * 0.9);
   for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0) parts.splice(i, 1);
 
   const alive = fighters.filter((f) => f.team === 1 && f.alive).length;
@@ -376,6 +454,9 @@ function render(now: number) {
     items.push({ mesh: flameG, model: trs(m4(), f[0], f[1] - 0.45, f[2], now * 0.003 + i, 0, 0, 0.85, 0.75 + fl * 0.35, 0.85) });
   });
   for (const d of decals) items.push({ mesh: decalG, model: trs(m4(), d.x, d.y, d.z, d.r, 0, 0, d.s, 1, d.s) });
+  for (const g of gibs) g.draw(items);
+  for (const sp of spurts) { const J = sp.w.lastJ; if (J) items.push({ mesh: bloodG, model: mul(m4(), J[sp.parent], trs(m4(), sp.at[0], sp.at[1], sp.at[2], 0, 0, 0, 0.1, 0.035, 0.1)) }); }
+  for (const f of fighters) for (const j of f.severed) { const info = SEVER[j]; if (info && !f.severed.has(info.parent) && f.lastJ) items.push({ mesh: bloodG, model: mul(m4(), f.lastJ[info.parent], trs(m4(), info.at[0], info.at[1], info.at[2], 0, 0, 0, 0.11, 0.04, 0.11)) }); }
   for (const f of fighters) {
     items.push({ mesh: blobG, model: trs(m4(), f.x, f.y, f.z, f.yaw) });
     f.draw(items);
@@ -384,6 +465,7 @@ function render(now: number) {
   if (L.point) L.point.pos[1] += Math.sin(now * 0.013) * 0.04;
   items.sort((a, b) => a.mesh.tex - b.mesh.tex);
   R.render(MODE, vp, eye, L, items, false, L.bg, near, far);
+  ($("hurt") as HTMLElement).style.opacity = String(hurt);
   hud();
   void lastPhase;
 }
@@ -442,6 +524,6 @@ function loop(now: number) {
   start() { $("title").click(); }, setHour(h: number) { hour = h; }, pause(v: boolean) { paused = v; },
   look(yaw: number, pitch: number) { camYaw = yaw; camPitch = pitch; },
   attack(d: Dir) { player.attack(d); }, block(d: Dir) { player.block(d); }, unblock() { player.unblock(); }, spawn() { spawnWave(); },
-  setLmb(v: boolean) { lmb = v; }, bot(x: number, z: number) { botWish = [x, z]; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
+  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) step(1 / 60); }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, bot(x: number, z: number) { botWish = [x, z]; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
 };
 requestAnimationFrame(loop);
