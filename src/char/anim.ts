@@ -14,7 +14,7 @@ import { GRIP, WeaponId, WEAPONS, WClass } from "./weapons.ts";
 
 export type Anim = "idle" | "walk" | "t" | "combat" | "walkcombat";
 export type Move = "all" | "over" | "right" | "left" | "thrust" | "blocks" | "parried";
-export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number } }
+export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number }; aim?: number }
 /** Runtime-driven upper body (the game supplies the weapon key instead of the demo timeline). */
 export interface Drive { key: WK; lead: WK; block: string | null; label: string }
 
@@ -527,6 +527,10 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     key = smp.k; blocking = !!smp.block; shieldDir = smp.block;
     // overlapping action: hips and shoulders start turning a moment before the arm
     key = { ...key, ty: key.ty * 0.35 + lead.ty * 0.65, tp: key.tp * 0.5 + lead.tp * 0.5 };
+    // vertical aim (Warband): looking down bends the body into the blow, looking up rears back
+    const aim = Math.max(-0.9, Math.min(0.7, eq.aim ?? 0));
+    const down = Math.max(0, -aim);
+    key = { ...key, tp: key.tp - aim * 0.55 };
     // guard is never perfectly still: slow breathing and a little drift of the weapon
     if (smp.label === "garda" || smp.label === "trzymanie") {
       const br = Math.sin(t * 2.1), dr = Math.sin(t * 1.3 + 1.1);
@@ -542,9 +546,19 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
       };
       bob = -0.02 - 0.12 * L - 0.03 * Bk;
     }
+    if (down > 0) {
+      // sink at the knees when aiming low, so a low cut really reaches the legs
+      const d = Math.min(1, down / 0.8) * (walking ? 0.5 : 1);
+      for (const sd of ["L", "R"] as const) {
+        const th = legs[`thigh${sd}`] ?? [0, 0, 0], sh = legs[`shin${sd}`] ?? [0, 0, 0];
+        legs[`thigh${sd}`] = [th[0] - 0.42 * d, th[1], th[2]];
+        legs[`shin${sd}`] = [sh[0] + 0.75 * d, sh[1], sh[2]];
+      }
+      bob -= 0.11 * d;
+    }
     const sb = shieldArm && blocking;
     pose.r = {
-      pelvis: add3(walkPelvis, [0, key.ty * 0.3, 0]) as V3, torso: add3(walkTorso, [key.tp, key.ty * 0.62, 0]) as V3, head: [-key.tp * 0.7, -key.ty * 0.82, 0],
+      pelvis: add3(walkPelvis, [down * 0.22, key.ty * 0.3, 0]) as V3, torso: add3(walkTorso, [key.tp, key.ty * 0.62, 0]) as V3, head: [-key.tp * 0.7, -key.ty * 0.82, 0],
       uarmL: shieldArm ? (sb ? (shieldDir === "up" ? [-1.75, 0.3, 0.25] : [-1.2, 0.35, 0.2]) : [-0.75, 0.25, 0.12]) : [0.06, 0, 0.18],
       farmL: shieldArm ? [sb ? (shieldDir === "up" ? -0.9 : -1.25) : -1.15, 0, 0] : [-0.3, 0, 0], handL: [0, 0, 0.05],
     };

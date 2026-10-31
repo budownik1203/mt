@@ -31,10 +31,10 @@ export class Brain {
     this.strafeT -= dt;
     if (this.strafeT <= 0) { this.strafe = Math.random() < 0.5 ? -1 : 1; this.strafeT = 1.2 + Math.random() * 2; }
     let mx = 0, mz = 0;
-    const want = me.aiToken ? range * 0.85 : range + 1.4;
-    if (dist > want + 0.4) { mx += nx; mz += nz; }
+    const want = me.aiToken || me.attacking ? me.weapon.reach + 0.25 : range + 1.4;
+    if (dist > want + 0.25) { mx += nx; mz += nz; }
     else if (dist < want - 0.5) { mx -= nx * 0.8; mz -= nz * 0.8; }
-    const sw = me.aiToken ? 0.25 : 0.7;
+    const sw = me.aiToken || me.attacking ? 0.15 : 0.7;
     mx += -nz * this.strafe * sw; mz += nx * this.strafe * sw;
     // separation from allies
     for (const o of all) {
@@ -71,8 +71,9 @@ export class Brain {
 
     // --- offence ---
     this.cooldown -= dt;
+    if (me.riposte > 0 && Math.random() < skill * 0.9) { this.cooldown = Math.min(this.cooldown, 0); if (!me.aiToken) { me.aiToken = true; tokens.used++; } }
     if (!me.aiToken && tokens.used < tokens.max && this.cooldown < 0.5) { me.aiToken = true; tokens.used++; }
-    if (me.aiToken && this.cooldown <= 0 && dist < range + 0.3 && (me.state === "idle" || (me.state === "block" && !target.attacking))) {
+    if (me.aiToken && this.cooldown <= 0 && dist < me.weapon.reach + 0.6 && (me.state === "idle" || (me.state === "block" && !target.attacking))) {
       if (me.state === "block") me.unblock();
       // prefer the side the player is not covering
       let d: Dir = ([0, 1, 2, 3] as Dir[])[Math.floor(Math.random() * 4)];
@@ -81,6 +82,9 @@ export class Brain {
         const options = ([0, 1, 2, 3] as Dir[]).filter((x) => mirror(x) !== covered);
         d = options[Math.floor(Math.random() * options.length)];
       }
+      // pick a height: AI likes the head, sometimes goes for the legs
+      const r = Math.random();
+      me.aim = r < 0.35 ? 0.3 : r < 0.75 ? 0 : -0.6;
       if (me.attack(d)) {
         me.aiHold = Math.random() < 0.45 ? 0.15 + Math.random() * 0.7 * skill : 0;
         this.cooldown = lerp(2.6, 1.1, skill) + Math.random() * 1.2;

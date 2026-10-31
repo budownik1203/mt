@@ -22,7 +22,7 @@ export interface LevelSpec {
 }
 const lo = { limb: 6, torso: 8, head: 9, subdiv: false };
 const hi = { limb: 8, torso: 12, head: 14, subdiv: true };
-const mid = { limb: 6, torso: 10, head: 10, subdiv: false };
+const mid = { limb: 8, torso: 12, head: 12, subdiv: false };
 const base = { extras: true, outline: false, vertexSpec: false, post: 0, fog: [3.5, 9] as [number, number] };
 export const LEVELS: Record<Level, LevelSpec> = {
   ps1b: { ...base, id: "ps1b", name: "PS1 późne", era: "ok. 1999", origin: "Schyłek PlayStation (Vagrant Story, MGS, Medievil): drgające wierzchołki, falujące tekstury, dithering 15-bit, połysk liczony na wierzchołkach.", ...lo, smooth: true, tex: 2, res: 240, snap: true, affine: true, dither: true, bilinear: false, shader: 0, vertexSpec: true },
@@ -94,6 +94,11 @@ export function buildHuman(L: LevelSpec, opt: BodyOpts = {}): { parts: Part[]; t
     t.loft(I(), S([[-0.11, 0.15, 0.1], [0, 0.165, 0.112], [0.12, 0.15, 0.1]]), L.torso, REG.pelvis, { ...o, capBot: true });
     if (!hide.has("belt")) t.loft(I(), [[0.085, 0.17, 0.118], [0.135, 0.162, 0.112]], L.torso, REG.belt, o);
   });
+  if (!hide.has("belt")) add("pelvis", (t) => {
+    // buckle and a purse on the belt
+    t.box(trs(m4(), 0, 0.15, 0.124), 0.045, 0.034, 0.012, { x: REG.belt.x + 30, y: REG.belt.y + 1, w: 4, h: 6 });
+    t.box(trs(m4(), -0.125, 0.09, 0.085, -0.55), 0.06, 0.075, 0.03, { x: REG.belt.x + 8, y: REG.belt.y, w: 12, h: 8 });
+  });
   if (!hide.has("skirt")) skirt(add, S([[-0.26, 0.225, 0.17, 0, 0.005], [-0.08, 0.195, 0.14], [0.11, 0.166, 0.113]]), L.torso, REG.skirt, o);
   if (!hide.has("torso")) add("torso", (t) => {
     t.loft(I(), S([[0, 0.152, 0.102], [0.11, 0.168, 0.112, 0, 0.008], [0.22, 0.185, 0.122, 0, 0.014], [0.31, 0.19, 0.116, 0, 0.004], [0.38, 0.17, 0.102], [0.415, 0.115, 0.084], [0.44, 0.065, 0.062]]), L.torso, REG.torso, { ...o, capTop: true });
@@ -104,6 +109,12 @@ export function buildHuman(L: LevelSpec, opt: BodyOpts = {}): { parts: Part[]; t
     if (L.extras && !hide.has("face")) {
       const nose: Region = { x: REG.head.x + 31, y: REG.head.y + 27, w: 2, h: 5 };
       t.box(trs(m4(), 0, 0.166, 0.1, 0, -0.22), 0.019, 0.045, 0.022, nose);
+      // brow ridge, cheekbones and jaw: the face reads from a distance instead of a painted egg
+      const skinR: Region = { x: REG.head.x + 28, y: REG.head.y + 22, w: 8, h: 3 };
+      t.box(trs(m4(), 0, 0.2, 0.087, 0, 0.12), 0.11, 0.016, 0.026, skinR);
+      for (const sd of [1, -1]) t.box(trs(m4(), sd * 0.05, 0.16, 0.078, sd * 0.45), 0.034, 0.022, 0.03, skinR);
+      const jaw: Region = { x: REG.head.x + 26, y: REG.head.y + 40, w: 12, h: 4 };
+      t.box(trs(m4(), 0, 0.098, 0.074, 0, 0.35), 0.06, 0.04, 0.036, jaw);
       if (!hide.has("ears")) {
         const ear: Region = { x: REG.head.x + 15, y: REG.head.y + 25, w: 3, h: 8 };
         t.box(trs(m4(), 0.09, 0.175, -0.005, 0.25), 0.018, 0.05, 0.03, ear);
@@ -127,7 +138,14 @@ export function buildHuman(L: LevelSpec, opt: BodyOpts = {}): { parts: Part[]; t
       }
     });
     add(`thigh${s}`, (t) => t.loft(I(), S([[-0.44, 0.058, 0.06], [-0.3, 0.068, 0.074], [-0.12, 0.083, 0.09, 0, 0.004], [0.03, 0.085, 0.088]]), L.limb, REG.thigh, { ...o, capTop: true }));
-    add(`shin${s}`, (t) => t.loft(I(), S([[-0.42, 0.044, 0.048], [-0.3, 0.052, 0.056], [-0.18, 0.057, 0.066, 0, -0.008], [-0.05, 0.054, 0.06], [0.02, 0.05, 0.054]]), L.limb, REG.shin, o));
+    add(`shin${s}`, (t) => {
+      t.loft(I(), S([[-0.42, 0.044, 0.048], [-0.3, 0.052, 0.056], [-0.18, 0.057, 0.066, 0, -0.008], [-0.05, 0.054, 0.06], [0.02, 0.05, 0.054]]), L.limb, REG.shin, o);
+      if (L.extras) {
+        t.box(trs(m4(), 0, -0.01, 0.047, 0, 0.1), 0.06, 0.07, 0.03, { x: REG.shin.x + 12, y: REG.shin.y + 2, w: 8, h: 6 });   // kneecap
+        // turned-down boot cuff
+        t.loft(I(), [[-0.3, 0.056, 0.062], [-0.25, 0.06, 0.066], [-0.235, 0.05, 0.056]], L.limb, REG.foot, { ...o });
+      }
+    });
     add(`foot${s}`, (t) => {
       const m = trs(m4(), 0, 0, 0, 0, Math.PI / 2);   // loft +Y becomes +Z (toes forward); ring oz becomes downward
       t.loft(m, [[-0.06, 0.042, 0.045, 0, 0.033], [0, 0.048, 0.05, 0, 0.028], [0.09, 0.052, 0.036, 0, 0.043], [0.17, 0.045, 0.022, 0, 0.055], [0.2, 0.028, 0.014, 0, 0.06]], Math.max(4, L.limb), REG.foot, { ...o, capTop: true, capBot: true });

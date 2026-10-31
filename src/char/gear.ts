@@ -243,8 +243,10 @@ export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hid
     piece("torso", (t) => { t.mat = 0.25; t.loft(I(), sub(inflate(TORSO.slice(0, 5), kS, kS * 0.9).concat([[0.4, 0.15 + kS * 0.5, 0.1 + kS * 0.5]])), L.torso, GREG.surcoat, sm); });
     sk(sub([[-0.47, 0.3, 0.245, 0, 0.015], [-0.2, 0.264, 0.212], [0.12, 0.2 + 0.01, 0.152]]), GREG.surSkirt, sm);
     piece("pelvis", (t) => t.loft(I(), [[0.08, 0.212, 0.162], [0.12, 0.208, 0.158]], L.torso, GREG.leather, sm));   // sword belt over the surcoat
+    piece("pelvis", (t) => { t.mat = 2; t.box(trs(m4(), 0, 0.1, 0.165), 0.05, 0.04, 0.01, GREG.brass); });
   } else if (lo === "sergeant") {
     piece("pelvis", (t) => t.loft(I(), [[0.08, 0.205, 0.15], [0.12, 0.202, 0.147]], L.torso, GREG.leather, sm));
+    piece("pelvis", (t) => { t.mat = 2; t.box(trs(m4(), 0, 0.1, 0.153), 0.045, 0.038, 0.01, GREG.brass); t.mat = 0; t.box(trs(m4(), -0.2, 0.03, 0.09, -0.7), 0.085, 0.1, 0.04, GREG.pouch); });
   }
   if (has.plate) {
     // breastplate + backplate shaped over the mail, keel forward
@@ -252,6 +254,17 @@ export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hid
     piece("torso", (t) => {
       t.mat = 2;
       t.loft(I(), sub([[0.02, 0.152 + kP, 0.102 + kP, 0, 0.014], [0.12, 0.168 + kP, 0.112 + kP + 0.012, 0, 0.026], [0.22, 0.185 + kP, 0.122 + kP + 0.012, 0, 0.032], [0.31, 0.19 + kP, 0.116 + kP, 0, 0.014], [0.37, 0.17 + kP * 0.8, 0.102 + kP * 0.8], [0.405, 0.12 + kP * 0.4, 0.09 + kP * 0.4]]), L.torso, GREG.plate, sm);
+    });
+    // gorget and a row of brass rivets along the breastplate's lower edge
+    piece("torso", (t) => { t.mat = 2; t.loft(I(), [[0.385, 0.13 + kP * 0.5, 0.104 + kP * 0.5], [0.43, 0.098, 0.088], [0.47, 0.078, 0.074]], L.torso, GREG.plateDark, sm); });
+    piece("torso", (t) => {
+      t.mat = 2;
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2, rx = 0.152 + kP + 0.004, rz = 0.102 + kP + 0.004;
+        t.box(trs(m4(), Math.sin(a) * rx, 0.035, Math.cos(a) * rz + (Math.cos(a) > 0 ? 0.014 : 0), a), 0.012, 0.012, 0.008, GREG.brass);
+      }
+      // stop-rib below the neck
+      t.box(trs(m4(), 0, 0.33, 0.116 + kP + 0.012, 0, -0.5), 0.17, 0.012, 0.012, GREG.plateDark);
     });
     // fauld: three lames, each wider than the one above
     for (let i = 0; i < 3; i++) {
@@ -262,6 +275,7 @@ export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hid
   for (const s of ["L", "R"] as const) {
     const side = s === "L" ? 1 : -1;
     if (has.plate) {
+      piece(`uarm${s}`, (t) => { t.mat = 2; t.box(trs(m4(), 0, -0.02, 0.104, 0, Math.PI / 2), 0.075, 0.012, 0.075, GREG.plateDark); }); // shoulder rondel
       piece(`uarm${s}`, (t) => { t.mat = 2; t.loft(I(), sub([[-0.14, 0.096, 0.092, side * 0.012], [-0.06, 0.104, 0.1, side * 0.014], [0.01, 0.1, 0.096, side * 0.01], [0.065, 0.07, 0.068, side * 0.004], [0.095, 0.02, 0.02]]), L.limb, GREG.plateLimb, { ...sm, capTop: true }); });
       piece(`farm${s}`, (t) => {
         t.mat = 2;
@@ -291,17 +305,26 @@ export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hid
     t.mat = 2;
     t.loft(I(), sub([[0.19, 0.09 + hb, 0.102 + hb, 0, -0.002], [0.25, 0.088 + hb, 0.1 + hb, 0, -0.005], [0.3, 0.062 + hb, 0.072 + hb, 0, -0.01], [0.33 + hb * 0.6, 0.026, 0.03, 0, -0.01], [0.338 + hb * 0.6, 0.004, 0.004, 0, -0.01]]), L.head, GREG.kettle, { ...sm, capTop: true });
     t.loft(I(), [[0.165, 0.2, 0.21, 0, -0.004], [0.2, 0.094 + hb, 0.106 + hb, 0, -0.004]], L.head, GREG.brim, sm);
+    t.loft(I(), [[0.195, 0.204, 0.214, 0, -0.004], [0.175, 0.206, 0.216, 0, -0.004]], L.head, GREG.rim, sm);   // rolled brim edge
+    t.box(trs(m4(), 0, 0.29, 0), 0.012, 0.09, 0.2, GREG.steelDark);                                          // comb seam
   });
   if (lo === "sergeant") piece("head", (t) => {
     t.mat = 2;
     t.loft(I(), sub([[0.2, 0.09 + hb, 0.102 + hb, 0, -0.002], [0.25, 0.087 + hb, 0.099 + hb, 0, -0.005], [0.3, 0.058 + hb, 0.068 + hb, 0, -0.01], [0.35 + hb, 0.022, 0.026, 0, -0.012], [0.372 + hb, 0.003, 0.003, 0, -0.012]]), L.head, GREG.nasal, { ...sm, capTop: true });
     t.box(trs(m4(), 0, 0.165, 0.103 + hb + 0.008, 0, -0.08), 0.02, 0.085, 0.008, GREG.steelDark);    // nasal
+    t.loft(I(), [[0.2, 0.093 + hb + 0.004, 0.105 + hb + 0.004, 0, -0.002], [0.225, 0.093 + hb + 0.004, 0.105 + hb + 0.004, 0, -0.003]], L.head, GREG.steelDark, sm);  // brow band
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; t.box(trs(m4(), Math.sin(a) * (0.098 + hb), 0.2125, Math.cos(a) * (0.11 + hb) - 0.002, a), 0.01, 0.01, 0.006, GREG.brass); }
   });
   if (lo === "knight") {
     hide.add("head");
     piece("head", (t) => {
       t.mat = 2;
       t.loft(I(), sub([[-0.005, 0.118, 0.13, 0, 0.006], [0.12, 0.124, 0.137, 0, 0.008], [0.25, 0.121, 0.133, 0, 0.004], [0.318, 0.108, 0.12], [0.345, 0.074, 0.082], [0.353, 0.004, 0.004]]), L.head, GREG.greathelm, { ...sm, capTop: true });
+      // riveted cross reinforcement over the face and a brow band
+      t.box(trs(m4(), 0, 0.09, 0.143), 0.03, 0.17, 0.01, GREG.steelDark);
+      t.box(trs(m4(), 0, 0.235, 0.141), 0.2, 0.022, 0.01, GREG.steelDark);
+      for (const x of [-0.07, 0.07]) t.box(trs(m4(), x, 0.235, 0.148), 0.012, 0.012, 0.006, GREG.brass);
+      for (const y of [0.04, 0.1, 0.16]) t.box(trs(m4(), 0, y, 0.15), 0.012, 0.012, 0.006, GREG.brass);
     });
   }
   // --- equipment carried on the body

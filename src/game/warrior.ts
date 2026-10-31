@@ -88,6 +88,10 @@ export class Warrior {
   lastJ: Record<Joint, Mat4> | null = null;
   severed = new Set<Joint>();
   aimY = 0;
+  /** Wanted vertical aim (rad, + up / - down) and the smoothed body lean that follows it. */
+  aim = 0; lean = 0;
+  /** Attack lockout after being parried / blocked / hit; riposte window after a successful block. */
+  cd = 0; riposte = 0; boost = 1;
 
   constructor(R: PSX, kit: Kit, x: number, z: number, team: number) {
     this.kit = kit; this.x = x; this.z = z; this.team = team;
@@ -108,7 +112,7 @@ export class Warrior {
   get alive() { return this.state !== "dead"; }
   get attacking() { return this.state === "windup" || this.state === "hold" || this.state === "release"; }
   /** Attack speed: weapon speed, plus a little from skill. */
-  get speed() { return TEMPO * this.weapon.speed * (0.92 + this.kit.skill * 0.16); }
+  get speed() { return TEMPO * this.boost * this.weapon.speed * (0.92 + this.kit.skill * 0.16); }
 
   private go(s: State, tr?: Track) {
     this.state = s; this.t = 0;
@@ -121,10 +125,13 @@ export class Warrior {
   effectiveDir(d: Dir): Dir { return d === DIR.THRUST && !this.weapon.thrust ? DIR.OVER : d; }
 
   attack(d: Dir): boolean {
+    if (this.cd > 0) return false;
     if (!(this.state === "idle" || this.state === "block" || this.state === "recover" && this.trackT > this.track.impact + 0.12)) return false;
     this.dir = this.effectiveDir(d);
     this.attackSeq++;
     this.hitDone = false;
+    this.boost = this.riposte > 0 ? 1.3 : 1;   // a riposte straight out of a good block comes faster
+    this.riposte = 0;
     this.go("windup", this.tr("ready", ANIM_DIR[this.dir]));
     return true;
   }
@@ -138,9 +145,16 @@ export class Warrior {
   }
   private blockNow(d: Dir) { this.dir = d; this.go("block", this.tr("block", BLOCK_DIR[d])); }
   unblock() { if (this.state === "block") this.go("idle", this.tr("guard")); }
-  stagger() { if (this.alive) this.go("stagger", this.tr("stagger")); }
+  stagger() { if (this.alive) { this.boost = 1; this.go("stagger", this.tr("stagger")); this.cd = Math.max(this.cd, 0.25); } }
   /** Attack met a parry (weapon) or a shield / obstacle: bounce back like parried_/blocked_. */
-  bounce(shield: boolean) { this.go("blockstun", this.tr(shield ? "blocked" : "parried", ANIM_DIR[this.dir])); }
+  bounce(shield: boolean) {
+    this.boost = 1;
+    this.go("blockstun", this.tr(shield ? "blocked" : "parried", ANIM_DIR[this.dir]));
+    // after the bounce you may block again, but not swing: the defender gets the riposte
+    this.cd = Math.max(this.cd, shield ? 0.2 : 0.32);
+  }
+  /** Defender who stopped a blow: short window for a faster counter. */
+  blocked() { this.riposte = 0.9; }
   die() { this.state = "dead"; this.t = 0; this.deadT = 0; }
 
   /** True on the frame the blow reaches its impact point. */
@@ -157,18 +171,28 @@ export class Warrior {
       case "dead": this.deadT += dt; break;
     }
     this.flash = Math.max(0, this.flash - dt * 4);
+    // the lockout only counts down once the bounce animation is over
+    if (this.state !== "blockstun" && this.state !== "stagger") this.cd = Math.max(0, this.cd - dt);
+    this.riposte = Math.max(0, this.riposte - dt);
+    if (this.state === "idle" || this.state === "block") this.boost = 1;
+    // aim lean: full while swinging (Warband), a hint of it in guard
+    const want = this.attacking ? this.aim : this.aim * 0.3;
+    this.lean += (want - this.lean) * Math.min(1, dt * 7);
   }
 
   move(dt: number, ground: (x: number, z: number) => number) {
-    let sp = this.wish.run ? 5.2 : 3.2;
+    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+    const wl = Math.hypot(this.wish.x, this.wish.z);
+    const fwd = wl > 0.01 ? (this.wish.x * fx + this.wish.z * fz) / wl : 1;
+    // forward is fastest, sidestep slower, backpedal slowest; running only really helps forward
+    const dirK = fwd >= 0 ? 0.74 + 0.26 * fwd : 0.74 - 0.16 * -fwd;
+    const runK = this.wish.run ? 1 + 0.62 * Math.max(0, fwd) ** 1.5 + 0.08 : 1;
+    let sp = 3.2 * dirK * runK;
     if (this.state === "windup" || this.state === "hold") sp *= 0.7;
     if (this.state === "block") sp *= 0.62;
     if (this.state === "release" || this.state === "stagger" || this.state === "blockstun") sp *= 0.4;
     if (!this.alive) sp = 0;
-    const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
-    const fwd = this.wish.x * fx + this.wish.z * fz;
-    if (fwd < -0.3) sp *= 0.68;
-    const k = clamp(dt * 9, 0, 1);
+    const k = clamp(dt * (fwd < 0 ? 7 : 9), 0, 1);
     this.vx = lerp(this.vx, this.wish.x * sp, k); this.vz = lerp(this.vz, this.wish.z * sp, k);
     this.x += this.vx * dt; this.z += this.vz * dt;
     this.y = ground(this.x, this.z);
@@ -197,7 +221,7 @@ export class Warrior {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), sp = Math.hypot(this.vx, this.vz);
     const loco = { fwd: (this.vx * fx + this.vz * fz) / (sp || 1), side: (this.vx * fz - this.vz * fx) / (sp || 1), speed: sp };
     const F = frame(root, kind, kind === "walkcombat" ? this.walkT : this.t + this.id, {
-      weapon: this.kit.weapon, shield: sh, loco,
+      weapon: this.kit.weapon, shield: sh, loco, aim: this.alive ? this.lean : 0,
       drive: this.alive ? { key: s.k, lead: lead.k, block, label } : undefined,
     });
     this.lastJ = F.J;

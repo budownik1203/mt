@@ -37,12 +37,20 @@ export function locateHit(blade: Mat4, tip: number, attFwd: V, attPos: V, tgtJ: 
   for (const p of pts) { const f = (p[0] - attPos[0]) * attFwd[0] + (p[2] - attPos[2]) * attFwd[2]; if (f > best) { best = f; lead = p; } }
   const dist = (tgtPos[0] - attPos[0]) * attFwd[0] + (tgtPos[2] - attPos[2]) * attFwd[2];
   const shift = Math.max(0, dist - best);
-  const moved = pts.map((p) => [p[0] + attFwd[0] * shift, p[1] + aimY, p[2] + attFwd[2] * shift] as V);
+  // the blade point nearest the target's centre line decides the height; the side it comes
+  // from decides left/right. Probe a point just in front of the body surface.
+  let near = pts[0], nd = 1e9;
+  for (const p of pts) { const d = Math.hypot(p[0] + attFwd[0] * shift - tgtPos[0], p[2] + attFwd[2] * shift - tgtPos[2]); if (d < nd) { nd = d; near = p; } }
+  const rx = attFwd[2], rz = -attFwd[0];
+  const lat = Math.max(-0.16, Math.min(0.16, (near[0] - tgtPos[0]) * rx + (near[2] - tgtPos[2]) * rz));
+  const moved: V[] = [];
+  for (const back of [0.18, 0.1]) moved.push([tgtPos[0] - attFwd[0] * back + rx * lat, near[1] + aimY, tgtPos[2] - attFwd[2] * back + rz * lat]);
   let bj: Joint = "torso", bz: Zone = "body", bd = 1e9, bp: V = moved[0];
+  // arms count only when clearly in the way
   for (const [j, a, b, r, z] of CAPS) {
     const M = tgtJ[j];
     const A = xform(M, ...a) as V, B = xform(M, ...b) as V;
-    for (const p of moved) { const d = segDist(p, A, B) - r; if (d < bd) { bd = d; bj = j; bz = z; bp = p; } }
+    for (const p of moved) { const d = segDist(p, A, B) - r + (z === "arm" ? 0.04 : 0); if (d < bd) { bd = d; bj = j; bz = z; bp = p; } }
   }
   return { joint: bj, zone: bz, point: bp };
 }

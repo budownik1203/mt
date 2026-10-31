@@ -17,9 +17,9 @@ const D = {
     rain: "deszcz", clear: "sucho",
     help: "Pomoc",
     helpText: [
-      ["WSAD", "ruch"], ["Shift", "bieg"], ["Mysz", "rozglądanie i wybór kierunku"],
+      ["WSAD", "ruch: przód najszybciej, w bok wolniej, w tył najwolniej"], ["Shift", "bieg"], ["Mysz", "rozglądanie i wybór kierunku. Patrząc w górę lub w dół celujesz w głowę albo w nogi (kropka na celowniku pokazuje wysokość)"],
       ["LPM", "cios: kierunek z ostatniego ruchu myszy (góra, lewo, prawo, dół = pchnięcie). Trzymaj, by zatrzymać zamach"],
-      ["PPM", "blok w kierunku ruchu myszy. Podczas zamachu = zwód"],
+      ["PPM", "blok w kierunku ruchu myszy. Podczas zamachu = zwód. Udany blok daje chwilę na szybszą kontrę (kropka świeci), a sparowany przeciwnik nie może od razu atakować"],
       ["1–8", "broń: miecz, kord, topór, buzdygan (z tarczą), miecz i topór dwuręczny, włócznia, glewia"], ["B", "automatyczny kierunek bloku"],
       ["V", "kamera 1./3. osoba"], ["T", "+1 godzina"], ["H", "podpowiedź bloku"], ["L", "język"], ["F1", "ta pomoc"],
     ],
@@ -39,9 +39,9 @@ const D = {
     rain: "rain", clear: "dry",
     help: "Help",
     helpText: [
-      ["WASD", "move"], ["Shift", "run"], ["Mouse", "look and choose direction"],
+      ["WASD", "move: forward fastest, sideways slower, backwards slowest"], ["Shift", "run"], ["Mouse", "look and choose direction. Look up or down to aim at the head or the legs (the dot shows the height)"],
       ["LMB", "strike: direction from your last mouse movement (up, left, right, down = thrust). Hold to keep the swing ready"],
-      ["RMB", "block toward mouse movement. During a windup = feint"],
+      ["RMB", "block toward mouse movement. During a windup = feint. A good block opens a short window for a faster riposte (dot glows); a parried foe cannot swing straight away"],
       ["1–8", "weapon: sword, kord, axe, mace (with shield), longsword, great axe, spear, glaive"], ["B", "automatic block direction"],
       ["V", "1st/3rd person"], ["T", "+1 hour"], ["H", "block hint"], ["L", "language"], ["F1", "this help"],
     ],

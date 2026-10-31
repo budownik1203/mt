@@ -78,7 +78,7 @@ let hour = 16.8;
 let firstPerson = false, hints = true, autoBlock = false, helpOpen = false;
 let camYaw = Math.PI, camPitch = -0.1;
 let botWish: [number, number] | null = null;
-let noAI = false;   // test hook   // test hook: drive the player without a keyboard
+let noAI = false, botRun = false;   // test hook   // test hook: drive the player without a keyboard
 
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; life: number; s: number; spark: boolean }
 const parts: Particle[] = [];
@@ -223,7 +223,7 @@ function resolve(att: Warrior) {
   if (o.state === "block" && facing > 0.2) {
     const shield = o.hasShield && shieldCovers(facing);
     if (shield || blockMatches(dir, o.dir)) {
-      att.bounce(shield);
+      att.bounce(shield); o.blocked();
       if (shield) audio.shieldThud(vol); else audio.clang(vol);
       sparks(att.tip(), shield ? 4 : 14);
       if (o === player) pushLog(shield ? t("shieldBlock") : t("youBlocked"), "good");
@@ -233,7 +233,7 @@ function resolve(att: Warrior) {
   }
   if (att.team === o.team && Math.random() < 0.5) return;
   // where does the blade land? (from the attacker's actual weapon pose)
-  const aimY = att === player ? camPitch * 0.9 : (Math.random() - 0.6) * 0.5;
+  const aimY = att.lean * 0.1;   // the lean itself moves the blade up or down
   let zone: Zone = "body", joint: Joint = "torso", hp: V3 = o.chest;
   if (att.weaponMat && o.lastJ) {
     const h = locateHit(att.weaponMat, WEAPONS[att.weaponId].tip, [fx, 0, fz], [att.x, att.y, att.z], o.lastJ, [o.x, o.y, o.z], aimY);
@@ -340,8 +340,9 @@ function step(dt: number) {
     if (botWish) { mx = botWish[0]; mz = botWish[1]; }
     const l = Math.hypot(mx, mz) || 1;
     player.wish.x = mx / l; player.wish.z = mz / l;
-    player.wish.run = keys.has("ShiftLeft") || keys.has("ShiftRight");
+    player.wish.run = keys.has("ShiftLeft") || keys.has("ShiftRight") || botRun;
     player.yaw = camYaw;
+    player.aim = clamp((camPitch + 0.1) * 1.1, -0.9, 0.7);
     if (rmb && player.state === "block") { const d = blockDir(); if (d !== player.dir) player.block(d); }
     if (rmb && player.state === "idle") player.block(blockDir());
   } else player.wish.x = player.wish.z = 0;
@@ -494,7 +495,14 @@ function hud() {
     if (incoming === k) cls += " inc";
     chev[k].className = cls;
   }
+  // locked out after a parried blow: dim; riposte window: glowing dot; dot height = aim (head / torso / legs)
+  const locked = player.cd > 0 || player.state === "blockstun" || player.state === "stagger";
+  dirsEl.style.opacity = locked ? "0.35" : "1";
+  dotEl.style.top = `${40 - player.aim * 30}px`;
+  dotEl.style.background = player.riposte > 0 ? "var(--ember)" : "";
+  dotEl.style.boxShadow = player.riposte > 0 ? "0 0 6px var(--ember)" : "";
 }
+const dirsEl = $("dirs") as HTMLElement, dotEl = document.querySelector("#dirs .dot") as HTMLElement;
 
 // ---------- title screen: slow orbit ----------
 function renderIdle(now: number) {
@@ -524,6 +532,6 @@ function loop(now: number) {
   start() { $("title").click(); }, setHour(h: number) { hour = h; }, pause(v: boolean) { paused = v; },
   look(yaw: number, pitch: number) { camYaw = yaw; camPitch = pitch; },
   attack(d: Dir) { player.attack(d); }, block(d: Dir) { player.block(d); }, unblock() { player.unblock(); }, spawn() { spawnWave(); },
-  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) step(1 / 60); }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, bot(x: number, z: number) { botWish = [x, z]; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
+  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) { step(1 / 60); for (const f of fighters) f.draw([]); } }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, dbg: () => JSON.stringify({ tokens, b: [...brains.values()].map((b) => ({ cd: b.cooldown, tok: b.me.aiToken, st: b.me.state, mcd: b.me.cd })) }), bot(x: number, z: number, run = false) { botWish = x || z ? [x, z] : null; botRun = run; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
 };
 requestAnimationFrame(loop);
