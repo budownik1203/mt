@@ -1,0 +1,87 @@
+<title>Montablate 2.0 — mb2 build 1</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:wght@400;500;700&display=swap">
+<style>
+/* Single-look, dark: the game paints its own world. HUD is iron, bone and old blood. */
+:root{
+  color-scheme:dark;
+  --ink:#0e0f11; --iron:#1b1d21cc; --bone:#d9cfb8; --dim:#9d968a; --blood:#8e1f17; --ember:#d08a3a; --steel:#8fb0c8;
+  --display:"IM Fell English SC", "Palatino Linotype", Georgia, serif;
+  --body:"Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--ink);color:var(--bone);overflow:hidden}
+body{font-family:var(--body);font-size:15px}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+.hud{position:fixed;pointer-events:none;font-variant-numeric:tabular-nums}
+#hp{left:max(16px,env(safe-area-inset-left,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));width:min(300px,60vw)}
+#hp .lbl{display:flex;justify-content:space-between;font-size:13px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+#hp .bar{height:10px;background:#000a;border:1px solid #ffffff22}
+#hpfill{height:100%;background:linear-gradient(90deg,#5d140f,var(--blood));width:100%;transition:width .15s}
+#weapon{right:max(16px,env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));text-align:right}
+#weapon b{display:block;font-family:var(--display);font-weight:400;font-size:22px}
+#weapon span{color:var(--dim);font-size:13px}
+#clock{left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));font-size:13px;color:var(--dim);letter-spacing:.06em;background:#0008;padding:3px 10px}
+#log{right:max(16px,env(safe-area-inset-right,0px));top:calc(44px + env(safe-area-inset-top,0px));width:min(380px,70vw);display:flex;flex-direction:column;gap:3px;font-size:14px;text-align:right;text-shadow:0 1px 2px #000}
+#log .good{color:#d7c68f} #log .bad{color:#e07a6a} #log .warn{color:var(--steel)} #log .sys{color:var(--dim)}
+#banner{left:50%;top:22%;transform:translateX(-50%);text-align:center;text-shadow:0 2px 8px #000}
+#banner b{display:block;font-family:var(--display);font-weight:400;font-size:clamp(34px,6vw,58px);letter-spacing:.04em}
+#banner span{color:var(--dim)}
+#dirs{left:50%;top:50%;width:84px;height:84px;transform:translate(-50%,-50%)}
+#dirs .dot{position:absolute;left:40px;top:40px;width:4px;height:4px;background:var(--bone);opacity:.7}
+.chev{position:absolute;width:0;height:0;opacity:.18;transition:opacity .08s}
+#dU{left:34px;top:4px;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid var(--bone)}
+#dD{left:34px;bottom:4px;border-left:8px solid transparent;border-right:8px solid transparent;border-top:12px solid var(--bone)}
+#dL{top:34px;left:4px;border-top:8px solid transparent;border-bottom:8px solid transparent;border-right:12px solid var(--bone)}
+#dR{top:34px;right:4px;border-top:8px solid transparent;border-bottom:8px solid transparent;border-left:12px solid var(--bone)}
+.chev.cur{opacity:.55}
+.chev.atk{opacity:1;filter:drop-shadow(0 0 4px var(--ember));border-bottom-color:var(--ember)!important;border-top-color:var(--ember)!important;border-left-color:var(--ember)!important;border-right-color:var(--ember)!important}
+#dU.atk,#dU.blk,#dU.inc{border-left-color:transparent!important;border-right-color:transparent!important}
+#dD.atk,#dD.blk,#dD.inc{border-left-color:transparent!important;border-right-color:transparent!important}
+#dL.atk,#dL.blk,#dL.inc,#dR.atk,#dR.blk,#dR.inc{border-top-color:transparent!important;border-bottom-color:transparent!important}
+#dU.atk{border-bottom-color:var(--ember)!important} #dD.atk{border-top-color:var(--ember)!important} #dL.atk{border-right-color:var(--ember)!important} #dR.atk{border-left-color:var(--ember)!important}
+.chev.blk{opacity:1}
+#dU.blk{border-bottom-color:var(--steel)} #dD.blk{border-top-color:var(--steel)} #dL.blk{border-right-color:var(--steel)} #dR.blk{border-left-color:var(--steel)}
+.chev.inc{opacity:1;animation:pulse .3s infinite alternate}
+#dU.inc{border-bottom-color:#e2412f} #dD.inc{border-top-color:#e2412f} #dL.inc{border-right-color:#e2412f} #dR.inc{border-left-color:#e2412f}
+@keyframes pulse{to{opacity:.45}}
+#help{left:max(16px,env(safe-area-inset-left,0px));top:calc(44px + env(safe-area-inset-top,0px));background:#0e0f11e6;border:1px solid #ffffff1a;padding:14px 16px;max-width:min(420px,85vw);display:grid;gap:6px;font-size:14px}
+#help h3{margin:0 0 4px;font-family:var(--display);font-weight:400;font-size:22px}
+#help div{display:grid;grid-template-columns:64px 1fr;gap:10px}
+kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
+.screen{position:fixed;inset:0;display:grid;place-items:center;text-align:center;background:radial-gradient(ellipse at center,#0000 0%,#000c 75%);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#title{cursor:pointer}
+#title .inner{display:grid;gap:10px;justify-items:center}
+#title .eyebrow{letter-spacing:.3em;text-transform:uppercase;font-size:12px;color:var(--ember)}
+#title h1{font-family:var(--display);font-weight:400;font-size:clamp(48px,10vw,110px);line-height:.95;margin:0;text-shadow:0 4px 24px #000}
+#title .sub{color:var(--dim);font-size:16px}
+#title .go{margin-top:18px;border:1px solid var(--bone);padding:10px 22px;font-family:var(--display);font-size:20px;background:#0006}
+#title:hover .go{background:var(--blood);border-color:var(--blood)}
+#title .keys{margin-top:14px;color:var(--dim);font-size:13px;max-width:52ch}
+#dead{background:radial-gradient(ellipse at center,#3a0805aa 0%,#000d 80%)}
+#dead h2{font-family:var(--display);font-weight:400;font-size:clamp(46px,9vw,96px);margin:0;color:#c9392a}
+#dead p{color:var(--bone)}
+.vign{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,#0000 55%,#0007 100%)}
+.build{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));font-size:12px;color:#ffffff55;letter-spacing:.1em;text-transform:uppercase;pointer-events:none}
+</style>
+<canvas id="c"></canvas>
+<div class="vign"></div>
+<div class="build">mb2 build 1</div>
+<div class="hud" id="clock"></div>
+<div class="hud" id="log"></div>
+<div class="hud" id="banner" hidden></div>
+<div class="hud" id="dirs"><div class="chev" id="dU"></div><div class="chev" id="dR"></div><div class="chev" id="dL"></div><div class="chev" id="dD"></div><div class="dot"></div></div>
+<div class="hud" id="hp"><div class="lbl"><span>HP</span><span id="hptext"></span></div><div class="bar"><div id="hpfill"></div></div></div>
+<div class="hud" id="weapon"></div>
+<div class="hud" id="help" hidden></div>
+<div class="screen" id="title">
+  <div class="inner">
+    <div class="eyebrow">mb2 build 1</div>
+    <h1>Montablate</h1>
+    <div class="sub" id="tsub"></div>
+    <div class="go" id="tstart"></div>
+    <div class="keys">WSAD · Shift · LPM/LMB · PPM/RMB · 1–4 · V · T · Y · H · L · F1</div>
+  </div>
+</div>
+<div class="screen" id="dead" hidden><div><h2 id="deadT">Padłeś</h2><p id="deadSub"></p></div></div>
+<script>/*GAME*/</script>
