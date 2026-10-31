@@ -109,11 +109,12 @@ function makeClass(o: { pole?: boolean; c: Vec; r: number; guard: WK; idle: WK; 
     const thrust: Arc = { keys: [o.thrust.back, o.thrust.out, { ...o.thrust.out, g: add3(o.thrust.out.g, [0, -0.01, 0.02]) }], impact: 1 };
     return { guard: o.guard, idle: o.idle, arcs: { right, left, over, thrust }, blocks: o.blocks };
   }
-  const right = swingArc((a, lag, k) => hSwing(o.c, o.r, a, lin(0.44, 0.2, k), lag, lin(0.5, -0.05, k), 1, lin(-0.85 * T, 0.75 * T, k), lin(-0.02, 0.12, k)), -150, 8, 85, 70);
+  // the fist travels on a wide circle centred on the shoulder: the whole arm swings, near full reach at impact
+  const right = swingArc((a, lag, k) => hSwing(o.c, lin(o.r * 0.82, o.r, Math.min(1, k * 1.6)), a, lin(0.5, 0.3, k), lag, lin(0.45, -0.06, k), 1, lin(-0.8 * T, 0.85 * T, k), lin(-0.04, 0.12, k)), -150, 8, 58, 65);
   // left-to-right: start over the left shoulder (arm across the chest), cut to the right
-  const left = swingArc((a, lag, k) => hSwing([o.c[0] + 0.04, o.c[1], o.c[2] + 0.08], o.r * 0.82, a, lin(0.42, 0.2, k), lag, lin(0.55, -0.05, k), -1, lin(0.75 * T, -0.75 * T, k), lin(-0.02, 0.12, k)), 120, -8, -90, 70);
+  const left = swingArc((a, lag, k) => hSwing([o.c[0], o.c[1], o.c[2] + 0.14], lin(o.r * 0.72, o.r, Math.min(1, k * 1.6)), a, lin(0.52, 0.3, k), lag, lin(0.5, -0.06, k), -1, lin(0.85 * T, -0.7 * T, k), lin(-0.04, 0.12, k)), 55, -10, -120, 65);
   // overhead: from behind the head over the top, down through the front
-  const over = swingArc((b, lag, k) => vSwing([o.c[0], 0.42, o.c[2] - 0.02], o.overR, b, lag, o.overX, lin(-0.25 * T, 0.1 * T, k), lin(-0.16, 0.34, k)), -55, 82, 150, 75);
+  const over = swingArc((b, lag, k) => vSwing([o.c[0], 0.4, o.c[2]], lin(o.overR * 0.85, o.overR, Math.min(1, k * 1.5)), b, lag, lin(0, o.overX, k), lin(-0.25 * T, 0.1 * T, k), lin(-0.18, 0.34, k)), -50, 85, 150, 70);
   const thrust: Arc = o.poleOverStab && false ? { keys: [], impact: 0 } : { keys: [o.thrust.back, o.thrust.out, { ...o.thrust.out, g: add3(o.thrust.out.g, [0, -0.01, 0.02]) }], impact: 1 };
   const arcs: Record<Dir, Arc> = { right, left, over, thrust };
   if (o.poleOverStab) arcs.over = { keys: [o.poleOverStab.ready, o.poleOverStab.out, { ...o.poleOverStab.out, g: add3(o.poleOverStab.out.g, [0, -0.01, 0.02]) }], impact: 1 };
@@ -122,7 +123,7 @@ function makeClass(o: { pole?: boolean; c: Vec; r: number; guard: WK; idle: WK; 
 
 // Torso space: +X is the fighter's left, +Z forward, +Y up; origin at the waist (~1.05 m). Right shoulder ≈ (-0.17, 0.35, 0).
 const OH = makeClass({
-  c: [-0.1, 0, 0.02], r: 0.42, twist: 1, overR: 0.36, overX: -0.13,
+  c: [-0.17, 0, 0.0], r: 0.56, twist: 1, overR: 0.55, overX: 0.1,
   guard: K([-0.2, 0.16, 0.3], [0.1, 0.75, 0.65], [0, -0.65, 0.75], 0.12, 0.04),
   idle: K([-0.22, -0.2, 0.14], [0.05, -0.5, 0.86], [0, 0.86, 0.5], 0, 0),
   thrust: { back: K([-0.3, 0.06, -0.16], [0.1, 0.12, 0.99], [0, 1, -0.12], -0.75, 0.0), out: K([-0.1, 0.22, 0.58], [0.04, 0.02, 1], [0, 1, 0], 0.4, 0.16) },
@@ -134,7 +135,7 @@ const OH = makeClass({
   },
 });
 const TH = makeClass({
-  c: [-0.04, 0, 0.06], r: 0.36, twist: 1.05, overR: 0.3, overX: -0.06,
+  c: [-0.08, 0, 0.12], r: 0.46, twist: 1.05, overR: 0.48, overX: 0.1,
   guard: K([-0.1, 0.14, 0.34], [0.06, 0.62, 0.78], [0, -0.78, 0.62], 0.12, 0.05),
   idle: K([-0.1, -0.08, 0.28], [0.08, 0.72, 0.68], [0, -0.68, 0.72], 0.05, 0),
   thrust: { back: K([-0.2, 0.06, -0.06], [0.06, 0.12, 0.99], [0, 1, -0.12], -0.6, 0), out: K([-0.05, 0.2, 0.5], [0.02, 0.03, 1], [0, 1, 0], 0.32, 0.14) },
@@ -232,6 +233,39 @@ function sampleTL(tl: Seg[], t: number): { k: WK; block: string | null; label: s
 export function loopLength(w: WeaponId, move: Move, shield = false) { const tl = timeline(w, move, shield); return tl[tl.length - 1].t; }
 export function phaseAt(w: WeaponId, move: Move, shield: boolean, t: number) { return sampleTL(timeline(w, move, shield), t).label; }
 
+// ---------- body avoidance (torso space) ----------
+/** How deep a point (radius r) sits inside the torso/head volume; 0 = clear. */
+function bodyPen(p: Vec, r: number): number {
+  let d = 0;
+  if (p[1] > -0.25 && p[1] < 0.47) { const e = Math.hypot(p[0] / (0.21 + r), (p[2] - 0.01) / (0.14 + r)); if (e < 1) d = Math.max(d, (1 - e) * (0.14 + r)); }
+  const h = Math.hypot(p[0], p[1] - 0.58, p[2] - 0.01); if (h < 0.12 + r) d = Math.max(d, 0.12 + r - h);
+  return d;
+}
+/** Push a point out of the body along the horizontal radial (or away from the head centre). */
+function pushOut(p: Vec, r: number): Vec {
+  let q: Vec = [...p];
+  for (let i = 0; i < 6 && bodyPen(q, r) > 0; i++) {
+    const h = sub3(q, [0, 0.58, 0.01]);
+    if (Math.hypot(...h) < 0.12 + r + 0.02 && q[1] > 0.44) q = add3([0, 0.58, 0.01], sc(nrm(h), 0.12 + r + 0.005));
+    else { const rad = nrm([q[0] / 0.21, 0, (q[2] - 0.01) / 0.14]); q = add3(q, sc(rad, bodyPen(q, r) + 0.01)); }
+  }
+  return q;
+}
+/** Keep the fist outside the body and swing the blade away from it if it would pass through. */
+function avoidKey(k: WK, tip: number, back = 0, blade = true): WK {
+  const g = pushOut(k.g, 0.055);
+  let d = k.d;
+  for (let it = 0; it < (blade ? 8 : 0); it++) {
+    let worst = 0, at: Vec | null = null;
+    for (let s = -back; s <= tip; s += 0.08) { if (Math.abs(s) < 0.1) continue; const p = add3(g, sc(d, s)); const pe = bodyPen(p, 0.02); if (pe > worst) { worst = pe; at = p; } }
+    if (!at || worst < 0.005) break;
+    const out = nrm(sub3(pushOut(at, 0.03), at));
+    d = nrm(add3(d, sc(out, 0.35)));
+  }
+  const e = nrm(sub3(k.e, sc(d, dot(k.e, d))));
+  return { ...k, g, d, e: isFinite(e[0]) ? e : k.e };
+}
+
 /** Two-bone IK: puts one fist on `target` (root space), grip along `axis`. */
 function ikArm(side: "L" | "R", pose: Pose, J: Record<Joint, Mat4>, target: Vec, axis: Vec) {
   const inv = invert(m4(), J.torso);
@@ -241,11 +275,24 @@ function ikArm(side: "L" | "R", pose: Pose, J: Record<Joint, Mat4>, target: Vec,
   const d = sub3(Tt, S);
   const L = Math.min(Math.max(Math.hypot(...d), 0.1), U + F - 0.004);
   const dn = nrm(d);
-  const pole = nrm([side === "L" ? 0.55 : -0.55, -0.9, -0.35]);
+  const pref = nrm([side === "L" ? 0.8 : -0.8, -0.55, -0.2]);   // elbow out to the side and down
   const cosA = (U * U + L * L - F * F) / (2 * U * L), A = Math.acos(Math.max(-1, Math.min(1, cosA)));
-  let q = sub3(pole, sc(dn, dot(pole, dn)));
-  if (Math.hypot(...q) < 1e-4) q = [0, -1, 0];
-  q = nrm(q);
+  // search the ring of possible elbow positions; prefer out-and-down, reject anything inside the body
+  let b1 = sub3(pref, sc(dn, dot(pref, dn)));
+  if (Math.hypot(...b1) < 1e-4) b1 = sub3([0, -1, 0], sc(dn, -dn[1]));
+  b1 = nrm(b1);
+  const b2 = cross(dn, b1);
+  let q = b1, best = 1e9;
+  for (let i = 0; i < 16; i++) {
+    const ph = (i / 16) * Math.PI * 2;
+    const qq = add3(sc(b1, Math.cos(ph)), sc(b2, Math.sin(ph)));
+    const aa = add3(sc(dn, Math.cos(A)), sc(qq, Math.sin(A)));
+    const E = add3(S, sc(aa, U)), Tp = add3(S, sc(dn, L));
+    let cost = (1 - Math.cos(ph)) * 0.02;
+    for (const k of [0.5, 1]) cost += bodyPen(add3(S, sc(aa, U * k)), 0.05) * 4;
+    for (const k of [0.33, 0.66]) cost += bodyPen(add3(E, sc(sub3(Tp, E), k)), 0.045) * 4;
+    if (cost < best) { best = cost; q = qq; }
+  }
   const a = add3(sc(dn, Math.cos(A)), sc(q, Math.sin(A)));
   const E = add3(S, sc(a, U));
   const f = nrm(sub3(add3(S, sc(dn, L)), E));
@@ -331,6 +378,7 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
   // weapon drawn back and up beside the head, out of the shield's way (defend_shield_* keeps it there)
   if ((kind === "combat" || kind === "walkcombat") && shieldArm && blocking && spec) key = K([-0.3, 0.3, 0.02], [-0.12, 0.85, -0.5], [-1, 0, 0], -0.15, 0);
 
+  if (key && spec && (kind === "combat" || kind === "walkcombat")) key = avoidKey(key, spec.tip, spec.cls === "pa" ? 0 : 0.1, spec.cls !== "pa");
   let J = solve(root, pose);
   let weapon: Mat4 | null = null;
   if (spec && key) {
