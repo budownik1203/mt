@@ -40,7 +40,7 @@ void main(){
 const FS = `#version 300 es
 precision highp float;
 in vec3 vAff; flat in vec2 vFlatUV; in vec2 vUV; in vec3 vLight; in float vFog; in vec3 vN; in vec3 vW; in float vMat; in vec3 vSpec;
-uniform sampler2D uTex; uniform float uAffine, uDither, uWire, uStyle, uVertexSpec, uPRad;
+uniform sampler2D uTex; uniform float uAffine, uDither, uWire, uStyle, uVertexSpec, uPRad; uniform vec3 uAmb;
 uniform vec3 uFog, uLDir, uLCol, uCam, uSkyUp, uSkyHor, uSkyDn, uPPos, uPCol; uniform vec4 uWireCol;
 out vec4 o;
 float bayer(vec2 p){ ivec2 i = ivec2(mod(p,4.0)); int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5); return (float(m[i.y*4+i.x])+0.5)/16.0; }
@@ -50,10 +50,20 @@ void main(){
   vec2 uv = uAffine > 0.5 ? vAff.xy/vAff.z : vUV;
   vec4 t = texture(uTex, uv);
   if(uStyle == 7.0){ vec4 tf = textureLod(uTex, vFlatUV, 8.0); t = vec4(mix(tf.rgb, t.rgb, 0.15), t.a); }
+  // facet hybrids: one averaged colour per triangle, mixed with the pixel texture
+  vec3 faceAvg = textureLod(uTex, vFlatUV, 2.0).rgb;
+  if(uStyle == 9.0) t.rgb = mix(faceAvg, t.rgb, 0.45);
+  if(uStyle == 10.0) t.rgb = vMat > 0.1 ? t.rgb : mix(faceAvg, t.rgb, 0.3);   // 0.25 = painted detail (face, heraldry)
   if(t.a < (uDither > 0.5 ? bayer(gl_FragCoord.xy) : 0.5)) discard;
   vec3 base = t.rgb;
   vec3 light = vLight;
   if(uStyle == 7.0){ vec3 fn = normalize(cross(dFdx(vW), dFdy(vW))); float nd = max(dot(fn, uLDir), 0.0); light = vLight*0.45 + uLCol*nd*0.75; }
+  vec3 fN = normalize(cross(dFdx(vW), dFdy(vW)));
+  if(uStyle >= 8.0){
+    vec3 fl = uAmb*(0.75 + 0.25*fN.y) + uLCol*max(dot(fN,uLDir),0.0);
+    if(uPRad > 0.0){ vec3 d = uPPos - vW; float a = clamp(1.0 - length(d)/uPRad,0.0,1.0); fl += uPCol*a*a*max(dot(fN,normalize(d)),0.15); }
+    light = mix(vLight, fl, 0.8);
+  }
   if(uStyle == 4.0){ // ink cel: three hard bands
     float L = dot(light, vec3(0.333));
     float b = L < 0.32 ? 0.28 : L < 0.75 ? 0.62 : 1.0;
@@ -66,7 +76,7 @@ void main(){
     vec3 spec;
     if(uVertexSpec > 0.5) spec = vSpec;
     else {
-      vec3 n = normalize(vN), v = normalize(uCam - vW), h = normalize(uLDir+v);
+      vec3 n = uStyle >= 8.0 ? fN : normalize(vN), v = normalize(uCam - vW), h = normalize(uLDir+v);
       float p = vMat > 1.5 ? 48.0 : 14.0;
       float s = pow(max(dot(n,h),0.0), p);
       if(uStyle == 4.0) s = step(0.45, s);
@@ -152,14 +162,14 @@ export class PSX {
     this.post = program(gl, POST_VS, POST_FS);
   }
 
-  setTexture(slot: number, img: ImageData, bilinear: boolean, repeat = false) {
+  setTexture(slot: number, img: ImageData, bilinear: boolean, repeat = false, mips = false) {
     const gl = this.gl;
     if (!this.texs[slot]) this.texs[slot] = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D, this.texs[slot]);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     const f = bilinear ? gl.LINEAR : gl.NEAREST;
-    if (repeat) gl.generateMipmap(gl.TEXTURE_2D);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, repeat ? (bilinear ? gl.LINEAR_MIPMAP_LINEAR : gl.NEAREST_MIPMAP_NEAREST) : f);
+    if (repeat || mips) gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, repeat ? (bilinear ? gl.LINEAR_MIPMAP_LINEAR : gl.NEAREST_MIPMAP_NEAREST) : mips ? gl.NEAREST_MIPMAP_NEAREST : f);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f);
     const wr = repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE;
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wr);

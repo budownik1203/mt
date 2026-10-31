@@ -75,6 +75,7 @@ export function buildWeapon(id: WeaponId, smooth: boolean, detail: number): TMes
 /** Heater shield, face toward +Z, centred on the arm straps. */
 export function buildShield(): TMesh {
   const t = new TMesh(256);
+  t.mat = 0.25;
   const w = 0.52, h = 0.64, pts: number[][] = [[-w / 2, h * 0.45], [w / 2, h * 0.45]];
   for (let i = 0; i <= 8; i++) { const k = i / 8; pts.push([w / 2 * (1 - k * k * 0.98), h * 0.45 - h * 0.25 * k - h * 0.75 * k * k]); }
   for (let i = 7; i >= 1; i--) { const k = i / 8; pts.push([-w / 2 * (1 - k * k * 0.98), h * 0.45 - h * 0.25 * k - h * 0.75 * k * k]); }

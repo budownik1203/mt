@@ -43,8 +43,8 @@ let groundG: GMesh, blobG: GMesh;
 
 function rebuild() {
   const L = LEVELS[S.level];
-  R.setTexture(0, downsample(atlas, L.tex), L.bilinear);
-  R.setTexture(1, downsample(gearAtlas, L.tex), L.bilinear);
+  R.setTexture(0, downsample(atlas, L.tex), L.bilinear, false, !!L.mips);
+  R.setTexture(1, downsample(gearAtlas, L.tex), L.bilinear, false, !!L.mips);
   R.setTexture(2, mailTile, L.bilinear, true);
   const lo = LOADOUTS[S.loadout];
   const g = buildGear(L, S.loadout);

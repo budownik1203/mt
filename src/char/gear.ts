@@ -240,7 +240,7 @@ export function buildGear(L: LevelSpec, lo: Loadout): { pieces: GearPiece[]; hid
     mailP("torso", (t) => t.loft(I(), sub([[0.29, 0.19 + kM + 0.018, 0.116 + kM + 0.02], [0.36, 0.175 + kM + 0.016, 0.108 + kM + 0.016], [0.42, 0.12 + kM, 0.094 + kM * 0.8], [0.48, 0.068, 0.074]]), L.torso, GREG.mailFine, { ...sm, tile: [12, 2] }));
   }
   if (has.sur) {
-    piece("torso", (t) => t.loft(I(), sub(inflate(TORSO.slice(0, 5), kS, kS * 0.9).concat([[0.4, 0.15 + kS * 0.5, 0.1 + kS * 0.5]])), L.torso, GREG.surcoat, sm));
+    piece("torso", (t) => { t.mat = 0.25; t.loft(I(), sub(inflate(TORSO.slice(0, 5), kS, kS * 0.9).concat([[0.4, 0.15 + kS * 0.5, 0.1 + kS * 0.5]])), L.torso, GREG.surcoat, sm); });
     sk(sub([[-0.47, 0.3, 0.245, 0, 0.015], [-0.2, 0.264, 0.212], [0.12, 0.2 + 0.01, 0.152]]), GREG.surSkirt, sm);
     piece("pelvis", (t) => t.loft(I(), [[0.08, 0.212, 0.162], [0.12, 0.208, 0.158]], L.torso, GREG.leather, sm));   // sword belt over the surcoat
   } else if (lo === "sergeant") {

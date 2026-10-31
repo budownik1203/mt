@@ -6,7 +6,7 @@ import { Mat4, m4, mul, trs } from "../core/math.ts";
 import { TMesh, Ring } from "./tmesh.ts";
 import { REG, Region } from "./atlas.ts";
 
-export type Level = "ps1b" | "hybrid" | "ps2" | "n64" | "painted" | "print" | "ink" | "ps1a" | "horror" | "amiga" | "facet" | "hybridink";
+export type Level = "ps1b" | "hybrid" | "ps2" | "n64" | "painted" | "print" | "ink" | "ps1a" | "horror" | "amiga" | "facet" | "hybridink" | "hfa" | "hfb" | "hfc";
 export interface LevelSpec {
   id: Level; name: string; era: string; origin: string;
   limb: number; torso: number; head: number; subdiv: boolean; smooth: boolean;
@@ -18,14 +18,19 @@ export interface LevelSpec {
   outline: boolean; vertexSpec: boolean;
   post: number;                   // 0 none, 1 horror grain + vignette, 2 16-colour palette
   fog: [number, number];          // start, length (m)
+  mips?: boolean;                 // build mip levels (facet styles average a face's colour)
 }
 const lo = { limb: 6, torso: 8, head: 9, subdiv: false };
 const hi = { limb: 8, torso: 12, head: 14, subdiv: true };
+const mid = { limb: 6, torso: 10, head: 10, subdiv: false };
 const base = { extras: true, outline: false, vertexSpec: false, post: 0, fog: [3.5, 9] as [number, number] };
 export const LEVELS: Record<Level, LevelSpec> = {
   ps1b: { ...base, id: "ps1b", name: "PS1 późne", era: "ok. 1999", origin: "Schyłek PlayStation (Vagrant Story, MGS, Medievil): drgające wierzchołki, falujące tekstury, dithering 15-bit, połysk liczony na wierzchołkach.", ...lo, smooth: true, tex: 2, res: 240, snap: true, affine: true, dither: true, bilinear: false, shader: 0, vertexSpec: true },
   hybrid: { ...base, id: "hybrid", name: "Hybryda PS1+PS2", era: "rekomendacja", origin: "Bryła i odbicia z PS2, ostre piksele tekstur i dithering z PS1, obraz 360 linii bez drgań. Tą drogą idą współczesne retro gry (Dusk, Ultrakill, Iron Lung).", ...hi, smooth: true, tex: 2, res: 360, snap: false, affine: false, dither: true, bilinear: false, shader: 0 },
   hybridink: { ...base, id: "hybridink", name: "Hybryda z konturem", era: "propozycja", origin: "Hybryda PS1+PS2 z cienkim konturem z tuszu: sylwetki czytelne w tłumie i w mroku, a reszta zostaje retro.", ...hi, smooth: true, tex: 2, res: 360, snap: false, affine: false, dither: true, bilinear: false, shader: 0, outline: true },
+  hfa: { ...base, id: "hfa", name: "Hybryda fasetowa", era: "mieszanka A", origin: "Pełne tekstury hybrydy, ale światło liczone na każdy trójkąt osobno: bryła pokazuje swoje płaszczyzny jak wyciosana, detal z tekstur zostaje.", ...mid, smooth: true, tex: 2, res: 360, snap: false, affine: false, dither: true, bilinear: false, shader: 8, mips: true },
+  hfb: { ...base, id: "hfb", name: "Fasety z detalem", era: "mieszanka B", origin: "Każdy trójkąt dostaje uśredniony kolor, a tekstura prześwituje do połowy: płaskie plamy barwy jak w low-poly, ale twarz, herb i ogniwa nadal czytelne.", ...mid, smooth: true, tex: 2, res: 360, snap: false, affine: false, dither: true, bilinear: false, shader: 9, mips: true },
+  hfc: { ...base, id: "hfc", name: "Fasety, metal z teksturą", era: "mieszanka C", origin: "Sukno, skóra i drewno jako płaskie fasety, a metal (kolczuga, płyty, hełmy, broń) w pełnej teksturze z refleksami: zbroja odcina się od reszty.", ...mid, smooth: true, tex: 2, res: 360, snap: false, affine: false, dither: true, bilinear: false, shader: 10, mips: true },
   ps2: { ...base, id: "ps2", name: "PS2", era: "ok. 2003", origin: "PlayStation 2 (Shadow of the Colossus, Drakengard): więcej trójkątów, wygładzone tekstury 256 px, odbicia z mapy otoczenia.", ...hi, smooth: true, tex: 1, res: 448, snap: false, affine: false, dither: false, bilinear: true, shader: 0 },
   horror: { ...base, id: "horror", name: "Horror PS1", era: "1999 / dziś", origin: "Silent Hill i dzisiejsze horrory w duchu PSX (Puppet Combo, Lunacid): gęsta mgła blisko kamery, ziarno, winieta, zgaszone kolory. Najbardziej duszny wariant.", ...lo, smooth: true, tex: 2, res: 240, snap: true, affine: true, dither: true, bilinear: false, shader: 0, vertexSpec: true, post: 1, fog: [1.6, 5.5] },
   amiga: { ...base, id: "amiga", name: "Paleta 16 kolorów", era: "ok. 1990", origin: "Amiga i DOS (Darklands, Hexen) oraz dzisiejsze gry z zamkniętą paletą (Blasphemous): każdy piksel zmuszony do jednej z 16 ponurych barw, z ditheringiem.", ...hi, smooth: true, tex: 2, res: 240, snap: false, affine: false, dither: false, bilinear: false, shader: 0, post: 2 },
@@ -94,6 +99,7 @@ export function buildHuman(L: LevelSpec, opt: BodyOpts = {}): { parts: Part[]; t
     t.loft(I(), S([[0, 0.152, 0.102], [0.11, 0.168, 0.112, 0, 0.008], [0.22, 0.185, 0.122, 0, 0.014], [0.31, 0.19, 0.116, 0, 0.004], [0.38, 0.17, 0.102], [0.415, 0.115, 0.084], [0.44, 0.065, 0.062]]), L.torso, REG.torso, { ...o, capTop: true });
   });
   if (!hide.has("head")) add("head", (t) => {
+    t.mat = 0.25;
     t.loft(I(), S([[-0.02, 0.05, 0.05], [0.06, 0.053, 0.057, 0, 0.004], [0.085, 0.07, 0.08, 0, 0.012], [0.125, 0.082, 0.096, 0, 0.012], [0.17, 0.088, 0.1, 0, 0.008], [0.215, 0.091, 0.103], [0.255, 0.087, 0.099, 0, -0.005], [0.282, 0.073, 0.084, 0, -0.009], [0.3, 0.048, 0.056, 0, -0.011], [0.308, 0.018, 0.022, 0, -0.011]]), L.head, REG.head, { ...o, capTop: true });
     if (L.extras && !hide.has("face")) {
       const nose: Region = { x: REG.head.x + 31, y: REG.head.y + 27, w: 2, h: 5 };
