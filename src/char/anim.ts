@@ -14,7 +14,9 @@ import { GRIP, WeaponId, WEAPONS, WClass } from "./weapons.ts";
 
 export type Anim = "idle" | "walk" | "t" | "combat" | "walkcombat";
 export type Move = "all" | "over" | "right" | "left" | "thrust" | "blocks" | "parried";
-export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move }
+export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive }
+/** Runtime-driven upper body (the game supplies the weapon key instead of the demo timeline). */
+export interface Drive { key: WK; lead: WK; block: string | null; label: string }
 
 type Vec = [number, number, number];
 // ---------- vector helpers ----------
@@ -35,7 +37,7 @@ const tdir = (m: Mat4, v: Vec): Vec => [m[0] * v[0] + m[4] * v[1] + m[8] * v[2],
 void _sub3; void _dot; void _sc; void _add3;
 
 /** A weapon key: right-fist position (torso space), weapon direction, cutting-edge direction, torso yaw & pitch. */
-interface WK { g: Vec; d: Vec; e: Vec; ty: number; tp: number; oh?: number /* left-hand slide along the grip; default = weapon's offhand */ }
+export interface WK { g: Vec; d: Vec; e: Vec; ty: number; tp: number; oh?: number /* left-hand slide along the grip; default = weapon's offhand */ }
 const K = (g: Vec, d: Vec, e: Vec, ty = 0, tp = 0): WK => ({ g, d, e, ty, tp });
 
 /*
@@ -508,11 +510,11 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     if (spec) key = classFor(spec.id).idle;
   } else if (spec) {
     // combat: upper body from the attack, lower body planted (or walking, layered like Warband)
-    const tl = timeline(spec.id, eq.move ?? "all", shieldArm);
-    const smp = sampleTL(tl, t);
+    let smp: { k: WK; block: string | null; label: string }, lead: WK;
+    if (eq.drive) { smp = { k: eq.drive.key, block: eq.drive.block, label: eq.drive.label }; lead = eq.drive.lead; }
+    else { const tl = timeline(spec.id, eq.move ?? "all", shieldArm); smp = sampleTL(tl, t); lead = sampleTL(tl, t + 0.07).k; }
     key = smp.k; blocking = !!smp.block; shieldDir = smp.block;
     // overlapping action: hips and shoulders start turning a moment before the arm
-    const lead = sampleTL(tl, t + 0.07).k;
     key = { ...key, ty: key.ty * 0.35 + lead.ty * 0.65, tp: key.tp * 0.5 + lead.tp * 0.5 };
     // guard is never perfectly still: slow breathing and a little drift of the weapon
     if (smp.label === "garda" || smp.label === "trzymanie") {
@@ -608,4 +610,56 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     }
   }
   return { J, weapon, shield, blocking };
+}
+
+
+// ============================ runtime tracks (used by the game) ============================
+export type AttackDir = Dir;
+export type BlockDir = "up" | "right" | "left" | "down";
+export interface Track { segs: Seg[]; impact: number /* seconds into the track when the blow lands, -1 if none */ }
+
+function withOh(k: WK, w: WeaponId): WK { return k.oh === undefined ? { ...k, oh: WEAPONS[w].offhand } : k; }
+export function guardKey(w: WeaponId): WK { return withOh(classFor(w).guard, w); }
+
+/** Builds a track that starts from the current pose. speed > 1 makes everything faster. */
+export function makeTrack(w: WeaponId, cur: WK, kind: "guard" | "ready" | "release" | "parried" | "blocked" | "block" | "stagger", dir: AttackDir | BlockDir = "over", speed = 1): Track {
+  const A = classFor(w), Tm = TIMING, sp = 1 / speed;
+  const segs: Seg[] = [{ t: 0, k: withOh(cur, w), ease: "smooth", label: "start" }];
+  let t = 0, impact = -1;
+  const push = (dt: number, k: WK, ease: Ease, label: string, block?: string) => { t += Math.max(0.01, dt); segs.push({ t, k: withOh(k, w), ease, block, label }); };
+  const G = A.guard;
+  if (kind === "guard") push(0.22 * sp, G, "out", "garda");
+  else if (kind === "block") push(Tm.blockIn * sp, A.blocks[dir as BlockDir], "out", "blok", dir);
+  else if (kind === "stagger") {
+    const back: WK = { ...G, g: add3(G.g, [0.06, -0.08, -0.12]), d: nrm(add3(G.d, [0.2, -0.2, -0.4])), tp: G.tp - 0.28, ty: G.ty + 0.25 };
+    push(0.12, back, "out", "oszołomienie"); push(0.36, G, "smooth", "garda");
+  } else {
+    const arc = A.arcs[dir as AttackDir];
+    if (kind === "ready") {
+      if (arc.wind) { push(Tm.ready * 0.45 * sp, arc.wind, "smooth", "zamach"); push(Tm.ready * 0.55 * sp, arc.keys[0], "out", "zamach"); }
+      else push(Tm.ready * sp, arc.keys[0], "out", "zamach");
+    } else if (kind === "release") {
+      const n = arc.impact;
+      for (let i = 1; i <= n; i++) push((Tm.release / n) * sp, arc.keys[i], i === 1 ? "in" : "lin", "cios");
+      impact = t;
+      for (let i = n + 1; i < arc.keys.length; i++) push((Tm.cont / (arc.keys.length - 1 - n)) * sp, arc.keys[i], i === arc.keys.length - 1 ? "out" : "lin", "dokończenie");
+      push(Tm.recover * sp, G, "smooth", "powrót");
+    } else {
+      // parried_ / blocked_: bounce back along the arc toward the ready pose, then home
+      const n = arc.impact, k = kind === "parried" ? 1 : 0.7;
+      push(Tm.parried * 0.5 * k, arc.keys[Math.max(0, n - 2)], "out", "odbity");
+      push(Tm.parried * 0.5 * k, arc.keys[Math.max(0, n - 3)], "smooth", "odbity");
+      push(Tm.recover * sp, G, "smooth", "powrót");
+    }
+  }
+  return { segs, impact };
+}
+export function trackLength(tr: Track) { return tr.segs[tr.segs.length - 1].t; }
+/** Sample a track without wrapping (holds the last pose). */
+export function sampleTrack(tr: Track, t: number): { k: WK; block: string | null; label: string } {
+  const tl = tr.segs;
+  if (tl.length === 1) return { k: tl[0].k, block: tl[0].block ?? null, label: tl[0].label };
+  const end = tl[tl.length - 1];
+  if (t >= end.t) return { k: end.k, block: end.block ?? null, label: end.label };
+  return sampleTL([...tl, { ...end, t: end.t + 1e-6 }], Math.max(0, t));
 }

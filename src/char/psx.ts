@@ -7,10 +7,10 @@ import { Mat4 } from "../core/math.ts";
 import { TMesh } from "./tmesh.ts";
 
 const VS = `#version 300 es
-layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNor; layout(location=2) in vec2 aUV; layout(location=3) in float aMat;
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNor; layout(location=2) in vec2 aUV; layout(location=3) in float aMat; layout(location=4) in vec3 aCol;
 uniform mat4 uModel, uVP; uniform vec2 uRes; uniform float uSnap, uVertexSpec;
 uniform vec3 uLDir, uLCol, uAmb, uRim, uCam, uPPos, uPCol, uSkyUp, uSkyHor, uSkyDn; uniform float uPRad, uStyle; uniform vec2 uFogP;
-out vec3 vAff; flat out vec2 vFlatUV; out vec2 vUV; out vec3 vLight; out float vFog; out vec3 vN; out vec3 vW; out float vMat; out vec3 vSpec;
+out vec3 vAff; flat out vec2 vFlatUV; out vec3 vCol; out vec2 vUV; out vec3 vLight; out float vFog; out vec3 vN; out vec3 vW; out float vMat; out vec3 vSpec;
 vec3 env(vec3 r){ float y = r.y; vec3 c = y > 0.0 ? mix(uSkyHor, uSkyUp, pow(y,0.6)) : mix(uSkyHor*0.6, uSkyDn, pow(-y,0.4)); c += uSkyHor * 0.8 * exp(-abs(y)*14.0); return c; }
 void main(){
   vec4 w = uModel*vec4(aPos,1.0);
@@ -34,12 +34,12 @@ void main(){
     if(uPRad > 0.0){ vec3 d = normalize(uPPos - w.xyz); vSpec += uPCol * pow(max(dot(n, normalize(d+v)),0.0), 20.0) * 0.8 * clamp(1.0 - length(uPPos-w.xyz)/uPRad,0.0,1.0); }
   }
   vFog = clamp((length(uCam - w.xyz) - uFogP.x)/uFogP.y, 0.0, 1.0);
-  vFlatUV = aUV;
+  vFlatUV = aUV; vCol = aCol;
 }`;
 
 const FS = `#version 300 es
 precision highp float;
-in vec3 vAff; flat in vec2 vFlatUV; in vec2 vUV; in vec3 vLight; in float vFog; in vec3 vN; in vec3 vW; in float vMat; in vec3 vSpec;
+in vec3 vAff; flat in vec2 vFlatUV; in vec3 vCol; in vec2 vUV; in vec3 vLight; in float vFog; in vec3 vN; in vec3 vW; in float vMat; in vec3 vSpec;
 uniform sampler2D uTex; uniform float uAffine, uDither, uWire, uStyle, uVertexSpec, uPRad; uniform vec3 uAmb;
 uniform vec3 uFog, uLDir, uLCol, uCam, uSkyUp, uSkyHor, uSkyDn, uPPos, uPCol; uniform vec4 uWireCol;
 out vec4 o;
@@ -55,7 +55,7 @@ void main(){
   if(uStyle == 9.0) t.rgb = mix(faceAvg, t.rgb, 0.45);
   if(uStyle == 10.0) t.rgb = vMat > 0.1 ? t.rgb : mix(faceAvg, t.rgb, 0.3);   // 0.25 = painted detail (face, heraldry)
   if(t.a < (uDither > 0.5 ? bayer(gl_FragCoord.xy) : 0.5)) discard;
-  vec3 base = t.rgb;
+  vec3 base = t.rgb * vCol;
   vec3 light = vLight;
   if(uStyle == 7.0){ vec3 fn = normalize(cross(dFdx(vW), dFdy(vW))); float nd = max(dot(fn, uLDir), 0.0); light = vLight*0.45 + uLCol*nd*0.75; }
   vec3 fN = normalize(cross(dFdx(vW), dFdy(vW)));
@@ -72,7 +72,8 @@ void main(){
   vec3 c = base * light;
   if(uStyle == 2.0){ float g = dot(c, vec3(0.299,0.587,0.114)); c = mix(vec3(g), c, 1.25); }   // painted: richer colour
   // metal
-  if(vMat > 0.5){
+  if(vMat > 2.5) c = base * 1.6;   // unlit / emissive (fire, embers)
+  else if(vMat > 0.5){
     vec3 spec;
     if(uVertexSpec > 0.5) spec = vSpec;
     else {
@@ -160,6 +161,7 @@ export class PSX {
     this.gl = gl;
     this.main = program(gl, VS, FS);
     this.post = program(gl, POST_VS, POST_FS);
+    gl.vertexAttrib3f(4, 1, 1, 1);   // default vertex colour: white
   }
 
   setTexture(slot: number, img: ImageData, bilinear: boolean, repeat = false, mips = false) {
@@ -176,7 +178,7 @@ export class PSX {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wr);
   }
 
-  upload(t: TMesh, tex = 0): GMesh {
+  upload(t: { pos: number[]; nor: number[]; uv: number[]; mats: number[]; col?: number[] }, tex = 0, wire = true): GMesh {
     const gl = this.gl;
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
@@ -186,15 +188,16 @@ export class PSX {
       gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
     };
     buf(t.pos, 0, 3); buf(t.nor, 1, 3); buf(t.uv, 2, 2); buf(t.mats, 3, 1);
+    if (t.col) buf(t.col, 4, 3); else gl.disableVertexAttribArray(4);
     const wp: number[] = [];
-    for (let i = 0; i < t.pos.length; i += 9) {
+    for (let i = 0; wire && i < t.pos.length; i += 9) {
       const v = [t.pos.slice(i, i + 3), t.pos.slice(i + 3, i + 6), t.pos.slice(i + 6, i + 9)];
       for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) wp.push(...v[a], ...v[b]);
     }
     const wvao = gl.createVertexArray()!;
     gl.bindVertexArray(wvao);
     buf(wp, 0, 3);
-    gl.vertexAttrib3f(1, 0, 1, 0); gl.vertexAttrib2f(2, 0, 0); gl.vertexAttrib1f(3, 0);
+    gl.vertexAttrib3f(1, 0, 1, 0); gl.vertexAttrib2f(2, 0, 0); gl.vertexAttrib1f(3, 0); gl.vertexAttrib3f(4, 1, 1, 1);
     gl.bindVertexArray(null);
     return { vao, count: t.pos.length / 3, wvao, wcount: wp.length / 3, tex };
   }

@@ -1,7 +1,7 @@
 // Melee AI: circle at weapon range, take turns attacking (tokens), read the
 // player's windup and pick a block after a reaction delay that depends on skill.
 import { wrapAngle, clamp } from "../core/math.ts";
-import { Fighter } from "./fighter.ts";
+import { Warrior as Fighter } from "./warrior.ts";
 import { DIR, Dir, mirror } from "./combat.ts";
 
 export class Brain {
@@ -82,6 +82,7 @@ export class Brain {
         d = options[Math.floor(Math.random() * options.length)];
       }
       if (me.attack(d)) {
+        me.aiHold = Math.random() < 0.45 ? 0.15 + Math.random() * 0.7 * skill : 0;
         this.cooldown = lerp(2.6, 1.1, skill) + Math.random() * 1.2;
         me.aiToken = false; tokens.used = Math.max(0, tokens.used - 1);
       }
