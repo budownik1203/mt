@@ -6,7 +6,7 @@ import { paintGear, paintMailTile, buildGear, LOADOUTS, Loadout } from "./char/g
 import { TMesh } from "./char/tmesh.ts";
 import { LEVELS, Level, buildHuman, Joint } from "./char/human.ts";
 import { buildWeapon, buildShield, WEAPONS, WeaponId, CLASS_NAME } from "./char/weapons.ts";
-import { frame as poseFrame, Anim, Move } from "./char/anim.ts";
+import { frame as poseFrame, Anim, Move, phaseAt } from "./char/anim.ts";
 
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $("view") as HTMLCanvasElement;
@@ -92,7 +92,7 @@ function bindGroup(id: string, key: "level" | "view" | "pose" | "light" | "loado
     if (key === "level") { S.level = v as Level; rebuild(); }
     else if (key === "loadout") { S.loadout = v as Loadout; rebuild(); }
     else if (key === "weapon") { S.weapon = v as WeaponId | "kit"; rebuild(); }
-    else if (key === "move") { S.move = v as Move; S.pose = "combat"; clock = 0; syncButtons(); }
+    else if (key === "move") { S.move = v as Move; if (S.pose !== "walkcombat") S.pose = "combat"; clock = 0; syncButtons(); }
     else if (key === "view") applyView(v as View);
     else { (S as Record<string, unknown>)[key] = v; syncButtons(); }
   });
@@ -108,7 +108,7 @@ function syncButtons() {
 }
 
 const vp = m4(), view = m4(), proj = m4();
-let last = performance.now(), clock = 0;
+let last = performance.now(), clock = 0, lastPhase = "-";
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   clock = S.time >= 0 ? S.time : clock + dt;
@@ -126,7 +126,10 @@ function frame(now: number) {
   mul(vp, proj, view);
   const lo = LOADOUTS[S.loadout];
   const wid = curWeapon();
-  const F = poseFrame(m4(), S.pose, clock, { weapon: wid, shield: WEAPONS[wid].cls === "oh" ? lo.shield : (lo.shield === "arm" ? "back" : lo.shield), move: S.move });
+  const sh = WEAPONS[wid].cls === "oh" ? lo.shield : (lo.shield === "arm" ? "back" : lo.shield);
+  const F = poseFrame(m4(), S.pose, clock, { weapon: wid, shield: sh, move: S.move });
+  const ph = S.pose === "combat" || S.pose === "walkcombat" ? phaseAt(wid, S.move, sh === "arm", clock) : "";
+  if (ph !== lastPhase) { $("phase").textContent = ph ? `Faza: ${ph}` : ""; lastPhase = ph; }
   void lo;
   const items = parts.map((p) => ({ mesh: p.mesh, model: F.J[p.joint] }));
   if (weaponG && F.weapon) items.push({ mesh: weaponG, model: F.weapon });

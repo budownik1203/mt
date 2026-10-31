@@ -23,9 +23,9 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   hatchet: { id: "hatchet", name: "Topór", cls: "oh", thrust: false, offhand: 0, tip: 0.55 },
   mace: { id: "mace", name: "Buzdygan", cls: "oh", thrust: false, offhand: 0, tip: 0.6 },
   longsword: { id: "longsword", name: "Miecz dwuręczny", cls: "th", thrust: true, offhand: -0.14, tip: 1.2 },
-  greataxe: { id: "greataxe", name: "Topór dwuręczny", cls: "th", thrust: false, offhand: -0.3, tip: 0.85 },
-  spear: { id: "spear", name: "Włócznia", cls: "pa", thrust: true, offhand: 0.45, tip: 1.6 },
-  glaive: { id: "glaive", name: "Glewia", cls: "pa", thrust: true, offhand: 0.45, tip: 1.75 },
+  greataxe: { id: "greataxe", name: "Topór dwuręczny", cls: "th", thrust: false, offhand: -0.22, tip: 0.85 },
+  spear: { id: "spear", name: "Włócznia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.6 },
+  glaive: { id: "glaive", name: "Glewia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.75 },
 };
 export const CLASS_NAME: Record<WClass, string> = { oh: "jednoręczna", th: "dwuręczna", pa: "drzewcowa" };
 
