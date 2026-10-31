@@ -35,7 +35,7 @@ const tdir = (m: Mat4, v: Vec): Vec => [m[0] * v[0] + m[4] * v[1] + m[8] * v[2],
 void _sub3; void _dot; void _sc; void _add3;
 
 /** A weapon key: right-fist position (torso space), weapon direction, cutting-edge direction, torso yaw & pitch. */
-interface WK { g: Vec; d: Vec; e: Vec; ty: number; tp: number }
+interface WK { g: Vec; d: Vec; e: Vec; ty: number; tp: number; oh?: number /* left-hand slide along the grip; default = weapon's offhand */ }
 const K = (g: Vec, d: Vec, e: Vec, ty = 0, tp = 0): WK => ({ g, d, e, ty, tp });
 
 /*
@@ -103,8 +103,8 @@ function makeClass(o: { pole?: boolean; c: Vec; r: number; guard: WK; idle: WK; 
     // staff swings (ready_slashright_staff …): hands stay in front of the body, the shaft sweeps
     // the shaft pivots between the hands: keep the midpoint of the grip near the chest
     const mid = (w: WK): WK => { const half = sc(w.d, 0.225); return { ...w, g: sub3(add3(w.g, sc(sub3(w.g, o.c), -0.4)), half) }; };
-    const right = swingArc((a, lag, k) => mid(hSwing(o.c, o.r, a, lin(0.3, 0.16, k), lag, lin(0.3, -0.02, k), 1, lin(-0.75 * T, 0.6 * T, k), lin(0, 0.1, k))), -80, 5, 55, 25);
-    const left = swingArc((a, lag, k) => mid(hSwing(o.c, o.r, a, lin(0.3, 0.16, k), lag, lin(0.3, -0.02, k), -1, lin(0.7 * T, -0.6 * T, k), lin(0, 0.1, k))), 75, -5, -55, 25);
+    const right = swingArc((a, lag, k) => mid(hSwing(o.c, o.r, a, lin(0.2, 0.08, k), lag, lin(0.36, 0.04, k), 1, lin(-0.75 * T, 0.6 * T, k), lin(0, 0.1, k))), -80, 5, 50, 25);
+    const left = swingArc((a, lag, k) => mid(hSwing(o.c, o.r, a, lin(0.2, 0.08, k), lag, lin(0.36, 0.04, k), -1, lin(0.7 * T, -0.6 * T, k), lin(0, 0.1, k))), 75, -5, -50, 25);
     const over = swingArc((b, lag, k) => mid(vSwing([o.c[0], 0.36, o.c[2] + 0.05], o.overR, b, lag, o.overX, lin(-0.2 * T, 0.1 * T, k), lin(-0.1, 0.24, k))), -10, 80, 112, 30);
     const thrust: Arc = { keys: [o.thrust.back, o.thrust.out, { ...o.thrust.out, g: add3(o.thrust.out.g, [0, -0.01, 0.02]) }], impact: 1 };
     return { guard: o.guard, idle: o.idle, arcs: { right, left, over, thrust }, blocks: o.blocks };
@@ -148,7 +148,7 @@ const TH = makeClass({
 });
 // Polearm: right fist at the rear of the grip, left fist 0.45 m up the shaft.
 const PA = makeClass({
-  pole: true, c: [-0.1, 0, 0.12], r: 0.1, twist: 0.8, overR: 0.18, overX: -0.08,
+  pole: true, c: [-0.08, 0, 0.26], r: 0.1, twist: 0.8, overR: 0.18, overX: -0.08,
   guard: K([-0.2, -0.02, 0.04], [0.38, 0.14, 0.91], [0, 1, -0.15], 0.15, 0.06),
   idle: K([-0.22, -0.2, 0.1], [0.02, 1, 0.08], [1, 0, 0], 0, 0),
   // thrust_staff: drawn back low at the hip, driven forward and slightly up
@@ -175,7 +175,7 @@ const PA = makeClass({
 function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
 {
   const A = OH;
-  A.guard = K([-0.19, -0.04, 0.24], [0.06, 0.97, 0.22], [0, -0.22, 0.97], 0.15, 0.02);
+  A.guard = K([-0.12, -0.06, 0.28], [0.08, 0.96, 0.25], [0, -0.25, 0.96], 0.15, 0.02);
   A.arcs.over = arcOf([
     K([-0.1, 0.8, -0.04], [0.05, -0.35, -0.94], [0, 0.94, -0.35], -0.12, -0.14),     // ready: blade hangs behind the head
     K([-0.11, 0.84, 0.03], [0.04, 0.45, -0.89], [0, 0.89, 0.45], -0.08, -0.08),       // blade swings up over the back
@@ -203,10 +203,10 @@ function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
     K([-0.5, 0.1, 0.12], [-0.8, -0.35, -0.48], [0.5, 0, -0.85], -0.7, 0.12),
   ], 3);
   A.arcs.thrust = arcOf([
-    K([-0.28, 0.0, -0.14], [0.06, 0.16, 0.98], [0, 0.98, -0.16], -0.7, -0.04),       // ready: fist at the right hip
-    K([-0.2, 0.18, 0.26], [0.04, 0.08, 0.99], [0, 1, -0.08], -0.1, 0.12),
-    K([-0.12, 0.3, 0.62], [0.03, 0.0, 1], [0, 1, 0], 0.35, 0.34),                     // impact: full extension + lunge
-    K([-0.12, 0.29, 0.63], [0.03, -0.02, 1], [0, 1, 0.02], 0.36, 0.34),
+    K([-0.28, 0.0, -0.14], [0.08, 0.5, 0.86], [0, 0.86, -0.5], -0.7, -0.04),         // ready: fist at the right hip, point up toward the face
+    K([-0.2, 0.16, 0.26], [0.05, 0.3, 0.95], [0, 0.95, -0.3], -0.1, 0.16),
+    K([-0.12, 0.26, 0.62], [0.03, 0.22, 0.97], [0, 0.97, -0.22], 0.35, 0.48),         // impact: full extension, deep lunge, point rising
+    K([-0.12, 0.25, 0.63], [0.03, 0.2, 0.98], [0, 0.98, -0.2], 0.36, 0.48),
   ], 2);
   A.blocks.up = K([-0.12, 0.66, 0.3], [0.98, 0.12, 0.12], [0, 1, 0], 0.05, -0.05);
   A.blocks.right = K([-0.36, 0.22, 0.34], [-0.1, 0.98, 0.12], [-1, 0, 0], -0.35, 0);
@@ -253,17 +253,17 @@ function arcOf(keys: WK[], impact: number): Arc { return { keys, impact }; }
 {
   // polearm (spear recording): guard diagonal across the body, butt low at the right foot
   const A = PA;
-  A.guard = K([-0.22, -0.04, 0.12], [0.62, 0.26, 0.74], [0, 0.94, -0.33], 0.2, 0.04);
+  A.guard = K([-0.2, -0.16, 0.16], [0.66, 0.16, 0.73], [0, 0.98, -0.2], 0.2, 0.04);
   A.blocks.up = K([-0.34, 0.66, 0.18], [1, 0.02, 0.04], [0, 1, 0], 0, -0.04);      // shaft flat above the head
   A.blocks.down = K([-0.32, 0.06, 0.32], [1, 0.0, 0.06], [0, 1, 0], 0, 0.04);       // shaft flat at the belly
   A.blocks.right = K([-0.3, -0.16, 0.3], [0.02, 0.99, 0.1], [-1, 0, 0], -0.2, 0);   // shaft upright on the right
   A.blocks.left = K([0.16, -0.16, 0.3], [0.02, 0.99, 0.1], [1, 0, 0], 0.25, 0);     // shaft upright on the left
   // thrust: drawn back at the hip, driven forward at chest height
   A.arcs.thrust = arcOf([
-    K([-0.24, -0.02, -0.18], [0.3, 0.06, 0.95], [0, 1, -0.06], 0.35, -0.04),
-    K([-0.2, 0.1, 0.0], [0.3, 0.04, 0.95], [0, 1, -0.04], 0.05, 0.12),
-    K([-0.18, 0.2, 0.12], [0.3, 0.02, 0.95], [0, 1, -0.02], -0.2, 0.28),
-    K([-0.18, 0.2, 0.13], [0.3, 0.0, 0.95], [0, 1, 0], -0.21, 0.28),
+    { ...K([-0.24, -0.02, -0.18], [0.3, 0.06, 0.95], [0, 1, -0.06], 0.35, -0.04), oh: 0.42 },   // drawn back at the hip
+    { ...K([-0.18, 0.14, 0.12], [0.24, 0.04, 0.97], [0, 1, -0.04], 0.0, 0.14), oh: 0.12 },
+    { ...K([-0.1, 0.26, 0.48], [0.16, 0.02, 0.99], [0, 1, -0.02], -0.3, 0.3), oh: -0.26 },     // right arm fully out, left hand back at the chest
+    { ...K([-0.1, 0.26, 0.49], [0.16, 0.0, 0.99], [0, 1, 0], -0.31, 0.3), oh: -0.26 },
   ], 2);
 }
 const PA_SPEAR: ClassAnims = {
@@ -325,6 +325,7 @@ function timeline(w: WeaponId, move: Move, shield: boolean): Seg[] {
     }
   }
   out.push({ t: t + 0.25, k: A.guard, ease: "smooth", label: "garda" });
+  for (const sg of out) if (sg.k.oh === undefined) sg.k = { ...sg.k, oh: spec.offhand };
   return out;
 }
 
@@ -337,7 +338,7 @@ function easeK(e: Ease, k: number) { return e === "in" ? k * k : e === "out" ? 1
  * middle of an arc are passed through at full speed.
  */
 type Num = number[];
-function keyVec(k: WK): Num { return [...k.g, ...k.d, ...k.e, k.ty, k.tp]; }
+function keyVec(k: WK): Num { return [...k.g, ...k.d, ...k.e, k.ty, k.tp, k.oh ?? NaN]; }
 function tangent(tl: Seg[], i: number): Num {
   const n = tl.length, cur = keyVec(tl[i].k);
   if (i === 0 || i === n - 1) return cur.map(() => 0);
@@ -365,7 +366,7 @@ function sampleTL(tl: Seg[], t: number): { k: WK; block: string | null; label: s
   const A = keyVec(a.k), B = keyVec(b.k), mA = tangent(tl, i), mB = tangent(tl, i + 1);
   const h00 = 2 * u * u * u - 3 * u * u + 1, h10 = u * u * u - 2 * u * u + u, h01 = -2 * u * u * u + 3 * u * u, h11 = u * u * u - u * u;
   const v = A.map((x, j) => h00 * x + h10 * dt * mA[j] + h01 * B[j] + h11 * dt * mB[j]);
-  const k: WK = { g: [v[0], v[1], v[2]], d: nrm([v[3], v[4], v[5]]), e: nrm([v[6], v[7], v[8]]), ty: v[9], tp: v[10] };
+  const k: WK = { g: [v[0], v[1], v[2]], d: nrm([v[3], v[4], v[5]]), e: nrm([v[6], v[7], v[8]]), ty: v[9], tp: v[10], oh: isFinite(v[11]) ? v[11] : undefined };
   const blk = (b.block && u > 0.3) ? b.block : a.block && u < 0.7 ? a.block : null;
   return { k, block: blk ?? null, label: b.label };
 }
@@ -520,13 +521,13 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     }
     if (!walking) {
       // weight on the back leg while winding up, onto the front leg (lunge) as the strike lands
-      const fw = Math.max(-1, Math.min(1, key.tp / 0.3));
+      const fw = Math.max(-1, Math.min(1, key.tp / 0.4));
       const L = Math.max(0, fw), Bk = Math.max(0, -fw);
       legs = {
         thighL: [-0.25 - 0.45 * L + 0.1 * Bk, -0.1, 0.06], shinL: [0.22 + 0.6 * L, 0, 0], footL: [0.03 - 0.15 * L, 0.1, 0],
         thighR: [0.12 + 0.3 * L - 0.05 * Bk, 0.15, -0.08], shinR: [0.2 + 0.1 * L + 0.25 * Bk, 0, 0], footR: [-0.32 - 0.25 * L, 0, 0],
       };
-      bob = -0.02 - 0.09 * L - 0.03 * Bk;
+      bob = -0.02 - 0.12 * L - 0.03 * Bk;
     }
     const sb = shieldArm && blocking;
     pose.r = {
@@ -553,11 +554,23 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     const rf: Vec = [wl[12], wl[13], wl[14]];
     // polearm at rest (idle/walk) rides in the right hand only, upright
     const oneHanded = spec.offhand === 0;
-    ikArm("R", pose, J0, rf, ax);
+    const oh = key.oh ?? spec.offhand;
+    let rfT: Vec = rf;
+    if (!oneHanded) {
+      // keep both grips within reach: slide the weapon toward the left shoulder if the off hand can't get there
+      const ls = xform(J0.torso, ...(RIG.uarmL.at as Vec)) as Vec;
+      for (let i = 0; i < 3; i++) {
+        const lt = add3(rfT, sc(ax, oh));
+        const dl = sub3(lt, ls), dist = Math.hypot(...dl);
+        if (dist <= 0.6) break;
+        rfT = sub3(rfT, sc(nrm(dl), dist - 0.6 + 0.005));
+      }
+    }
+    ikArm("R", pose, J0, rfT, ax);
     // weapon sits in the actual right fist (IK can fall a few mm short at full reach), then the left hand finds the grip
     const fp = xform(solve(m4(), pose).handR, 0, -0.07, 0.004);
     wl[12] = fp[0]; wl[13] = fp[1]; wl[14] = fp[2];
-    if (!oneHanded) ikArm("L", pose, solve(m4(), pose), add3(fp as Vec, sc(ax, spec.offhand)), ax);
+    if (!oneHanded) ikArm("L", pose, solve(m4(), pose), add3(fp as Vec, sc(ax, oh)), ax);
     J = solve(root, pose);
     weapon = mul(m4(), root, wl);
     void inv;
@@ -579,11 +592,11 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
       // shield placed relative to the chest, then the left arm reaches into its straps (IK)
       let pos: Vec = [0.2, 0.2, 0.3], yaw = 0.25, pitch = -0.08;
       if (blocking) {
-        pos = [0.04, 0.12, 0.34]; yaw = 0.05; pitch = -0.04;             // defend_shield_forward: covers chest to knees
-        if (shieldDir === "up") { pos = [0.04, 0.52, 0.34]; pitch = -0.85; }
-        if (shieldDir === "left") { pos = [0.2, 0.3, 0.38]; yaw = 0.55; }
-        if (shieldDir === "right") { pos = [-0.12, 0.3, 0.4]; yaw = -0.4; }
-        if (shieldDir === "down") { pos = [0.06, 0.18, 0.42]; pitch = 0.18; }
+        pos = [0.04, -0.02, 0.32]; yaw = 0.05; pitch = -0.04;            // defend_shield_forward: covers chest to knees
+        if (shieldDir === "up") { pos = [0.04, 0.36, 0.34]; pitch = -0.7; }
+        if (shieldDir === "left") { pos = [0.18, 0.02, 0.3]; yaw = 0.55; }
+        if (shieldDir === "right") { pos = [-0.1, 0.02, 0.32]; yaw = -0.4; }
+        if (shieldDir === "down") { pos = [0.05, -0.08, 0.32]; pitch = 0.12; }
       }
       const J0 = solve(m4(), pose);
       const local = mul(m4(), J0.torso, trs(m4(), pos[0], pos[1], pos[2], yaw, pitch, 0));
