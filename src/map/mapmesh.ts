@@ -152,6 +152,10 @@ function poiModel(b: MeshBuilder, w: World, p: Poi) {
   } else if (p.kind === "gallows") {
     b.box(T(p.x, y + 1.6, p.z), 0.2, 3.2, 0.2, C.woodD); b.box(T(p.x + 0.6, y + 3.1, p.z), 1.4, 0.15, 0.15, C.woodD);
     b.box(T(p.x + 1.1, y + 2.4, p.z), 0.25, 0.7, 0.18, C.black);
+  } else if (p.kind === "lair") {
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 1.4 - 0.4; b.rock(T(p.x + Math.cos(a) * 1.6, y + 0.5, p.z + Math.sin(a) * 1.6), 0.9 + r() * 0.4, C.stoneD, 0.35, i + 3); }
+    b.box(T(p.x, y + 0.3, p.z + 0.4), 1.0, 0.7, 0.2, C.black);
+    for (let i = 0; i < 6; i++) b.rock(T(p.x + (r() - 0.5) * 2.4, y + 0.06, p.z + 1.2 + r()), 0.1, C.bone, 0.3, i);
   } else if (p.kind === "graveyard") {
     for (let i = 0; i < 9; i++) { const x = p.x + (i % 3) * 1.1 - 1.1, z = p.z + Math.floor(i / 3) * 1.1 - 1.1; b.box(T(x, y + 0.3, z, r() * 0.3, 0, (r() - 0.5) * 0.3), 0.5, 0.6, 0.12, C.stoneD); }
   }

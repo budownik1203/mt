@@ -10,6 +10,7 @@ import type { TravelEvent } from "./events.ts";
 import { power } from "./troops.ts";
 import { rites, doRite, placeActs, undeadCount, livingCount, harvest, corrupt, learnNecromancy } from "./necro.ts";
 import { undeadLimit, corruptionWord } from "./hero.ts";
+import { MONSTERS, monsterDef, monsterParty, offerAt, takeContract, monsterSlain } from "./monsters.ts";
 import { FACTIONS, FIDS, LORDS, PERSONA, FactionId, lordDef, atWar, hostileTo, changeRel, lordRel, relWord, hire, vassal, leaveService, vassalNeeds, transfer, seatOf } from "./factions.ts";
 import { WEAPONS, WeaponId } from "../char/weapons.ts";
 import type { Loadout } from "../char/gear.ts";
@@ -163,8 +164,33 @@ export class MapUI {
     if (s.kind === "village" && fx.fief[s.id] === "player") acts.push({ label: "Twoje lenno", sub: `czynsz co tydzień ok. ${Math.round(30 * (0.5 + s.prosperity))} gr · rekruci tańsi`, off: true, on: () => {} });
     if (s.kind === "castle") acts.push({ label: "Pod bramą", sub: "kasztelan każe czekać", off: true, on: () => {} });
     acts.push({ label: s.kind === "town" ? "Gospoda: odpocznij do rana" : "Przenocuj", sub: s.kind === "town" ? `${Math.ceil(c.men / 2)} gr, ranni szybciej wracają do sił` : "za darmo, w stodole", on: () => this.rest(s) });
+    const offer = offerAt(c, s.id);
+    if (offer) acts.push({ label: `Kontrakt: ${offer.name}`, sub: `${s.kind === "town" ? "rada miejska" : "sołtys"} płaci za głowę · ok. ${Math.round(offer.reward * (s.kind === "town" ? 1.3 : 1))} gr · 20 dni`, kind: "go", on: () => this.contractOffer(s, offer.id) });
+    for (const k of c.contracts.filter((x) => x.from === s.id)) {
+      const d = monsterDef(k.monster);
+      acts.push({ label: `Śledztwo: ${d.name} (${k.steps}/3)`, sub: k.steps >= 3 ? `gotowe: ${d.bait}` : `2 h · ${["rozpytaj ludzi", "idź po śladach", "przygotuj się na bestię"][k.steps]} · zostało ${k.until - c.day} d`, off: k.steps >= 3, on: () => this.investigate(s, k.monster) });
+    }
     acts.push({ label: "Wyjdź", on: () => this.close() });
     this.show(s.name, body, acts);
+  }
+  private contractOffer(s: Settlement, id: string) {
+    const c = this.c, d = monsterDef(id), p = monsterParty(c, id);
+    const L = c.w.pois.find((q) => q.id === d.lair)!;
+    const dir = (() => { const a = Math.atan2(L.x - s.x, -(L.z - s.z)) * 180 / Math.PI; const n = ["północ", "północny wschód", "wschód", "południowy wschód", "południe", "południowy zachód", "zachód", "północny zachód"]; return n[(Math.round(((a + 360) % 360) / 45)) % 8]; })();
+    const comp = p ? p.troops.map((x) => `${x.n} × ${tn(x.t)}`).join(", ") : "?";
+    const reward = Math.round(d.reward * (s.kind === "town" ? 1.3 : 1) * (0.7 + s.prosperity * 0.6));
+    const body = `<p>${d.hunt}</p><p class="meta">Co to jest: ${esc(comp)} · legowisko: ${esc(L.name)}, na ${dir} stąd (${Math.round(Math.hypot(L.x - s.x, L.z - s.z))} staj).</p><p class="meta">Nagroda <b>${reward} gr</b> po przyniesieniu głowy · termin 20 dni · niewykonany kontrakt: sława −5, pan wsi niezadowolony. Śledztwo tutaj (3 kroki po 2 h) osłabi bestię o jedną czwartą.</p>`;
+    this.show(`${s.name}: kontrakt`, body, [
+      { label: "Przyjmij kontrakt", kind: "go", on: () => { takeContract(c, s.id, d); this.settlement(s.id); } },
+      { label: "Wróć", on: () => this.settlement(s.id) },
+    ]);
+  }
+  private investigate(s: Settlement, id: string) {
+    const c = this.c, d = monsterDef(id), k = c.contracts.find((x) => x.monster === id)!;
+    c.passHours(2);
+    const clue = d.clues[k.steps]; k.steps++;
+    const extra = k.steps >= 3 ? `<p class="meta"><b>Przygotowani:</b> ${esc(d.bait)}. Słabość: ${esc(d.weakness)}.</p>` : `<p class="meta">Śledztwo ${k.steps}/3.</p>`;
+    this.show(`${s.name}: śledztwo`, `<p>${esc(clue)}</p>${extra}`, [{ label: "Wróć", on: () => this.settlement(s.id) }]);
   }
   private raidAct(s: Settlement): Act {
     const c = this.c, f = c.fx.owner[s.id], hostile = hostileTo(c, f);
@@ -275,13 +301,14 @@ export class MapUI {
       p.kind === "necro" ? "Człowiek w czarnym płaszczu, a za nim kości i coś na czworakach. Zabij jego, a reszta padnie." :
       p.kind === "hunters" ? ((c.co.hero.corruption ?? 0) >= 50 ? "Łowcy czarownic. Srebrne ćwieki, księga i stos drewna na wozie. Przyszli po ciebie." : "Łowcy czarownic z Sankt Morwen. Przyglądają się twoim ludziom, potem jadą dalej.") :
       p.kind === "lord" ? lordIntro(c, p) :
+      p.kind === "monster" ? `${esc(monsterDef(p.monster!).hunt)}${c.contracts.find((k) => k.monster === p.monster)?.steps === 3 ? " <b>Jesteście przygotowani: " + esc(monsterDef(p.monster!).bait) + ".</b>" : ""}` :
       p.kind === "caravan" ? "Wozy pod plandekami, strażnicy w kolczugach. Kupiec zerka nieufnie." : "Chłopi z wózkiem. Na twój widok cofają się do rowu.";
     const body = `<p>${intro}</p><p class="meta">${esc(p.name)}: ${esc(comp)}.</p><p class="meta">Siły: ${odds}.</p>`;
     const acts: Act[] = [];
     if (hostile) {
       acts.push({ label: "Do walki", sub: "bitwa na tym terenie, o tej porze", kind: "go", on: () => { this.close(); this.h.fight(p); } });
       acts.push({ label: "Rozstrzygnij bez walki", sub: "kapitanowie prowadzą ludzi, ty patrzysz", on: () => this.auto(p) });
-      if (p.kind !== "undead" && p.kind !== "necro" && p.kind !== "hunters" && p.kind !== "garrison") {
+      if (p.kind !== "undead" && p.kind !== "necro" && p.kind !== "hunters" && p.kind !== "garrison" && p.kind !== "monster") {
         const bribe = 5 * c.partySize(p);
         acts.push({ label: "Przekup", sub: `${bribe} gr za spokój`, off: me.gold < bribe, on: () => { me.gold -= bribe; p.stunned = 6; c.note(`Zapłaciłeś ${bribe} gr. ${p.name} odchodzą, licząc srebro.`, "warn"); this.close(); } });
       }
@@ -327,13 +354,13 @@ export class MapUI {
       const share = Math.round(loot * co.lootShare);
       me.gold += loot - share;
       co.morale = Math.min(100, co.morale + 8 + co.lootShare * 20);
-      const food = p.kind === "undead" || p.kind === "necro" ? 0 : Math.floor((c.partySize(p) + theirDead) * 2 + (p.kind === "caravan" ? 30 : 0));
+      const food = p.kind === "undead" || p.kind === "necro" || p.kind === "monster" ? 0 : Math.floor((c.partySize(p) + theirDead) * 2 + (p.kind === "caravan" ? 30 : 0));
       if (food) { const b = co.food.find((f) => f.type === "grain" && f.age === 0); if (b) b.n += food; else co.food.push({ type: "grain", n: food, age: 0 }); }
       for (const s of me.troops) s.xp = Math.min(s.n, s.xp + (s.n - s.wounded));
       const h = co.hero;
       // prisoners: the enemy's wounded, as many as you can guard
       let took = 0;
-      if (p.kind !== "undead" && p.kind !== "necro") {
+      if (p.kind !== "undead" && p.kind !== "necro" && p.kind !== "monster") {
         co.prisoners = co.prisoners ?? [];
         for (const st of p.troops) {
           const room = prisonerLimit(h) - c.prisonerCount; if (room <= 0) break;
@@ -345,7 +372,7 @@ export class MapUI {
       }
       // spoils: a weapon now and then from what the dead carried
       const items: Item[] = [];
-      const drops = Math.floor(theirDead / 4 + c.rand() * (1 + h.skills.lupy * 0.3));
+      const drops = p.kind === "monster" || p.kind === "undead" ? 0 : Math.floor(theirDead / 4 + c.rand() * (1 + h.skills.lupy * 0.3));
       const pool = [...new Set(p.troops.map((x) => x.t).concat(["rozbojnik"] as TroopId[]))].map((t) => TROOPS[t].kit.weapon as WeaponId);
       for (let i = 0; i < drops; i++) items.push({ kind: "weapon", id: pool[Math.floor(c.rand() * pool.length)] });
       if (p.kind === "caravan" && c.rand() < 0.5) items.push({ kind: "armour", id: "sergeant" });
@@ -356,7 +383,8 @@ export class MapUI {
       const ups = addXp(h, xp);
       h.won++; h.renown += Math.round((theirDead + c.partySize(p)) * 0.5) + 1;
       lootText += `<p class="meta">Łup: ${loot} gr (ludzie biorą ${share}), ${food} porcji jedzenia${items.length ? ", " + items.map(itemName).join(", ") : ""}.${took ? ` Jeńcy: ${took}.` : ""}</p><p class="meta">Doświadczenie +${xp}${ups ? ` · <b>Nowy poziom (${h.level})</b>: punkty do rozdania w oknie Postać` : ""} · sława ${h.renown}</p>`;
-      if (p.kind === "lord" || p.kind === "garrison") c.removeParty(p);
+      if (p.kind === "monster") { lootText += monsterSlain(c, p); c.removeParty(p); }
+      else if (p.kind === "lord" || p.kind === "garrison") c.removeParty(p);
       else if (c.partySize(p) > 0) { p.stunned = 6; p.mode = "flee"; p.gold = 0; }   // the routed survive and scatter
       else c.removeParty(p);
       if (p.faction) { const j = c.fx.join; if (j && atWar(c.fx, j.f, p.faction)) changeRel(c, j.f, 3); changeRel(c, p.faction, -3); }
@@ -509,7 +537,8 @@ export class MapUI {
   // ---------- chronicle ----------
   chronicle() {
     const c = this.c;
-    const list = c.notes.map((n) => `<div class="${n.kind}"><span class="when">${(n.day % 30) + 1}. dzień, ${String(Math.floor(n.hour)).padStart(2, "0")}:00</span> ${esc(n.text)}</div>`).join("");
+    const ks = c.contracts.map((k) => { const d = monsterDef(k.monster); return `<div class="warn"><b>Kontrakt:</b> ${esc(d.name)} · ${esc(c.w.settlements.find((q) => q.id === k.from)!.name)} · ${k.reward} gr · śledztwo ${k.steps}/3 · zostało ${k.until - c.day} d</div>`; }).join("");
+    const list = ks + c.notes.map((n) => `<div class="${n.kind}"><span class="when">${(n.day % 30) + 1}. dzień, ${String(Math.floor(n.hour)).padStart(2, "0")}:00</span> ${esc(n.text)}</div>`).join("");
     this.show("Kronika", `<div class="chron">${list}</div>`, [{ label: "Zamknij", on: () => this.close() }], true);
   }
 

@@ -4,11 +4,13 @@ import { ARMOURS } from "../game/combat.ts";
 import type { Kit } from "../game/warrior.ts";
 
 export type TroopId = "chlop" | "pacholek" | "zbrojny" | "halabardnik" | "plytowy" | "rycerz" | "rozbojnik" | "herszt" | "dezerter" | "kupiec" | "zywy_trup"
-  | "szkielet" | "kosciany_wojownik" | "kosciany_straznik" | "rycerz_grobu" | "ghul" | "ghul_cmentarny" | "straznik_krypty" | "nekromanta" | "lowca";
+  | "szkielet" | "kosciany_wojownik" | "kosciany_straznik" | "rycerz_grobu" | "ghul" | "ghul_cmentarny" | "straznik_krypty" | "nekromanta" | "lowca" | "wilkolak" | "utopiec" | "strzyga";
 export interface TroopType {
   id: TroopId; name: { pl: string; en: string };
   kit: Omit<Kit, "name">; wage: number; tier: number; upTo?: TroopId; upCost?: number;
   undead?: boolean;
+  /** Monsters (build 10): no morale, never captured, never join. */
+  beast?: boolean;
 }
 const k = (loadout: Kit["loadout"], weapon: Kit["weapon"], shield: boolean, armour: keyof typeof ARMOURS, hp: number, skill: number): Omit<Kit, "name"> => ({ loadout, weapon, shield, armour: ARMOURS[armour], hp, skill });
 
@@ -35,6 +37,9 @@ export const TROOPS: Record<TroopId, TroopType> = {
   ghul_cmentarny: { id: "ghul_cmentarny", name: { pl: "Ghul cmentarny", en: "Graveyard ghoul" }, kit: u("ghoul", 1, "claws", false, "gambeson", 88, 0.5), wage: 0, tier: 1, undead: true, upTo: "straznik_krypty" },
   straznik_krypty: { id: "straznik_krypty", name: { pl: "Strażnik krypty", en: "Crypt warden" }, kit: u("ghoul", 2, "greataxe", false, "mail", 115, 0.62), wage: 0, tier: 2, undead: true },
   nekromanta: { id: "nekromanta", name: { pl: "Nekromanta", en: "Necromancer" }, kit: k("base", "mace", false, "gambeson", 85, 0.5), wage: 30, tier: 2 },
+  wilkolak: { id: "wilkolak", name: { pl: "Wilkołak", en: "Werewolf" }, kit: { ...k("base", "claws", false, "gambeson", 260, 0.8), undead: "werewolf" }, wage: 0, tier: 4, beast: true },
+  utopiec: { id: "utopiec", name: { pl: "Utopiec", en: "Drowner" }, kit: { ...k("base", "claws", false, "rags", 85, 0.42), undead: "drowner" }, wage: 0, tier: 1, beast: true },
+  strzyga: { id: "strzyga", name: { pl: "Strzyga", en: "Strzyga" }, kit: { ...k("base", "claws", false, "rags", 190, 0.72), undead: "strzyga" }, wage: 0, tier: 3, beast: true },
   lowca: { id: "lowca", name: { pl: "Łowca czarownic", en: "Witch hunter" }, kit: k("sergeant", "sword", true, "mail", 110, 0.66), wage: 12, tier: 3 },
 };
 

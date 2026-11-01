@@ -6,6 +6,7 @@ import { LEVELS, buildHuman, Joint } from "../char/human.ts";
 import { buildGear, Loadout } from "../char/gear.ts";
 import { buildWeapon, buildShield, WeaponId, WEAPONS } from "../char/weapons.ts";
 import { buildUndead } from "../char/undead.ts";
+import { buildMonster, MonsterKind } from "../char/monster.ts";
 import { frame, makeTrack, sampleTrack, trackLength, guardKey, Track, WK, AttackDir, BlockDir } from "../char/anim.ts";
 import { Armour, DmgType, Dir, DIR } from "./combat.ts";
 
@@ -28,7 +29,7 @@ export interface Kit {
   loadout: Loadout; weapon: WeaponId; shield: boolean;
   armour: Armour; hp: number; skill: number;
   /** Undead bodies replace the human mesh (build 8). */
-  undead?: "skeleton" | "ghoul" | "zombie" | "necro"; tier?: number;
+  undead?: "skeleton" | "ghoul" | "zombie" | "necro" | MonsterKind; tier?: number;
 }
 
 export type State = "idle" | "windup" | "hold" | "release" | "recover" | "block" | "stagger" | "blockstun" | "dead";
@@ -45,7 +46,8 @@ export function charMesh(R: PSX, kit: Kit): CharMesh {
   if (hit) return hit;
   const L = LEVELS.hfa;
   if (kit.undead && kit.undead !== "necro") {
-    const parts = buildUndead(kit.undead, kit.tier ?? 0).map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, 3, false) }));
+    const raw = kit.undead === "werewolf" || kit.undead === "drowner" || kit.undead === "strzyga" ? buildMonster(kit.undead) : buildUndead(kit.undead, kit.tier ?? 0);
+    const parts = raw.map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, 3, false) }));
     const cm: CharMesh = { parts, weapon: R.upload(buildWeapon(kit.weapon, L.smooth, L.limb), 1, false), shield: sh !== "none" ? R.upload(buildShield(), 1, false) : null };
     meshCache.set(key, cm); return cm;
   }
