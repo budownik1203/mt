@@ -1,0 +1,245 @@
+<title>Rada Projektowa Montablate</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+<style>
+/* Layout: a war-council ledger. Sticky header with the tally, a list of the twelve areas,
+   and the questions of one area at a time as numbered entries in the ledger. Single dark look (the game's own). */
+:root{
+  color-scheme:dark;
+  --ink:#121113; --iron:#1c1b1e; --iron2:#262428; --line:#38343a;
+  --bone:#ddd3bd; --dim:#9f978a; --faint:#6f685f;
+  --blood:#9a2419; --bloodHi:#c4402f; --ember:#cf8f3e;
+  --display:"IM Fell English SC","Palatino Linotype",Georgia,serif;
+  --body:"Alegreya Sans","Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{background:var(--ink);color:var(--bone)}
+body{font-family:var(--body);font-size:16px;line-height:1.5;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ink)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:0 64px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ink);border-bottom:1px solid var(--line);padding-block:14px 12px;display:grid;gap:10px}
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 20px}
+.eyebrow{font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--ember)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,4.4vw,44px);line-height:1;margin:2px 0 0;text-wrap:balance}
+.tally{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.tally b{font-family:var(--display);font-weight:400;font-size:26px}
+.tally .of{color:var(--dim)}
+.save{font-size:13px;color:var(--dim);min-width:12ch}
+.save.err{color:var(--bloodHi)}
+.bar{height:4px;background:var(--iron2)}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blood),var(--bloodHi));transition:width .3s}
+button{font:inherit;color:inherit;cursor:pointer}
+.btn{background:transparent;border:1px solid var(--line);padding:6px 12px;font-size:14px}
+.btn:hover{border-color:var(--bone)}
+.btn:focus-visible,.opt:focus-within,.area:focus-visible,textarea:focus-visible{outline:2px solid var(--ember);outline-offset:2px}
+.note{font-size:14px;color:var(--dim);background:var(--iron);border:1px solid var(--line);padding:10px 12px;margin-top:16px}
+.note.warn{border-color:var(--blood);color:var(--bone)}
+.cols{display:grid;grid-template-columns:260px minmax(0,1fr);gap:32px;margin-top:22px}
+nav{display:flex;flex-direction:column;gap:2px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 132px);align-self:start}
+.area{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;text-align:left;background:none;border:0;border-left:2px solid transparent;padding:8px 10px;color:var(--dim)}
+.area:hover{color:var(--bone)}
+.area[aria-current="true"]{color:var(--bone);border-left-color:var(--blood);background:var(--iron)}
+.area .n{font-size:13px;font-variant-numeric:tabular-nums;color:var(--faint)}
+.area.done .n{color:var(--ember)}
+main{min-width:0}
+.head h2{font-family:var(--display);font-weight:400;font-size:clamp(26px,3.4vw,36px);margin:0;line-height:1.1;text-wrap:balance}
+.head p{color:var(--dim);margin:6px 0 0;max-width:62ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--faint);margin-top:10px}
+.legend span::before{content:"";display:inline-block;width:8px;height:8px;margin-right:6px;vertical-align:1px}
+.legend .l1::before{background:var(--ember)} .legend .l2::before{border:1px solid var(--bone)}
+ol.qs{list-style:none;margin:20px 0 0;padding:0;display:flex;flex-direction:column}
+.q{display:grid;grid-template-columns:52px minmax(0,1fr);gap:4px 14px;padding-block:20px;border-top:1px solid var(--line)}
+.q .id{font-family:var(--display);color:var(--faint);font-size:18px;padding-top:2px}
+.q.answered .id{color:var(--ember)}
+.q h3{font-size:18px;font-weight:500;margin:0;line-height:1.35;text-wrap:balance}
+.why{font-size:14px;color:var(--dim);font-style:italic;margin:4px 0 0;max-width:68ch}
+.opts{display:grid;gap:4px;margin-top:10px}
+.opt{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:start;padding:7px 10px;border:1px solid transparent;cursor:pointer}
+.opt:hover{background:var(--iron)}
+.opt input{appearance:none;width:14px;height:14px;border:1px solid var(--dim);border-radius:50%;margin:5px 0 0;display:grid;place-items:center}
+.opt input:checked{border-color:var(--bloodHi)}
+.opt input:checked::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--bloodHi)}
+.opt:has(input:checked){border-color:var(--line);background:var(--iron)}
+.opt .tag{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ember);white-space:nowrap;padding-top:4px}
+.opt.you span{color:var(--dim)}
+textarea{width:100%;min-height:40px;resize:vertical;margin-top:8px;background:var(--iron);border:1px solid var(--line);color:var(--bone);font:inherit;font-size:15px;padding:8px 10px}
+textarea::placeholder{color:var(--faint)}
+.next{margin-top:24px;display:flex;justify-content:flex-end}
+.next .btn{padding:10px 18px;font-family:var(--display);font-size:19px}
+.next .btn:hover{background:var(--blood);border-color:var(--blood)}
+@media (max-width:820px){
+  header{position:static}
+  .cols{grid-template-columns:minmax(0,1fr);gap:16px}
+  nav{position:static;flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:6px}
+  .area{white-space:nowrap;border-left:0;border-bottom:2px solid transparent;grid-template-columns:auto auto}
+  .area[aria-current="true"]{border-bottom-color:var(--blood)}
+  .q{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+<div class="wrap">
+  <header>
+    <div class="top">
+      <div><div class="eyebrow">Montablate 2.0 · gotyk późnego średniowiecza</div><h1>Rada Projektowa</h1></div>
+      <div class="tally"><span><b id="cnt">0</b> <span class="of">/ <span id="tot">300</span> rozstrzygnięte</span></span><span class="save" id="save" aria-live="polite">Wczytuję…</span><button class="btn" id="copy" type="button">Kopiuj wszystkie odpowiedzi</button></div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+  </header>
+  <div class="note" id="intro">Zaznacz wariant albo „Zdecyduj ty”, jeśli zostawiasz to mnie. W polu pod pytaniem możesz wpisać własną odpowiedź lub uwagi, zastępują albo uzupełniają wybór. Wszystko zapisuje się samo, a ja czytam odpowiedzi stąd. Nie trzeba odpowiadać na wszystko naraz: rób obszar po obszarze i daj znać na czacie, który skończyłeś.</div>
+  <div class="note warn" id="local" hidden>Zapis wspólny jest niedostępny w tym widoku, więc odpowiedzi zostają tylko w tej przeglądarce i nie dotrą do mnie same. Otwórz stronę zalogowany na claude.ai albo użyj przycisku „Kopiuj wszystkie odpowiedzi” i wklej je na czacie.</div>
+  <div class="cols">
+    <nav id="nav" aria-label="Obszary"></nav>
+    <main id="main"></main>
+  </div>
+</div>
+<script>/*QUESTIONS*/</script>
+<script>
+const $ = (id) => document.getElementById(id);
+const ALL = AREAS.flatMap((a) => a.qs.map((q) => ({ area: a, id: q[0], q: q[1], o: q[2], r: q[3], why: q[4] })));
+const BY = Object.fromEntries(ALL.map((x) => [x.id, x]));
+const ans = {};               // id -> {c: number|-1|null, t: string}
+let db = null, mode = "loading";
+let cur = AREAS[0].id;
+
+function decided(a) { return a && (a.c !== null && a.c !== undefined || (a.t && a.t.trim())); }
+function areaCount(A) { return A.qs.filter((q) => decided(ans[q[0]])).length; }
+
+function renderNav() {
+  const nav = $("nav"); nav.textContent = "";
+  for (const A of AREAS) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "area"; const n = areaCount(A);
+    if (n === A.qs.length) b.classList.add("done");
+    b.setAttribute("aria-current", String(A.id === cur));
+    const s = document.createElement("span"); s.textContent = A.name;
+    const c = document.createElement("span"); c.className = "n"; c.textContent = `${n}/${A.qs.length}`;
+    b.append(s, c);
+    b.addEventListener("click", () => { location.hash = A.id; });
+    nav.append(b);
+  }
+  const total = ALL.filter((x) => decided(ans[x.id])).length;
+  $("cnt").textContent = total; $("tot").textContent = ALL.length;
+  $("bar").style.width = `${(total / ALL.length) * 100}%`;
+}
+
+function renderMain() {
+  const A = AREAS.find((a) => a.id === cur) || AREAS[0];
+  const m = $("main"); m.textContent = "";
+  const head = document.createElement("div"); head.className = "head";
+  head.innerHTML = `<h2></h2><p></p><div class="legend"><span class="l1">propozycja Claude'a</span><span class="l2">Twój wybór</span></div>`;
+  head.querySelector("h2").textContent = A.name; head.querySelector("p").textContent = A.blurb;
+  m.append(head);
+  const ol = document.createElement("ol"); ol.className = "qs";
+  for (const q of A.qs) ol.append(renderQ(BY[q[0]]));
+  m.append(ol);
+  const i = AREAS.indexOf(A);
+  if (i < AREAS.length - 1) {
+    const nx = document.createElement("div"); nx.className = "next";
+    const b = document.createElement("button"); b.type = "button"; b.className = "btn"; b.textContent = `Dalej: ${AREAS[i + 1].name}`;
+    b.addEventListener("click", () => { location.hash = AREAS[i + 1].id; window.scrollTo({ top: 0 }); });
+    nx.append(b); m.append(nx);
+  }
+}
+
+function renderQ(x) {
+  const li = document.createElement("li"); li.className = "q"; li.id = "q-" + x.id;
+  const a = ans[x.id] || { c: null, t: "" };
+  if (decided(a)) li.classList.add("answered");
+  const id = document.createElement("div"); id.className = "id"; id.textContent = x.id;
+  const body = document.createElement("div");
+  const h = document.createElement("h3"); h.textContent = x.q; body.append(h);
+  if (x.why) { const w = document.createElement("p"); w.className = "why"; w.textContent = "Dlaczego proponuję: " + x.why; body.append(w); }
+  const opts = document.createElement("div"); opts.className = "opts"; opts.setAttribute("role", "radiogroup"); opts.setAttribute("aria-label", x.q);
+  const mk = (val, label, tag, cls) => {
+    const l = document.createElement("label"); l.className = "opt" + (cls ? " " + cls : "");
+    const inp = document.createElement("input"); inp.type = "radio"; inp.name = "r-" + x.id; inp.id = `o-${x.id}-${val}`; inp.value = String(val);
+    inp.checked = a.c === val;
+    inp.addEventListener("change", () => setAns(x.id, { c: val }));
+    const s = document.createElement("span"); s.textContent = label;
+    const t = document.createElement("span"); t.className = "tag"; t.textContent = tag || "";
+    l.append(inp, s, t); return l;
+  };
+  x.o.forEach((o, i) => opts.append(mk(i, o, i === x.r ? "propozycja" : "")));
+  opts.append(mk(-1, "Zdecyduj ty", "", "you"));
+  body.append(opts);
+  const ta = document.createElement("textarea"); ta.id = "t-" + x.id; ta.rows = 1; ta.placeholder = "Własna odpowiedź lub uwagi (opcjonalnie)";
+  ta.value = a.t || "";
+  let tm = 0;
+  ta.addEventListener("input", () => { clearTimeout(tm); tm = setTimeout(() => setAns(x.id, { t: ta.value }), 700); });
+  ta.addEventListener("blur", () => { clearTimeout(tm); if ((ans[x.id]?.t || "") !== ta.value) setAns(x.id, { t: ta.value }); });
+  body.append(ta);
+  li.append(id, body);
+  return li;
+}
+
+// one write at a time per question
+const chains = {};
+function setAns(id, patch) {
+  const prev = ans[id] || { c: null, t: "" };
+  const next = { c: prev.c ?? null, t: prev.t || "", ...patch };
+  ans[id] = next;
+  const li = $("q-" + id); if (li) li.classList.toggle("answered", !!decided(next));
+  renderNav();
+  if (mode === "db") {
+    status("Zapisuję…");
+    chains[id] = (chains[id] || Promise.resolve()).then(() =>
+      db.collection("answers").doc(id).set({ c: next.c, t: next.t, area: BY[id].area.id, at: Date.now() })
+    ).then(() => status("Zapisano"), (e) => status(e && e.code === "permission_denied" ? "Brak prawa zapisu" : "Nie zapisano — spróbuj jeszcze raz", true));
+  } else {
+    try { localStorage.setItem("mb2-rada", JSON.stringify(ans)); status("Zapisano w tej przeglądarce"); } catch { status("Nie można zapisać", true); }
+  }
+}
+function status(s, err) { const e = $("save"); e.textContent = s; e.classList.toggle("err", !!err); }
+
+// apply remote answers without clobbering what is being typed
+function applyRemote(id, d) {
+  ans[id] = { c: d.c ?? null, t: d.t || "" };
+  const ta = $("t-" + id);
+  if (ta && document.activeElement !== ta) ta.value = d.t || "";
+  const r = document.querySelector(`input[name="r-${id}"][value="${d.c}"]`);
+  if (r) r.checked = true; else document.querySelectorAll(`input[name="r-${id}"]`).forEach((i) => (i.checked = false));
+  const li = $("q-" + id); if (li) li.classList.toggle("answered", !!decided(ans[id]));
+}
+
+function route() {
+  const h = location.hash.slice(1);
+  cur = AREAS.some((a) => a.id === h) ? h : AREAS[0].id;
+  renderNav(); renderMain();
+}
+window.addEventListener("hashchange", route);
+
+$("copy").addEventListener("click", async () => {
+  const lines = [];
+  for (const A of AREAS) {
+    lines.push(`## ${A.name}`);
+    for (const q of A.qs) {
+      const x = BY[q[0]], a = ans[x.id];
+      if (!decided(a)) continue;
+      const choice = a.c === -1 ? "zdecyduj ty" : a.c !== null && a.c !== undefined ? x.o[a.c] : "—";
+      lines.push(`${x.id} ${x.q} → ${choice}${a.t && a.t.trim() ? " | " + a.t.trim() : ""}`);
+    }
+  }
+  const txt = lines.join("\n");
+  try { await navigator.clipboard.writeText(txt); status("Skopiowano"); }
+  catch { const ta = document.createElement("textarea"); ta.value = txt; document.body.append(ta); ta.select(); status("Zaznaczono tekst — skopiuj go"); setTimeout(() => ta.remove(), 15000); }
+});
+
+route();
+
+(async () => {
+  db = await (window.claude?.use ? window.claude.use("db") : Promise.resolve(null));
+  if (!db) {
+    mode = "local"; $("local").hidden = false;
+    try { Object.assign(ans, JSON.parse(localStorage.getItem("mb2-rada") || "{}")); } catch {}
+    status("Zapis tylko w tej przeglądarce"); route(); return;
+  }
+  mode = "db";
+  const timer = setTimeout(() => status("Nie mogę połączyć się z zapisem", true), 10000);
+  db.collection("answers").onSnapshot((snap) => {
+    if (!snap.metadata.fromCache) clearTimeout(timer);
+    for (const d of snap.docs) if (BY[d.id]) applyRemote(d.id, d.data() || {});
+    renderNav();
+    if (!snap.metadata.hasPendingWrites && $("save").textContent === "Wczytuję…") status(snap.empty ? "Gotowe do odpowiedzi" : "Wczytano");
+  }, (e) => { clearTimeout(timer); status("Zapis przerwany: odśwież stronę", true); });
+})();
+</script>
