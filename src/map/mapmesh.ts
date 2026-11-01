@@ -152,6 +152,18 @@ function poiModel(b: MeshBuilder, w: World, p: Poi) {
   } else if (p.kind === "gallows") {
     b.box(T(p.x, y + 1.6, p.z), 0.2, 3.2, 0.2, C.woodD); b.box(T(p.x + 0.6, y + 3.1, p.z), 1.4, 0.15, 0.15, C.woodD);
     b.box(T(p.x + 1.1, y + 2.4, p.z), 0.25, 0.7, 0.18, C.black);
+  } else if (p.kind === "monastery") {
+    b.box(T(p.x, y + 1.2, p.z), 4.2, 2.4, 2.4, C.stoneD);
+    b.cyl(T(p.x, y + 2.4, p.z, 0, 0, 0), 2.3, 0.1, 1.4, 4, C.black, false);
+    b.box(T(p.x + 2.4, y + 2.2, p.z - 0.6), 1.0, 4.4, 1.0, C.stoneD);
+    b.cyl(T(p.x + 2.4, y + 4.4, p.z - 0.6), 0.75, 0, 1.6, 4, C.black, false);
+    b.box(T(p.x + 2.4, y + 6.3, p.z - 0.6), 0.08, 0.6, 0.08, C.bone); b.box(T(p.x + 2.4, y + 6.4, p.z - 0.6), 0.35, 0.08, 0.08, C.bone);
+    for (let i = 0; i < 6; i++) b.box(T(p.x - 3 + i * 1.2, y + 0.4, p.z + 2.6), 0.9, 0.8, 0.3, C.stoneD);
+  } else if (p.kind === "grove") {
+    b.cyl(T(p.x, y, p.z), 0.45, 0.35, 3.2, 6, C.woodD);
+    b.rock(T(p.x, y + 3.8, p.z), 2.2, hex(0x2c3a24), 0.35, 4);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; b.box(T(p.x + Math.cos(a) * 3, y + 0.9, p.z + Math.sin(a) * 3, -a), 0.25, 1.8, 0.25, C.woodD); b.rock(T(p.x + Math.cos(a) * 3, y + 1.95, p.z + Math.sin(a) * 3), 0.18, C.bone, 0.2, i); }
+    b.box(T(p.x + 1, y + 0.3, p.z + 0.6), 1.2, 0.6, 0.8, C.stoneD);
   } else if (p.kind === "lair") {
     for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 1.4 - 0.4; b.rock(T(p.x + Math.cos(a) * 1.6, y + 0.5, p.z + Math.sin(a) * 1.6), 0.9 + r() * 0.4, C.stoneD, 0.35, i + 3); }
     b.box(T(p.x, y + 0.3, p.z + 0.4), 1.0, 0.7, 0.2, C.black);

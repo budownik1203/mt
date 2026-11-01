@@ -2,6 +2,7 @@
 // money, morale), parties roaming the region, settlements, battlefields left
 // behind, and the daily tick that makes hunger, winter and unpaid wages bite.
 import { necroDaily } from "./necro.ts";
+import { FaithState, faithDaily, boon, isDziady } from "./faith.ts";
 import { Contract, MONSTERS, spawnMonster, monstersDaily, monsterThink } from "./monsters.ts";
 import { FxState, FactionId, newFx, spawnLords, factionsDaily, lordThink, hostileTo } from "./factions.ts";
 import { clamp, rng } from "../core/math.ts";
@@ -57,6 +58,7 @@ export interface Company {
   seenEvents?: string[];
   /** Necromancy materials (build 8): corpses rot (−30%/day), bones keep. */
   corpses?: number; bones?: number; foundBook?: boolean; dugDay?: number;
+  faith?: FaithState;
 }
 
 export class Campaign {
@@ -196,7 +198,7 @@ export class Campaign {
     if (this.day !== prevDay) { this.daily(); this.onDay?.(); }
     // camp heals faster; resting in town is handled by the menu
     const co = this.co;
-    const heal = 1 + 0.2 * co.hero.skills.leczenie;
+    const heal = (1 + 0.2 * co.hero.skills.leczenie) * (boon(this, "weles") ? 2 : 1);
     for (const s of co.party.troops) if (s.wounded > 0 && this.r() < h * (co.resting ? 0.06 : co.camp ? 0.04 : 0.015) * heal) s.wounded--;
     if (co.party.path.length === 0 && co.party.goal) this.arrived();
   }
@@ -317,7 +319,7 @@ export class Campaign {
     co.food.sort((a, b) => (FOOD[a.type].spoil - a.age) - (FOOD[b.type].spoil - b.age));
     const kinds = new Set<FoodType>();
     for (const f of co.food) { if (need <= 0) break; const eat = Math.min(f.n, need); f.n -= eat; need -= eat; if (eat > 0) kinds.add(f.type); }
-    for (const f of co.food) f.age++;
+    if (!(boon(this, "mokosz") && this.day % 2)) for (const f of co.food) f.age++;
     const spoiled = co.food.filter((f) => f.age > FOOD[f.type].spoil && f.n > 0);
     for (const f of spoiled) { this.note(`${FOOD[f.type].pl}: zepsuło się ${f.n} porcji.`, "warn"); f.n = 0; }
     co.food = co.food.filter((f) => f.n > 0);
@@ -381,7 +383,7 @@ export class Campaign {
     // battlefields: the unburied rise after 2–3 nights
     for (const f of [...this.fields]) {
       f.nights++;
-      if (f.nights >= 2 + Math.floor(this.r() * 2) && f.bodies >= 3) {
+      if (f.nights >= 2 + Math.floor(this.r() * 2) && f.bodies >= 3 && !boon(this, "weles")) {
         this.spawn("undead", { x: f.x, z: f.z }, Math.max(3, Math.floor(f.bodies * 0.5)));
         this.note("Nad pobojowiskiem krążą kruki. Ciała, których nikt nie pochował, wstały.", "bad");
         this.fields.splice(this.fields.indexOf(f), 1);
@@ -401,6 +403,8 @@ export class Campaign {
     necroDaily(this);
     factionsDaily(this);
     monstersDaily(this);
+    faithDaily(this);
+    if (isDziady(this)) for (const g of this.w.pois.filter((q) => q.kind === "graveyard" || q.kind === "cursed")) this.spawn("undead", { x: g.x, z: g.z }, 6);
     if (this.day % (DAYS_PER_SEASON * 4) === 0) this.year++;
     if (this.day % DAYS_PER_SEASON === 0) this.note(`Nastaje ${SEASONS.pl[this.season]}.`, "warn");
   }

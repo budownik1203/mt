@@ -18,7 +18,7 @@ export interface Settlement {
   burned: boolean;
   culture: "slav" | "german" | "church";
 }
-export type PoiKind = "hideout" | "ruin" | "cursed" | "gallows" | "graveyard" | "lair";
+export type PoiKind = "hideout" | "ruin" | "cursed" | "gallows" | "graveyard" | "lair" | "monastery" | "grove";
 export interface Poi { id: string; kind: PoiKind; name: string; x: number; z: number; alive: boolean }
 
 // Hand-placed settlements (the „ręczna podstawa”); y-down on the map = +z.
@@ -152,6 +152,8 @@ export function buildWorld(seed = 37): World {
     { id: "cursed2", kind: "cursed", name: "Czarny Las", x: 44, z: 84, alive: true },
     { id: "gallows1", kind: "gallows", name: "Szubienica", x: -2, z: 2, alive: true },
     { id: "grave1", kind: "graveyard", name: "Stary cmentarz", x: 20, z: 48, alive: true },
+    { id: "monastery", kind: "monastery", name: "Klasztor Świętego Męczennika", x: 32, z: 78, alive: true },
+    { id: "grove", kind: "grove", name: "Święty Gaj Peruna", x: -70, z: 46, alive: true },
     { id: "lair_wolf", kind: "lair", name: "Wilcza Jama", x: 88, z: 30, alive: true },
     { id: "lair_water", kind: "lair", name: "Topiel", x: -36, z: 56, alive: true },
     { id: "lair_strzyga", kind: "lair", name: "Kurhan pod Ostrowiem", x: -88, z: 78, alive: true },

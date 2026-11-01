@@ -36,3 +36,4 @@ Wszystkie ważne polecenia, po kolei, możliwie dosłownie (pisane głosem, stą
 27. „Przede wszystkim **jakość i czytelność mechanik jak w Warbandzie**.” (priorytet: każda mechanika ma być czytelna w interfejsie: liczby, limity, przyczyny zablokowania przycisków, jak w menu Warbanda.)
 28. „Połącz się z GitHubem i **przenieś tam wszystko** co do projektu, żebym na następnym AI miał wszystko i mógł pracować jak teraz, **bez wprowadzeń**. Możesz zrobić specjalny dokument dla innego AI.” → `docs/00-START-DLA-AI.md`, push na `budownik1203/mt`.
 29. „Jak skończysz, **pracuj dalej**: build 11.”
+30. „Nie czekaj na mnie z następnymi buildami, **po prostu je rób**.” (powtórzone po build 11)

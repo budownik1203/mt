@@ -39,6 +39,7 @@ Zmienna `CHROME` wskazuje własną przeglądarkę dla Playwrighta.
 | `map/hero.ts` | bohater: atrybuty (Ciało, Refleks, Wiedza, Posłuch), 14 umiejętności z limitem atrybut/3, biegłości, poziomy i doświadczenie, sława, limity kompanii i jeńców, pochodzenia (tworzenie postaci), przedmioty i ceny |
 | `map/events.ts` | wydarzenia w podróży (17 scen z wyborami) |
 | `map/factions.ts` | frakcje, lordowie (dane i stan), wojny i rozejmy, AI lordów (werbunek, patrol, grabież, oblężenie, bitwy AI–AI), służba gracza (najemnik, wasal), czynsze, przejęcia osad |
+| `map/faith.ts` | wiara: bohater, pobożność, łaska, wiara żołnierzy i morale, klasztor i gaj, obrzędy w obozie, łaski, ekskomunika, święta |
 | `map/monsters.ts` | bestie i legowiska, AI nocnych napadów, kontrakty, śledztwo (3 kroki), nagrody |
 | `char/monster.ts` | modele bestii: wilkołak, utopiec, strzyga (`Kit.undead` = werewolf/drowner/strzyga) |
 | `map/necro.ts` | nekromancja: zepsucie i progi, rytuały obozowe, miejsca (kaplica, cmentarz), zbiór zwłok, łowcy, nekromanci, reguły dzienne |
@@ -50,6 +51,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b12.mjs` klasztor, gaj, kapłani, obrzędy, łaski, ofiara z jeńca → ekskomunika → pokuta, wiara w panelu, wydarzenia, Dziady, morale w bitwie z błogosławieństwem.
 - `b11.mjs` strzał gracza z łuku, kuszy i arkebuzu (obrażenia), dym, pozy celowania, bitwa strzelców z salwami.
 - `b10.mjs` legowiska, nocne napady, kontrakt, śledztwo, osłabiona bestia, nagroda, modele bestii.
 - `b9.mjs` symulacja 120 dni świata, okno Frakcje, lord: kontrakt i hołd, grabież wsi, szturm miasta, pojmanie i okup lorda.

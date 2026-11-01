@@ -17,10 +17,12 @@ Aktualizuj po każdym buildzie. Linki do artefaktów claude.ai są prywatne dla 
 | mb2 build 9 | 2026-11-01 | frakcje i lordowie: Cesarstwo Popielne, Arcybiskupstwo Morweńskie, Księstwo Wrońskie; 10 lordów pisanych ręcznie (charakter, relacja, lenna, wojsko na mapie w barwach frakcji); wojny i rozejmy, lordowie werbują, patrolują, palą wsie, oblegają miasta i zamki, biją się ze sobą i z bandami; okno Frakcje (F); rozmowa z lordem, kontrakt najemny (30 dni, żołd), hołd lenny (wieś w lenno, czynsze), zerwanie służby; grabież wsi, szturm miast i zamków (bitwa z załogą, zdobycz dla seniora / lenno dla wasala); pojmani lordowie (uwolnienie albo okup); właściciel i załoga w menu osady, barwy frakcji na etykietach | claude.ai/artifact/1ChUWoEshvVPrnEYLWFVEH |
 | mb2 build 10 | 2026-11-01 | potwory i kontrakty: 3 legowiska na mapie (Wilcza Jama, Topiel, Kurhan pod Ostrowiem), modele wilkołaka, utopców i strzygi, bestie napadają nocą na wsie i wracają do legowisk za dnia; kontrakty od sołtysów i rad miejskich (nagroda, 20 dni, kierunek i odległość do legowiska), śledztwo w 3 krokach (rozpytać, ślady, przygotowanie) osłabia bestię o 1/4; kontrakty w Kronice; śmierć strzygi rozsypuje jej trupy; bestie bez morale, bez jeńców i łupów | claude.ai/artifact/AFHfbruUkJTZrC4sdsu5WS |
 | mb2 build 11 | 2026-11-01 | broń dystansowa: łuk, kusza, arkebuz (modele, pozy celowania i ładowania, prawdziwe pociski z grawitacją, celownik kamery, rozrzut wg umiejętności i ruchu, amunicja na bitwę, dym, błysk i huk arkebuzu); trafienia w głowę/tułów/nogi przez pancerz (kusza i kula przebijają lepiej), tarcza zwrócona do strzelca łapie pociski; strzelcy: chłop z łukiem, łucznik, kusznik, arkebuzer (broń boczna do walki wręcz, przełączają się, gdy wróg podejdzie); AI strzelców trzyma dystans i wylicza tor; rozkaz F4: ognia wedle uznania / wstrzymać ogień / salwami; amunicja grup w panelu rozkazów; biegłość Strzelectwo; strzelcy w karczmach, u band i w armiach frakcji | claude.ai/artifact/SdHLKhQq89bD2jSzDet3Ws |
+| mb2 build 12 | 2026-11-01 | wiara i obrzędy: wiara bohatera (Kościół / stara wiara), pobożność i łaska bogów, wiara każdego żołnierza i kłótnie dwóch wiar w kompanii (wpływ na morale rozpisany w panelu Kompania), kapelan i żerca, Klasztor Świętego Męczennika (msza, pokuta, relikwia, chrzest) i Święty Gaj Peruna (ofiary z jadła, koguta, jeńca; powrót do starych bogów) na mapie, msza polowa i ogień dla Swaroga w obozie, łaski na kilka dni (Błogosławieństwo, Perun, Weles, Mokosz) działające w bitwie i na mapie, ekskomunika (ofiara z człowieka, zepsucie ≥ 60) i pokuta, Kupała i Dziady (karmienie zmarłych), 6 nowych wydarzeń (żywy święty, wróżka, stos, pielgrzymi, gniew bogów, kaznodzieja) | (patrz ostatnia wiadomość) |
 
 Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Zg2su1kEkFC; dokument projektu (Claude Doc) claude.ai/artifact/LSVQm1s9kszcteorQCNAqK.
 
 ## Znane braki (do zrobienia przy okazji)
+- Wiara: brak herezji (biczownicy, ruch Ubóstwa), nawracania osad, Kultu Głodu i Głębin, cudów w bitwie.
 - Rytuał Licza bez zadania i filakterium (na razie sam rytuał). Brak zszywańców, upiorów, kościanych koni.
 - Brak frontów pogody, śladów na mapie, nocnych napadów na obóz.
 - Rany trwałe gracza tylko jako wpis w kronice.
@@ -35,7 +37,7 @@ Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Z
 2. ~~Build 9: frakcje i lordowie~~ (zrobione).
 3. ~~Build 10: potwory i kontrakty~~ (zrobione).
 4. ~~Build 11: broń dystansowa~~ (zrobione).
-5. **Build 12: wiara i obrzędy** (Kościół i poganie: pobożność, kapłani w oddziale, obrzędy w obozie, gaje i klasztory na mapie, Kupała i Dziady, ofiary, ekskomunika, relikwie) + kolejne wydarzenia tekstowe (cel ok. 60).
+5. ~~Build 12: wiara i obrzędy~~ (zrobione; wydarzeń jest 23, cel ok. 60 zostaje na kolejne buildy).
 6. **Build 13: konie i jazda** (koń bohatera, jeźdźcy w oddziałach, szarża z kopią, cios z siodła, upadek z konia).
 7. **Build 14: oblężenia** (mury, drabiny, brama, obrońcy na murach z kuszami; szturm zamiast samej bitwy w polu).
 8. Dalej: kolejne regiony i frakcje do 16, pogoda w bitwie, zmęczenie, rozbijanie tarcz, egzekucje jeńców, turnieje, handel towarami, zadania lordów.

@@ -22,6 +22,8 @@ import { heroHp, profOf, undeadLimit } from "./map/hero.ts";
 import { undeadCount, corrupt, spawnHunters } from "./map/necro.ts";
 import { FACTIONS, FIDS, spawnLord } from "./map/factions.ts";
 import { spawnMonster } from "./map/monsters.ts";
+import { boon, troopFaith } from "./map/faith.ts";
+import { EVENTS } from "./map/events.ts";
 import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY, FIRE_NAMES } from "./game/tactics.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
@@ -235,6 +237,7 @@ function missileHit(p: Proj, o: Warrior, hy: number) {
   if (att === player && camp && battleKind === "encounter") dmg = Math.round(dmg * (0.85 + camp.co.hero.prof.rg / 600));
   if (o === player) dmg = Math.round(dmg * [0.6, 1, 1.3][settings.difficulty]);
   if (att.team === o.team) dmg = Math.round(dmg * 0.6);
+  if (att.team === 0 && o.team !== 0 && camp && battleKind === "encounter" && boon(camp, "perun")) dmg = Math.round(dmg * 1.1);
   const joint: Joint = zone === "head" ? "head" : zone === "legs" ? "thighR" : "torso";
   const hp: V3 = [p.x, o.y + hy, p.z];
   p.gone = true;
@@ -424,6 +427,7 @@ function resolve(att: Warrior) {
   }
   if (o === player) dmg = Math.round(dmg * [0.6, 1, 1.3][settings.difficulty]);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
+  if (att.team === 0 && o.team !== 0 && camp && battleKind === "encounter" && boon(camp, "perun")) dmg = Math.round(dmg * 1.1);
   applyHit(att, o, dmg, atk.type, dir, zone, joint, hp, dx, dz, vol, near, att.weapon.mass);
 }
 function applyHit(att: Warrior, o: Warrior, dmg: number, type: DmgType, dir: Dir, zone: Zone, joint: Joint, hp: V3, dx: number, dz: number, vol: number, near: boolean, massK: number, ranged = false) {
@@ -1056,7 +1060,7 @@ interface Q { t: TroopId; g: number }
 
 function moraleBase(team: 0 | 1, t: TroopId): number {
   if (TROOPS[t].undead || TROOPS[t].beast) return 100;
-  if (team === 0) return clamp((camp?.co.morale ?? 50) * 0.5 + 30 + TROOPS[t].tier * 6, 25, 95);
+  if (team === 0) return clamp((camp?.co.morale ?? 50) * 0.5 + 30 + TROOPS[t].tier * 6 + (camp && boon(camp, "blogoslawienstwo") && troopFaith(t) === "kosciol" ? 12 : 0), 25, 98);
   const k = enc?.enemy.kind;
   return (k === "peasants" ? 30 : k === "bandits" ? 45 : k === "caravan" ? 55 : 52) + TROOPS[t].tier * 6;
 }
@@ -1423,7 +1427,7 @@ function loop(now: number) {
 // hooks for automated tests
 (window as unknown as { mb2: unknown }).mb2 = {
   get player() { return player; }, get fighters() { return fighters; },
-  collapse(team: number) { collapseUndead(team); }, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
+  collapse(team: number) { collapseUndead(team); }, events: EVENTS, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
   get camp() { return camp; }, get ui() { return ui; }, get mode() { return mode; }, get enc() { return enc; },
   campaign() { startCampaign(); }, waves() { startWaves(); },
   mapTick(sec: number) { for (let i = 0; i < sec * 30; i++) mapStep(1 / 30); },

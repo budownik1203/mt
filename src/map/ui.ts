@@ -10,6 +10,7 @@ import type { TravelEvent } from "./events.ts";
 import { power } from "./troops.ts";
 import { rites, doRite, placeActs, undeadCount, livingCount, harvest, corrupt, learnNecromancy } from "./necro.ts";
 import { undeadLimit, corruptionWord } from "./hero.ts";
+import { faithOf, faithShares, faithMorale, placeFaithActs, campRites, FAITH_NAME, BOONS } from "./faith.ts";
 import { MONSTERS, monsterDef, monsterParty, offerAt, takeContract, monsterSlain } from "./monsters.ts";
 import { FACTIONS, FIDS, LORDS, PERSONA, FactionId, lordDef, atWar, hostileTo, changeRel, lordRel, relWord, hire, vassal, leaveService, vassalNeeds, transfer, seatOf } from "./factions.ts";
 import { WEAPONS, WeaponId } from "../char/weapons.ts";
@@ -57,6 +58,9 @@ export class MapUI {
     const acts: Act[] = [];
     acts.push({ label: co.camp ? "Zwiń obóz" : "Rozbij obóz", sub: co.camp ? "ruszacie dalej" : "odpoczynek, ognisko, rytuały", on: () => { this.toggleCamp(); this.campMenu(); } });
     for (const pa of placeActs(c)) acts.push({ label: pa.label, sub: pa.sub, off: pa.off, on: () => this.campMenu(pa.run()) });
+    for (const pa of [...placeFaithActs(c), ...campRites(c)]) acts.push({ label: pa.label, sub: pa.sub, off: pa.off, kind: pa.kind, on: () => this.campMenu(pa.run()) });
+    const ff = faithOf(c);
+    body += `<p class="meta">Wiara: ${FAITH_NAME[ff.hero]} · pobożność ${Math.round(ff.piety)} · łaska bogów ${Math.round(ff.favor)}${ff.excom ? " · <b class=\"bad\">ekskomunika</b>" : ""}${ff.boon && ff.boon.until >= c.day ? ` · <b>${BOONS[ff.boon.id].name}</b>: ${BOONS[ff.boon.id].effect} (do dnia ${ff.boon.until % 30 + 1})` : ""}</p>`;
     if (h.necro) for (const r of rites(c)) acts.push({ label: r.name, sub: r.sub, off: r.off, kind: r.id === "release" ? "" : "bad", on: () => this.campMenu(doRite(c, r.id)) });
     acts.push({ label: "Wróć na mapę", on: () => { this.close(); if (co.camp) c.speed = 1; } });
     this.show("Obóz", body, acts);
@@ -82,6 +86,7 @@ export class MapUI {
     if (c.fullMoon) flags.push("pełnia");
     if (co.hungerDays) flags.push(`głód ${co.hungerDays} d`);
     if (!c.clockRuns) flags.push("czas stoi");
+    { const ff = faithOf(c); if (ff.boon && ff.boon.until >= c.day) flags.push(BOONS[ff.boon.id].name.toLowerCase()); if (ff.excom) flags.push("ekskomunika"); }
     if (co.hero.necro) flags.push(`zepsucie ${Math.round(co.hero.corruption ?? 0)}`);
     if (undeadCount(c)) flags.push(`nieumarli ${undeadCount(c)}`);
     $("mflags").textContent = flags.join(" · ");
@@ -452,6 +457,7 @@ export class MapUI {
     const nick = h.kills >= 40 ? "Rzeźnik" : (c.co.fear ?? 0) >= 6 ? "Wieszatiel" : h.won >= 10 ? "Pogromca band" : h.won >= 3 ? "Kapitan z gościńca" : "nikt szczególny";
     const body = `<p class="meta"><input id="hname" value="${esc(h.name)}" maxlength="24" aria-label="Imię"> · ${esc(h.origin || "")} · przydomek: <b>${nick}</b></p>` +
       `<p class="meta">Poziom ${h.level} · doświadczenie ${h.xp}/${need} · sława ${h.renown} · zdrowie ${heroHp(h)} · limit kompanii ${partyLimit(h)} · jeńcy do ${prisonerLimit(h)}</p>` +
+      `<p class="meta">Wiara: <b>${FAITH_NAME[faithOf(c).hero]}</b> · pobożność ${Math.round(faithOf(c).piety)} · łaska bogów ${Math.round(faithOf(c).favor)}${faithOf(c).excom ? " · ekskomunika" : ""}</p>` +
       `<p class="meta">Bitwy wygrane ${h.won}, przegrane ${h.lost} · zabitych własną ręką ${h.kills}${h.attrPts ? ` · <b>punkty atrybutów: ${h.attrPts}</b>` : ""}${h.skillPts ? ` · <b>punkty umiejętności: ${h.skillPts}</b>` : ""}</p>` +
       `<div class="two"><table class="tbl"><thead><tr><th>Atrybut</th><th></th><th></th></tr></thead><tbody>${attrRows}</tbody></table>` +
       `<table class="tbl"><thead><tr><th>Biegłość (rośnie od walki)</th><th></th><th></th></tr></thead><tbody>${profRows}</tbody></table></div>` +
@@ -574,7 +580,7 @@ export class MapUI {
     const body = `<table class="tbl"><thead><tr><th>Oddział</th><th>Ludzi</th><th>Rannych</th><th>Gotowi do awansu</th><th>Żołd/tydz.</th><th>Grupa</th></tr></thead><tbody>${co.party.troops.map(row).join("")}</tbody>` +
       `<tfoot><tr><td>Razem</td><td>${c.men - 1}</td><td></td><td></td><td>${c.weeklyWage}</td><td></td></tr></tfoot></table>` +
       `<table class="tbl"><thead><tr><th>Zapasy</th><th>Porcji</th><th>Do zepsucia</th></tr></thead><tbody>${food}</tbody></table>` +
-      this.prisonersHtml() + `<p class="meta">Grupy decydują, kto stoi razem w bitwie (klawisze 1–9, F1 ruch, F2 formacja).</p><p class="meta">Woda: ${co.water}/${co.waterCap} dni · futra i koce: ${co.furs} · morale ${Math.round(co.morale)}/100 · udział ludzi w łupach: ${Math.round(co.lootShare * 100)}%</p>`;
+      this.prisonersHtml() + (() => { const sh = faithShares(c), fm = faithMorale(c); return `<p class="meta">Wiara w kompanii: Kościół ${Math.round(sh.kosciol * 100)}%, stara wiara ${Math.round(sh.stara * 100)}%, bez wiary ${Math.round(sh.brak * 100)}% · ty: ${FAITH_NAME[faithOf(c).hero]} · wpływ na morale: ${fm.d >= 0 ? "+" : ""}${fm.d}/dzień${fm.why.length ? ` (${fm.why.join("; ")})` : ""}</p>`; })() + `<p class="meta">Grupy decydują, kto stoi razem w bitwie (klawisze 1–9, F1 ruch, F2 formacja).</p><p class="meta">Woda: ${co.water}/${co.waterCap} dni · futra i koce: ${co.furs} · morale ${Math.round(co.morale)}/100 · udział ludzi w łupach: ${Math.round(co.lootShare * 100)}%</p>`;
     this.show("Kompania", body, [
       { label: "Udział w łupach −10%", sub: "więcej srebra dla ciebie, mniej serca u ludzi", off: co.lootShare <= 0, on: () => { co.lootShare = Math.max(0, co.lootShare - 0.1); this.partyPanel(); } },
       { label: "Udział w łupach +10%", sub: "ludzie walczą chętniej", off: co.lootShare >= 0.5, on: () => { co.lootShare = Math.min(0.5, co.lootShare + 0.1); this.partyPanel(); } },

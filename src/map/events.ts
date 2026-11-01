@@ -4,6 +4,8 @@ import type { Campaign } from "./campaign.ts";
 import type { WeaponId } from "../char/weapons.ts";
 import { biomeAt } from "./world.ts";
 import { learnNecromancy, corrupt, undeadCount, livingCount } from "./necro.ts";
+import { faithOf, faithShares } from "./faith.ts";
+import { changeRel } from "./factions.ts";
 
 export interface EvChoice { label: string; sub?: string; ok?: (c: Campaign) => boolean; run: (c: Campaign) => string }
 export interface TravelEvent { id: string; title: string; text: string; when?: (c: Campaign) => boolean; choices: EvChoice[] }
@@ -13,6 +15,40 @@ const addFood = (c: Campaign, n: number) => { const b = c.co.food.find((f) => f.
 const loot = (c: Campaign, w: WeaponId) => { c.co.stash = c.co.stash ?? []; c.co.stash.push({ kind: "weapon", id: w }); };
 
 export const EVENTS: TravelEvent[] = [
+  // ---------- faith (build 12) ----------
+  { id: "swiety", title: "Żywy święty", text: "Przy drodze tłum. Na kamieniu siedzi brudny człowiek z ranami na dłoniach i mówi, że Bóg przemówił do niego w lesie. Ludzie całują mu stopy. Twoi też chcą podejść.",
+    choices: [
+      { label: "Pozwolić ludziom się pomodlić", sub: "2 h", run: (c) => { c.passHours(2); c.co.morale += 4 * faithShares(c).kosciol + 1; faithOf(c).piety = Math.min(100, faithOf(c).piety + 3); return "Święty kładzie ręce na głowach. Część twoich ludzi płacze. Kto wie, może naprawdę coś w nim jest."; } },
+      { label: "Zbadać jego rany", run: (c) => { if (c.rand() < 0.5) { c.co.morale -= 2; return "Rany są świeże i równe. Nożem. Tłum nie chce słuchać, więc odchodzicie, zanim poleci kamień."; } faithOf(c).piety = Math.min(100, faithOf(c).piety + 6); return "Rany są stare, przechodzą na wylot i nie ropieją. Coś ci ściska gardło."; } },
+      { label: "Przegnać tłum", run: (c) => { c.co.morale -= 3; c.co.fear = (c.co.fear ?? 0) + 1; return "Tłum się rozstępuje przed końmi. Święty patrzy na ciebie i nic nie mówi. To gorsze niż przekleństwo."; } },
+    ] },
+  { id: "wrozba", title: "Wróżka przy studni", text: "Stara kobieta z kośćmi w woreczku. Za grosz rzuci je na chustę i powie, co cię czeka. Ludzie mówią, że czasem kłamie. Czasem nie.",
+    choices: [
+      { label: "Zapłacić za wróżbę", sub: "5 gr", ok: (c) => c.co.party.gold >= 5, run: (c) => { c.co.party.gold -= 5; const r = c.rand(); if (r < 0.4) { c.co.morale += 4; return "„Krew wroga na twoich butach, nie twoja.” Ludzie słyszą i rozpowiadają."; } if (r < 0.75) { c.co.morale -= 3; return "Kości padają twarzą w dół. Stara milknie i oddaje grosz. Ludzie szepczą do wieczora."; } faithOf(c).favor = Math.min(100, faithOf(c).favor + 4); return "„Bogowie cię widzą. Nie wiem, czy to dobrze.”"; } },
+      { label: "Odejść", run: () => "Stara śmieje się za tobą. Długo." },
+    ] },
+  { id: "stos", title: "Stos", text: "We wsi stos. Przywiązana do pala kobieta, wokół ludzie z pochodniami. Ksiądz czyta wyrok: czary, zatrute studnie, krowy bez mleka. Kobieta patrzy na twoich ludzi.",
+    choices: [
+      { label: "Nie mieszać się", run: (c) => { c.co.morale -= 1; return "Ogień łapie szybko, bo drewno suche. Krzyk trwa dłużej, niż ktokolwiek by chciał."; } },
+      { label: "Odbić ją", sub: "Arcybiskupstwo −10, stara wiara +łaska", run: (c) => { changeRel(c, "arcybiskupstwo", -10, "odbicie czarownicy"); faithOf(c).favor = Math.min(100, faithOf(c).favor + 8); c.co.morale += 2 * faithShares(c).stara - 2 * faithShares(c).kosciol; return "Twoi ludzie rozganiają tłum płazem. Kobieta znika w lesie, nie dziękując. Ksiądz zapisuje twoje imię."; } },
+      { label: "Pomóc księdzu", sub: "Arcybiskupstwo +5, pobożność +4", run: (c) => { changeRel(c, "arcybiskupstwo", 5); faithOf(c).piety = Math.min(100, faithOf(c).piety + 4); c.co.fear = (c.co.fear ?? 0) + 1; return "Twoi ludzie trzymają tłum. Ksiądz dziękuje. Dym czuć jeszcze następnego dnia."; } },
+    ] },
+  { id: "pielgrzymi", title: "Pielgrzymi", text: "Kilkunastu pielgrzymów w szarych płaszczach idzie do Sankt Morwen. Boją się band. Proszą, żebyście poszli z nimi kawałek.",
+    choices: [
+      { label: "Odprowadzić ich", sub: "5 h drogi", run: (c) => { c.passHours(5); faithOf(c).piety = Math.min(100, faithOf(c).piety + 5); changeRel(c, "arcybiskupstwo", 3); c.co.party.gold += 15; return "Doszliście bez przygód. Na pożegnanie zbierają dla was 15 groszy i obiecują modlitwę."; } },
+      { label: "Zażądać zapłaty", sub: "30 gr", run: (c) => { c.co.party.gold += 30; c.co.morale -= 1; return "Płacą. Jeden ze starszych mówi coś o Judaszu. Twoi ludzie się śmieją, ale nie wszyscy."; } },
+      { label: "Odejść", run: () => "Patrzą za wami długo." },
+    ] },
+  { id: "gniew_bogow", title: "Gniew bogów", text: "Piorun bije w wóz z zapasami, choć burza ledwo się zbiera. Żerca mówi, że Perun upomina się o swoje.", when: (c) => faithShares(c).stara > 0.3 && faithOf(c).favor < 15,
+    choices: [
+      { label: "Złożyć ofiarę", sub: "10 porcji w ogień", ok: (c) => c.foodTotal >= 10, run: (c) => { food(c, 10); faithOf(c).favor = Math.min(100, faithOf(c).favor + 10); return "Dym idzie prosto w górę. Burza przechodzi bokiem."; } },
+      { label: "Zabronić gusłów", run: (c) => { food(c, 8); c.co.morale -= 6 * faithShares(c).stara; return "Wóz dopala się do rana. Poganie w kompanii patrzą na ciebie spode łba."; } },
+    ] },
+  { id: "kazanie", title: "Kaznodzieja wędrowny", text: "Mnich bez sandałów wygłasza kazanie na rozstajach: koniec świata, trupy wstające z grobów, kara za grzechy panów. Twoi ludzie słuchają z otwartymi ustami.",
+    choices: [
+      { label: "Słuchać do końca", sub: "1 h", run: (c) => { c.passHours(1); faithOf(c).piety = Math.min(100, faithOf(c).piety + 3); c.co.morale += faithShares(c).kosciol > 0.5 ? 2 : -1; return "Kończy, gdy zaczyna padać. Mówi, że to łzy aniołów. Ktoś z tyłu, że to deszcz."; } },
+      { label: "Przepędzić go", run: (c) => { if (faithOf(c).excom) return "Mnich spluwa ci pod nogi: „Wyklęty!” i odchodzi sam."; c.co.morale -= 1; return "Odchodzi, przeklinając pod nosem. Kilku twoich ludzi żegna się ukradkiem."; } },
+    ] },
   { id: "nauczyciel", title: "Starzec przy ognisku", text: "Na rozstajach siedzi starzec przy ognisku, które nie daje ciepła. Mówi, że widział, jak walczysz, i że śmierć to tylko drzwi, które da się otworzyć z obu stron. Za sto groszy pokaże ci klucz.", when: (c) => !c.co.hero.necro,
     choices: [
       { label: "Zapłacić i słuchać", sub: "100 gr · nekromancja · zepsucie", ok: (c) => c.co.party.gold >= 100, run: (c) => { c.co.party.gold -= 100; c.passHours(4); learnNecromancy(c, "Starzec z rozstajów nauczył cię słów."); return "Mówi do świtu. Część słów zapominasz, zanim wybrzmią, inne zostają w tobie jak drzazgi. Rano po starcu jest tylko popiół, zimny od dawna."; } },
