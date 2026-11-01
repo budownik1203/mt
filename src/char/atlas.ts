@@ -224,3 +224,39 @@ export function downsample(src: ImageData, f: number): ImageData {
   }
   return out;
 }
+
+/**
+ * Grimdark wear over a painted atlas: colour drained, low-frequency soot and mud blotches,
+ * and dried blood flecks in a few clusters. Alpha (cut-outs) is left untouched.
+ */
+export function grime(src: ImageData, seed = 5, blood = 0.6): ImageData {
+  const S = src.width, d = new Uint8ClampedArray(src.data), r = rng(seed);
+  const vn = (x: number, y: number, f: number, o: number) => Math.sin(x * f + o) * Math.cos(y * f * 1.3 + o * 1.7) + Math.sin((x + y) * f * 0.7 + o * 2.3) * 0.6;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const i = (y * S + x) * 4;
+    if (d[i + 3] < 8) continue;
+    const g = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    const soot = Math.max(0, vn(x, y, 0.21, seed) * 0.5 + vn(x, y, 0.53, seed + 4) * 0.25);
+    const k = (1 - soot * 0.24) * (0.97 + (r() - 0.5) * 0.08);
+    for (let c = 0; c < 3; c++) {
+      const v = d[i + c] * 0.72 + g * 0.28;                 // drain colour
+      d[i + c] = v * k * (c === 2 ? 0.94 : 1);               // a little yellow-brown in the grime
+    }
+  }
+  // dried blood: clustered flecks, darker in the middle
+  const clusters = Math.floor(26 * blood);
+  for (let n = 0; n < clusters; n++) {
+    const cx = r() * S, cy = r() * S, rad = 2 + r() * 6;
+    const drops = 10 + Math.floor(r() * 30);
+    for (let m = 0; m < drops; m++) {
+      const a = r() * Math.PI * 2, t = Math.pow(r(), 1.6) * rad;
+      const x = Math.floor(cx + Math.cos(a) * t), y = Math.floor(cy + Math.sin(a) * t * 1.4 + r() * 3);
+      if (x < 0 || y < 0 || x >= S || y >= S) continue;
+      const i = (y * S + x) * 4;
+      if (d[i + 3] < 8) continue;
+      const w = 0.55 + 0.4 * (1 - t / rad);
+      d[i] = d[i] * (1 - w) + 70 * w; d[i + 1] = d[i + 1] * (1 - w) + 12 * w; d[i + 2] = d[i + 2] * (1 - w) + 10 * w;
+    }
+  }
+  return new ImageData(d, S, S);
+}

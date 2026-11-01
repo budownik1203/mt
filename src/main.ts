@@ -3,7 +3,7 @@
 // character rig, gear and combat animations.
 import { m4, mul, perspective, lookAt, trs, clamp, lerp, rng, V3 } from "./core/math.ts";
 import { PSX, GMesh, Light } from "./char/psx.ts";
-import { paintAtlas, downsample, REG } from "./char/atlas.ts";
+import { paintAtlas, downsample, REG, grime } from "./char/atlas.ts";
 import { paintGear, paintMailTile } from "./char/gear.ts";
 import { LEVELS } from "./char/human.ts";
 import { TMesh } from "./char/tmesh.ts";
@@ -27,9 +27,9 @@ try { R = new PSX(canvas); } catch (e) { $("title").innerHTML = `<h1>WebGL2</h1>
 const audio = new Audio();
 
 // ---------- render style: the project standard (hybrid PS1+PS2, faceted light) ----------
-const MODE = { ...LEVELS.hfa, fog: [24, 150] as [number, number] };
-R.setTexture(0, downsample(paintAtlas(), MODE.tex), MODE.bilinear, false, true);
-R.setTexture(1, downsample(paintGear(), MODE.tex), MODE.bilinear, false, true);
+const MODE = { ...LEVELS.hfa, fog: [12, 105] as [number, number], post: 3 };   // grimdark grade, closer murk
+R.setTexture(0, downsample(grime(paintAtlas(), 3, 0.35), MODE.tex), MODE.bilinear, false, true);
+R.setTexture(1, downsample(grime(paintGear(), 8, 0.9), MODE.tex), MODE.bilinear, false, true);
 R.setTexture(2, paintMailTile(), MODE.bilinear, true);
 const white = new ImageData(4, 4); white.data.fill(255);
 R.setTexture(3, white, false);
@@ -50,6 +50,13 @@ const flameG = (() => { const b = new MeshBuilder(); b.jitter = 0.15; b.cyl(T(0,
 const bloodG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 1, 1, hex(0x6a0c08)); return R.upload(fromBuilder(b), 3, false); })();
 const sparkG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 1, 1, hex(0xffd27a)); return R.upload(fromBuilder(b, 3), 3, false); })();
 const decalG = (() => { const b = new MeshBuilder(); b.jitter = 0.25; for (let i = 0; i < 5; i++) { const a = i * 1.3; b.box(T(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3, a), 0.6 - i * 0.07, 0.015, 0.45 - i * 0.05, hex(0x3d0a08)); } return R.upload(fromBuilder(b), 3, false); })();
+const crowG = (() => { const b = new MeshBuilder(); b.jitter = 0; const K = hex(0x0e0d0f);
+  b.tri([0, 0, 0.25], [-0.55, 0.08, -0.05], [0, 0, -0.15], K); b.tri([0, 0, 0.25], [0, 0, -0.15], [0.55, 0.08, -0.05], K); b.box(T(0, 0, 0.05), 0.09, 0.08, 0.38, K);
+  return R.upload(fromBuilder(b), 3, false); })();
+const ashG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 0.25, 1, hex(0x8f8a84)); return R.upload(fromBuilder(b), 3, false); })();
+// crows wheel over the gallows and the killing field; ash drifts down everywhere
+const crows = Array.from({ length: 14 }, (_, i) => ({ cx: i < 6 ? 14 : (Math.random() - 0.5) * 50, cz: i < 6 ? -16 : (Math.random() - 0.5) * 50, r: 4 + Math.random() * 9, h: 9 + Math.random() * 12, sp: (0.25 + Math.random() * 0.3) * (Math.random() < 0.5 ? -1 : 1), ph: Math.random() * 7 }));
+const ash = Array.from({ length: 260 }, () => ({ x: (Math.random() - 0.5) * 40, y: Math.random() * 14, z: (Math.random() - 0.5) * 40, ph: Math.random() * 7 }));
 const blobG = (() => { const t = new TMesh(256); t.box(trs(m4(), 0, 0.02, 0), 0.8, 0.001, 0.66, REG.blob); return R.upload(t, 0, false); })();
 
 // ---------- kits ----------
@@ -401,9 +408,10 @@ function step(dt: number) {
 
 // ---------- lighting by hour (tuned for the retro renderer) ----------
 type LP = { col: number[]; amb: number[]; rim: number[]; fog: number[]; sky: number[][] };
-const DAY: LP = { col: [0.95, 0.9, 0.8], amb: [0.5, 0.51, 0.56], rim: [0.14, 0.15, 0.18], fog: [0.56, 0.6, 0.66], sky: [[0.55, 0.6, 0.68], [0.95, 0.95, 0.92], [0.2, 0.17, 0.13]] };
-const DUSK: LP = { col: [1.15, 0.56, 0.3], amb: [0.24, 0.21, 0.28], rim: [0.35, 0.16, 0.1], fog: [0.42, 0.26, 0.22], sky: [[0.2, 0.2, 0.32], [1.1, 0.55, 0.3], [0.1, 0.07, 0.06]] };
-const NIGHT: LP = { col: [0.13, 0.16, 0.26], amb: [0.1, 0.11, 0.16], rim: [0.06, 0.07, 0.12], fog: [0.05, 0.06, 0.09], sky: [[0.03, 0.04, 0.07], [0.12, 0.1, 0.12], [0.02, 0.02, 0.02]] };
+// grimdark: a sun that never quite breaks the overcast, ash-grey murk, a dusk like an old wound
+const DAY: LP = { col: [0.9, 0.86, 0.76], amb: [0.5, 0.52, 0.54], rim: [0.12, 0.13, 0.14], fog: [0.5, 0.52, 0.5], sky: [[0.4, 0.42, 0.44], [0.72, 0.71, 0.66], [0.15, 0.13, 0.1]] };
+const DUSK: LP = { col: [1.15, 0.48, 0.24], amb: [0.27, 0.22, 0.25], rim: [0.36, 0.14, 0.08], fog: [0.36, 0.2, 0.16], sky: [[0.12, 0.1, 0.14], [0.86, 0.3, 0.15], [0.07, 0.05, 0.04]] };
+const NIGHT: LP = { col: [0.24, 0.27, 0.38], amb: [0.17, 0.18, 0.23], rim: [0.07, 0.08, 0.12], fog: [0.06, 0.065, 0.085], sky: [[0.04, 0.05, 0.08], [0.13, 0.12, 0.14], [0.02, 0.02, 0.02]] };
 const mixLP = (a: LP, b: LP, k: number): LP => ({
   col: a.col.map((v, i) => lerp(v, b.col[i], k)), amb: a.amb.map((v, i) => lerp(v, b.amb[i], k)), rim: a.rim.map((v, i) => lerp(v, b.rim[i], k)),
   fog: a.fog.map((v, i) => lerp(v, b.fog[i], k)), sky: a.sky.map((r, j) => r.map((v, i) => lerp(v, b.sky[j][i], k))),
@@ -461,6 +469,20 @@ function render(now: number) {
   for (const f of fighters) {
     items.push({ mesh: blobG, model: trs(m4(), f.x, f.y, f.z, f.yaw) });
     f.draw(items);
+  }
+  const tt = now / 1000;
+  for (const c of crows) {
+    const a = c.ph + tt * c.sp, flap = Math.sin(tt * 9 + c.ph) * 0.35;
+    const x = c.cx + Math.cos(a) * c.r, z = c.cz + Math.sin(a) * c.r, y = ground(c.cx, c.cz) + c.h + Math.sin(tt * 0.7 + c.ph) * 1.2;
+    items.push({ mesh: crowG, model: trs(m4(), x, y, z, -a + (c.sp > 0 ? 0 : Math.PI), 0, flap * 0.3, 1, 1 + flap, 1) });
+  }
+  for (const f of ash) {
+    // flakes live in a box that follows the camera; they fall slowly and sway
+    const bx = eye[0] - 20, bz = eye[2] - 20;
+    const fy = 14 - ((f.y + tt * 0.45) % 14);
+    const x = bx + (((f.x + 20 - eye[0]) % 40) + 40) % 40 + Math.sin(tt * 0.8 + f.ph) * 0.4;
+    const z = bz + (((f.z + 20 - eye[2]) % 40) + 40) % 40 + Math.cos(tt * 0.6 + f.ph) * 0.4;
+    items.push({ mesh: ashG, model: trs(m4(), x, eye[1] - 5 + fy, z, f.ph + tt, f.ph, tt * 0.7, 0.035, 0.035, 0.035) });
   }
   for (const p of parts) items.push({ mesh: p.spark ? sparkG : bloodG, model: trs(m4(), p.x, p.y, p.z, p.life * 9, p.life * 7, 0, p.s, p.s, p.s) });
   if (L.point) L.point.pos[1] += Math.sin(now * 0.013) * 0.04;

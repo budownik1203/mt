@@ -6,7 +6,7 @@ import { MeshBuilder, RGB, hex } from "../gfx/meshbuilder.ts";
 export const WORLD = 360;           // metres per side
 const CELL = 2.5;
 
-const GRASS = hex(0x34421f), GRASS_DRY = hex(0x5a5a2e), MUD = hex(0x3e3125), ROAD = hex(0x5c4a36), ROCK = hex(0x5f5e5a), ROCK_D = hex(0x45443f);
+const GRASS = hex(0x2c3320), GRASS_DRY = hex(0x4b4632), MUD = hex(0x2d241b), ROAD = hex(0x43362a), ROCK = hex(0x55534f), ROCK_D = hex(0x3c3a36), ASHC = hex(0x201d1b), GORE = hex(0x3b1b15);
 
 export function roadDist(x: number, z: number) {
   // road snakes north-south through the field
@@ -34,8 +34,13 @@ export function slope(x: number, z: number) {
 function colourAt(x: number, z: number, y: number, s: number): RGB {
   const n = fbm(x * 0.05, z * 0.05, 3, 21) * 0.5 + 0.5;
   let c: RGB = [lerp(GRASS[0], GRASS_DRY[0], n), lerp(GRASS[1], GRASS_DRY[1], n), lerp(GRASS[2], GRASS_DRY[2], n)];
-  const mud = clamp(fbm(x * 0.08, z * 0.08, 2, 33) * 2 - 0.2, 0, 1) * clamp(1 - Math.hypot(x, z) / 70, 0, 1);
-  c = c.map((v, i) => lerp(v, MUD[i], mud * 0.8)) as RGB;
+  // churned mud over the whole killing field, scorched earth where something burned
+  const mud = clamp(fbm(x * 0.08, z * 0.08, 2, 33) * 2 + 0.15, 0, 1) * clamp(1.15 - Math.hypot(x, z) / 85, 0, 1);
+  c = c.map((v, i) => lerp(v, MUD[i], mud * 0.85)) as RGB;
+  const burn = clamp(fbm(x * 0.03, z * 0.03, 2, 71) * 3 - 0.9, 0, 1);
+  c = c.map((v, i) => lerp(v, ASHC[i], burn * 0.8)) as RGB;
+  const gore = clamp(fbm(x * 0.15, z * 0.15, 2, 91) * 3 - 1.1, 0, 1) * clamp(1 - Math.hypot(x, z) / 40, 0, 1);
+  c = c.map((v, i) => lerp(v, GORE[i], gore * 0.7)) as RGB;
   const rd = roadDist(x, z);
   if (rd < 4.2) c = c.map((v, i) => lerp(ROAD[i], v, smooth(clamp(rd / 4.2, 0, 1)))) as RGB;
   const rock = clamp((s - 0.55) * 3, 0, 1);

@@ -7,8 +7,9 @@ import { height, roadDist, slope, WORLD } from "./terrain.ts";
 export interface Collider { x: number; z: number; r: number }
 export interface Scenery { mesh: MeshBuilder; colliders: Collider[]; fires: [number, number, number][] }
 
-const BARK = hex(0x3b2f26), BARK_D = hex(0x2a2420), PINE = hex(0x27382b), PINE_D = hex(0x1f2d23), STONE = hex(0x6d6a62), STONE_D = hex(0x55524b),
-  WOOD = hex(0x5a4532), WOOD_D = hex(0x3e3024), IRON = hex(0x34363a), CLOTH = hex(0x5d5444), CLOTH_R = hex(0x5e2a24), BONE = hex(0xb5ab92), ASH = hex(0x2b2826), EMBER = hex(0xb4561e);
+const BARK = hex(0x3b2f26), BARK_D = hex(0x2a2420), PINE = hex(0x1f2b23), PINE_D = hex(0x18221c), STONE = hex(0x6d6a62), STONE_D = hex(0x55524b),
+  WOOD = hex(0x4a3a2c), WOOD_D = hex(0x3e3024), IRON = hex(0x34363a), CLOTH = hex(0x5d5444), CLOTH_R = hex(0x5e2a24), BONE = hex(0xb5ab92), ASH = hex(0x2b2826), EMBER = hex(0xb4561e),
+  SKIN = hex(0x7d6f62), SKIN_D = hex(0x5e544b), RAG = hex(0x3e3a33), RAG_R = hex(0x4a1f1a), MAILC = hex(0x56575a), POOL = hex(0x2a0b08), CHAR = hex(0x1b1817), CLOTH_K = hex(0x161414);
 
 function pine(b: MeshBuilder, x: number, z: number, s: number, r: () => number) {
   const y = height(x, z) - 0.2;
@@ -27,6 +28,96 @@ function deadTree(b: MeshBuilder, x: number, z: number, s: number, r: () => numb
     const a = r() * Math.PI * 2, h = (2.5 + r() * 3) * s;
     b.cyl(T(x, y + h, z, a, 0, -0.7 - r() * 0.5), 0.09 * s, 0.02 * s, (1.8 + r() * 1.5) * s, 4, BARK_D);
   }
+}
+
+/** A body left where it fell: torso, head, limbs at odd angles, a dark pool under it. */
+function corpse(b: MeshBuilder, x: number, z: number, r: () => number, cols: Collider[]) {
+  const y = height(x, z), rot = r() * Math.PI * 2, c = Math.cos(rot), s = Math.sin(rot);
+  const P = (lx: number, lz: number) => [x + lx * c + lz * s, z - lx * s + lz * c];
+  const cloth = [RAG, RAG_R, MAILC, CLOTH, hex(0x2d3036)][Math.floor(r() * 5)];
+  const at = (lx: number, ly: number, lz: number, ry: number, rx: number, rz: number) => { const [px, pz] = P(lx, lz); return T(px, y + ly, pz, rot + ry, rx, rz); };
+  b.box(at(0, 0.02, 0.2, 0, 0, 0), 1.4 + r() * 0.6, 0.02, 1.2 + r() * 0.5, POOL);
+  b.box(at(0, 0.12, 0, 0, Math.PI / 2, (r() - 0.5) * 0.4), 0.38, 0.62, 0.22, cloth);           // torso
+  const headOff = r() < 0.2;                                                                // some lost their heads
+  if (!headOff) b.rock(at(0, 0.12, 0.45 + r() * 0.05, 0, 0, 0), 0.11, SKIN_D, 0.15, Math.floor(r() * 99));
+  else b.rock(at(0.9 + r(), 0.1, 0.7 + r(), 0, 0, 0), 0.11, SKIN_D, 0.2, Math.floor(r() * 99));
+  for (const sd of [-1, 1]) {
+    b.box(at(sd * 0.28, 0.08, 0.1 + r() * 0.2, sd * (0.4 + r() * 1.1), Math.PI / 2, 0), 0.1, 0.55, 0.1, cloth);  // arms flung out
+    b.box(at(sd * 0.12, 0.09, -0.6, sd * r() * 0.5, Math.PI / 2, 0), 0.13, 0.8, 0.13, RAG);                       // legs
+  }
+  if (r() < 0.5) { const [ax, az] = P(0.05, 0.05); b.cyl(T(ax, y + 0.1, az, r() * 6, 0.4 + r() * 0.3, 0), 0.015, 0.015, 1 + r() * 0.5, 3, WOOD_D); } // spear or arrow in the back
+  cols.push({ x, z, r: 0.25 });
+}
+
+/** A blade or spear stuck in the mud, a split shield beside it. */
+function stuckWeapon(b: MeshBuilder, x: number, z: number, r: () => number) {
+  const y = height(x, z);
+  if (r() < 0.5) { b.box(T(x, y + 0.4, z, r() * 6, (r() - 0.5) * 0.5, (r() - 0.5) * 0.5), 0.05, 0.9, 0.012, hex(0x6b6e72)); b.box(T(x, y + 0.88, z, r() * 6), 0.22, 0.03, 0.03, IRON); }
+  else b.cyl(T(x, y - 0.1, z, 0, (r() - 0.5) * 0.7, (r() - 0.5) * 0.7), 0.02, 0.018, 2.2, 4, WOOD_D);
+  if (r() < 0.5) b.cyl(T(x + 0.6, y + 0.05, z + 0.3, r() * 6, 0.1, 1.45), 0.35, 0.35, 0.04, 6, r() < 0.5 ? RAG_R : WOOD_D);
+}
+
+/** A head on a stake by the road: a warning. */
+function pike(b: MeshBuilder, x: number, z: number, r: () => number, cols: Collider[]) {
+  const y = height(x, z);
+  b.cyl(T(x, y - 0.2, z, 0, (r() - 0.5) * 0.15, (r() - 0.5) * 0.15), 0.06, 0.012, 2.9, 4, WOOD_D);
+  b.rock(T(x, y + 2.55, z), 0.12, r() < 0.4 ? BONE : SKIN_D, 0.18, Math.floor(r() * 99));
+  b.box(T(x, y + 2.35, z), 0.08, 0.25, 0.08, POOL);   // what ran down the stake
+  cols.push({ x, z, r: 0.2 });
+}
+
+/** A gibbet with a hanged man. */
+function gibbet(b: MeshBuilder, x: number, z: number, rot: number, r: () => number, cols: Collider[]) {
+  const y = height(x, z), c = Math.cos(rot), s = Math.sin(rot);
+  b.box(T(x, y + 2.2, z, rot), 0.22, 4.6, 0.22, WOOD_D);
+  const ax = x + s * 1.0, az = z + c * 1.0;
+  b.box(T(x + s * 0.5, y + 4.4, z + c * 0.5, rot), 0.18, 0.18, 1.3, WOOD_D);
+  b.box(T(ax, y + 3.9, az), 0.02, 0.9, 0.02, hex(0x3a3328));                             // rope
+  const sw = (r() - 0.5) * 0.2;
+  b.rock(T(ax, y + 3.35, az + 0.02), 0.11, SKIN_D, 0.15, Math.floor(r() * 99));
+  b.box(T(ax, y + 2.9, az, rot + sw, 0.1, 0), 0.34, 0.6, 0.2, RAG);
+  for (const sd of [-1, 1]) {
+    b.box(T(ax + sd * 0.2 * c, y + 2.85, az - sd * 0.2 * s, rot), 0.08, 0.55, 0.08, RAG);
+    b.box(T(ax + sd * 0.08 * c, y + 2.2, az - sd * 0.08 * s, rot), 0.1, 0.8, 0.1, RAG);
+  }
+  cols.push({ x, z, r: 0.35 });
+}
+
+/** A tattered war banner on a leaning pole: black and red, torn into tongues. */
+function banner(b: MeshBuilder, x: number, z: number, rot: number, r: () => number, cols: Collider[]) {
+  const y = height(x, z), lean = (r() - 0.5) * 0.25;
+  b.cyl(T(x, y - 0.2, z, 0, lean, 0), 0.04, 0.03, 4.6, 4, WOOD_D);
+  const c = Math.cos(rot), s = Math.sin(rot), top = y + 4.2 + lean * 0;
+  const col = r() < 0.5 ? CLOTH_K : RAG_R;
+  const W = 1.1, H = 1.6, tongues = 4;
+  const pt = (u: number, v: number) => [x + u * W * s + Math.sin(v * 3 + u * 2) * 0.06 * c, top - v * H, z + u * W * c - Math.sin(v * 3 + u * 2) * 0.06 * s];
+  b.quad(pt(0, 0), pt(1, 0), pt(1, 0.6), pt(0, 0.6), col); b.quad(pt(0, 0), pt(0, 0.6), pt(1, 0.6), pt(1, 0), col);
+  for (let i = 0; i < tongues; i++) {
+    const u0 = i / tongues, u1 = (i + 1) / tongues, v = 0.6 + 0.25 + r() * 0.35;
+    b.tri(pt(u0, 0.6), pt(u1, 0.6), pt((u0 + u1) / 2, v), col); b.tri(pt(u0, 0.6), pt((u0 + u1) / 2, v), pt(u1, 0.6), col);
+  }
+  b.box(T(x + s * W * 0.5, top + 0.02, z + c * W * 0.5, rot), 0.03, 0.03, W + 0.1, WOOD_D);
+  cols.push({ x, z, r: 0.2 });
+}
+
+/** A burned-out cottage: blackened stone footing, charred posts, a fallen roof beam. */
+function burnedHouse(b: MeshBuilder, x: number, z: number, rot: number, r: () => number, cols: Collider[], fires: [number, number, number][]) {
+  const y = height(x, z), c = Math.cos(rot), s = Math.sin(rot);
+  const P = (lx: number, lz: number) => [x + lx * c + lz * s, z - lx * s + lz * c];
+  for (const [lx, lz, w, d] of [[0, -2.5, 6, 0.5], [0, 2.5, 6, 0.5], [-3, 0, 0.5, 5], [3, 0, 0.5, 5]] as const) {
+    const [px, pz] = P(lx, lz), h = 0.6 + r() * 1.4;
+    b.box(T(px, y + h / 2 - 0.2, pz, rot), w, h, d, r() < 0.5 ? CHAR : STONE_D);
+    cols.push({ x: px, z: pz, r: Math.max(w, d) * 0.45 });
+  }
+  for (const [lx, lz] of [[-2.8, -2.3], [2.8, -2.3], [-2.8, 2.3], [2.8, 2.3], [0, -2.4]]) {
+    const [px, pz] = P(lx, lz), h = 1.5 + r() * 2.2;
+    b.box(T(px, y + h / 2, pz, rot, (r() - 0.5) * 0.3, (r() - 0.5) * 0.3), 0.22, h, 0.22, CHAR);
+  }
+  const [bx, bz] = P(0.5, 0.4);
+  b.box(T(bx, y + 1.0, bz, rot + 0.4, 0, 0.45), 0.25, 0.25, 6.5, CHAR);
+  b.cyl(T(bx, y - 0.04, bz), 2.6, 2.4, 0.08, 8, ASH);
+  b.box(T(bx + 0.6, y + 0.12, bz - 0.4, 0.7), 0.6, 0.15, 0.3, EMBER);
+  fires.push([bx + 0.6, y + 0.5, bz - 0.4]);
 }
 
 function chapel(b: MeshBuilder, cx: number, cz: number, rot: number, cols: Collider[]) {
@@ -74,6 +165,7 @@ function gallows(b: MeshBuilder, x: number, z: number, rot: number, cols: Collid
   b.rock(T(x, cy + 0.15, cz), 0.13, BONE, 0.1, 9);
   b.box(T(x + 0.1, cy + 0.05, cz, 0.5), 0.5, 0.06, 0.07, BONE);
   cols.push({ x, z, r: 0.5 });
+  gibbet(b, x - 2.2, z + 0.4, rot, rng(31), cols);
 }
 
 function camp(b: MeshBuilder, x: number, z: number, cols: Collider[], fires: [number, number, number][]) {
@@ -122,7 +214,7 @@ export function buildScenery(): Scenery {
     if (r() > forest * 0.9 + 0.05) continue;
     if (slope(x, z) > 0.8) continue;
     const s = 0.8 + r() * 0.7;
-    if (r() < 0.82) pine(b, x, z, s, r); else deadTree(b, x, z, s, r);
+    if (r() < 0.55) pine(b, x, z, s, r); else deadTree(b, x, z, s, r);
     if (d < 70) cols.push({ x, z, r: 0.35 * s });
     placed++;
   }
@@ -133,6 +225,25 @@ export function buildScenery(): Scenery {
     b.rock(T(x, height(x, z) + s * 0.2, z, r() * 6), s, r() < 0.5 ? STONE : STONE_D, 0.35, i);
     if (Math.hypot(x, z) < 70) cols.push({ x, z, r: s * 0.85 });
   }
+  // the aftermath of earlier battles: bodies, weapons in the mud, standards left behind
+  for (let i = 0; i < 46; i++) {
+    const a = r() * Math.PI * 2, d = 7 + Math.pow(r(), 0.8) * 42;
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    if (slope(x, z) > 0.5) continue;
+    corpse(b, x, z, r, cols);
+    if (r() < 0.6) stuckWeapon(b, x + (r() - 0.5) * 3, z + (r() - 0.5) * 3, r);
+  }
+  for (let i = 0; i < 30; i++) { const a = r() * Math.PI * 2, d = 5 + r() * 45; stuckWeapon(b, Math.cos(a) * d, Math.sin(a) * d, r); }
+  for (let i = 0; i < 7; i++) { const a = r() * Math.PI * 2, d = 14 + r() * 26; banner(b, Math.cos(a) * d, Math.sin(a) * d, r() * 6, r, cols); }
+  // the road is lined with warnings
+  for (let zz = -150; zz < 150; zz += 9 + r() * 10) {
+    const cx = Math.sin(zz * 0.018) * 18 + Math.sin(zz * 0.05) * 4, side = r() < 0.5 ? -1 : 1;
+    if (Math.abs(zz) < 12) continue;
+    if (r() < 0.7) pike(b, cx + side * (5.5 + r()), zz, r, cols);
+    else gibbet(b, cx + side * 6.5, zz, side > 0 ? -Math.PI / 2 : Math.PI / 2, r, cols);
+  }
+  burnedHouse(b, 38, -8, 0.3, r, cols, fires);
+  burnedHouse(b, -40, 18, -0.8, r, cols, fires);
   chapel(b, -26, -30, 0.5, cols);
   gallows(b, 14, -16, 0.2, cols);
   camp(b, 24, 22, cols, fires);

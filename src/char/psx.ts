@@ -129,6 +129,15 @@ void main(){
     vec2 q = vP - 0.5; c *= 1.0 - dot(q,q)*1.6;
   } else if(uPost == 2.0){
     c = pal(c + (bayer(px) - 0.5) * 0.09);
+  } else if(uPost == 3.0){   // grimdark: drained colour (blood keeps its red), cold shadows, sallow light, grain
+    float g = dot(c, vec3(0.299,0.587,0.114));
+    float red = clamp((c.r - max(c.g, c.b)) * 5.0 - 0.15, 0.0, 1.0);
+    float fire = clamp((c.r - c.b) * 2.5 - 0.9, 0.0, 1.0) * step(0.55, c.r);
+    c = mix(vec3(g), c, mix(0.38, 1.0, max(red, fire)));
+    c = mix(c * vec3(0.84, 0.93, 0.97), c * vec3(1.06, 1.0, 0.84), smoothstep(0.12, 0.65, g));
+    c = clamp((c - 0.4) * 1.1 + 0.41, 0.0, 1.0);
+    c += (hash(px + fract(uTime) * 91.0) - 0.5) * 0.045;
+    vec2 q = vP - 0.5; c *= 1.0 - dot(q, q) * 0.9;
   }
   o = vec4(c,1.0);
 }`;
