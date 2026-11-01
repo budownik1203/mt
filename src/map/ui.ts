@@ -11,6 +11,8 @@ import { power } from "./troops.ts";
 import { rites, doRite, placeActs, undeadCount, livingCount, harvest, corrupt, learnNecromancy } from "./necro.ts";
 import { undeadLimit, corruptionWord } from "./hero.ts";
 import { HORSES, HorseId } from "../char/horse.ts";
+import { GOODS, GOOD_IDS, Good, price, buy, sell, cargoCount, cargoCap, notePrices, bestKnown, tradeOf, econOf } from "./trade.ts";
+import { quests, lordQuest, villageQuest, accept, letterFor, deliverLetter, bandBeaten, deliveryHere, deliver, Quest } from "./quests.ts";
 import { profOf } from "./hero.ts";
 import { faithOf, faithShares, faithMorale, placeFaithActs, campRites, FAITH_NAME, BOONS } from "./faith.ts";
 import { MONSTERS, monsterDef, monsterParty, offerAt, takeContract, monsterSlain } from "./monsters.ts";
@@ -23,7 +25,7 @@ const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt
 const tn = (t: TroopId) => TROOPS[t].name[lang];
 
 export interface Act { label: string; sub?: string; on: () => void; off?: boolean; kind?: "go" | "bad" | "" }
-export interface Hooks { fight: (p: Party, o?: { ally?: Party; defend?: string }) => void; refresh: () => void; snapshot: (x: number, z: number, dist: number) => string | null }
+export interface Hooks { tourney: (sid: string, round: number) => void; fight: (p: Party, o?: { ally?: Party; defend?: string }) => void; refresh: () => void; snapshot: (x: number, z: number, dist: number) => string | null }
 
 export class MapUI {
   open = false;
@@ -187,6 +189,13 @@ export class MapUI {
     if (s.kind === "village" && fx.fief[s.id] === "player") acts.push({ label: "Twoje lenno", sub: `czynsz co tydzień ok. ${Math.round(30 * (0.5 + s.prosperity))} gr · rekruci tańsi`, off: true, on: () => {} });
     if (s.kind === "castle") acts.push({ label: "Pod bramą", sub: "kasztelan każe czekać", off: true, on: () => {} });
     acts.push({ label: s.kind === "town" ? "Gospoda: odpocznij do rana" : "Przenocuj", sub: s.kind === "town" ? `${Math.ceil(c.men / 2)} gr, ranni szybciej wracają do sił` : "za darmo, w stodole", on: () => this.rest(s) });
+    notePrices(c, s.id);
+    acts.push({ label: "Kupcy: towary", sub: `ładunek ${cargoCount(c)}/${cargoCap(c)} · tu tanio: ${econOf(s.id).make.map((g) => GOODS[g].name.toLowerCase()).join(", ") || "nic"} · tu drogo: ${econOf(s.id).want.map((g) => GOODS[g].name.toLowerCase()).join(", ") || "nic"}`, on: () => this.goodsMarket(s) });
+    const dq = deliveryHere(c, s.id);
+    if (dq) { const have = tradeOf(c).cargo[dq.good!]?.n ?? 0; acts.push({ label: `Oddaj towar: ${dq.n} × ${GOODS[dq.good!].name}`, sub: have >= dq.n! ? `nagroda ${dq.reward} gr` : `masz ${have}/${dq.n} · zostało ${dq.until - c.day} d`, off: have < dq.n!, kind: "go", on: () => { deliver(c, dq); this.settlement(s.id); } }); }
+    else if (!quests(c).some((q) => q.giver === s.id)) acts.push({ label: s.kind === "town" ? "Rada miejska: zadanie" : "Sołtys: zadanie", sub: "praca za srebro dla tej osady", on: () => this.offerQuest(s.id, villageQuest(c, s.id), () => this.settlement(s.id)) });
+    const tr = tradeOf(c).tourney;
+    if (tr && tr.town === s.id) acts.push({ label: "Turniej", sub: `3 walki tępą bronią · wpisowe 20 gr · nagroda 250 gr i sława · do dnia ${tr.until % 30 + 1}`, kind: "go", on: () => this.tourneyMenu(s) });
     const offer = offerAt(c, s.id);
     if (offer) acts.push({ label: `Kontrakt: ${offer.name}`, sub: `${s.kind === "town" ? "rada miejska" : "sołtys"} płaci za głowę · ok. ${Math.round(offer.reward * (s.kind === "town" ? 1.3 : 1))} gr · 20 dni`, kind: "go", on: () => this.contractOffer(s, offer.id) });
     for (const k of c.contracts.filter((x) => x.from === s.id)) {
@@ -343,6 +352,9 @@ export class MapUI {
     } else if (p.kind === "lord") {
       const L = lordDef(p.lord!), f = p.faction!, fx = c.fx, isRuler = FACTIONS[f].ruler === L.id;
       const enemies = FIDS.filter((g) => atWar(fx, f, g)).map((g) => FACTIONS[g].short);
+      const letter = letterFor(c, L.id);
+      if (letter) acts.push({ label: "Oddaj list", sub: `nagroda ${letter.reward} gr`, kind: "go", on: () => { deliverLetter(c, letter); this.encounter(p); } });
+      if (!quests(c).some((q) => q.giverLord === L.id) && fx.lords[L.id].rel >= -10) acts.push({ label: "Masz dla mnie zadanie?", sub: "list albo banda do rozbicia", on: () => this.offerQuest(L.id, lordQuest(c, L.id), () => this.encounter(p)) });
       acts.push({ label: "Rozmowa", sub: `relacja ${fx.lords[L.id].rel} (${relWord(fx.lords[L.id].rel)})`, on: () => { this.show(p.name, `<p>„${esc(L.line)}”</p>`, [{ label: "Wróć", on: () => this.encounter(p) }]); } });
       if (!fx.join && fx.rel[f] >= -5) acts.push({ label: "Zaciągnij się jako najemnik", sub: `30 dni · żołd ${4 * c.men} gr/tydz. · ${enemies.length ? "wrogowie: " + enemies.join(", ") : "teraz bez wojny"}`, on: () => { hire(c, f); lordRel(c, L.id, 3); this.encounter(p); } });
       if (isRuler && fx.join?.f !== f || isRuler && fx.join?.role === "mercenary") {
@@ -420,6 +432,7 @@ export class MapUI {
       const ups = addXp(h, xp);
       h.won++; h.renown += Math.round((theirDead + c.partySize(p)) * 0.5) + 1;
       lootText += `<p class="meta">Łup: ${loot} gr (ludzie biorą ${share}), ${food} porcji jedzenia${items.length ? ", " + items.map(itemName).join(", ") : ""}.${took ? ` Jeńcy: ${took}.` : ""}</p><p class="meta">Doświadczenie +${xp}${ups ? ` · <b>Nowy poziom (${h.level})</b>: punkty do rozdania w oknie Postać` : ""} · sława ${h.renown}</p>`;
+      if (bandBeaten(c, p)) lootText += `<p class="meta">Zadanie wykonane: banda rozbita.</p>`;
       if (p.kind === "monster") { lootText += monsterSlain(c, p); c.removeParty(p); }
       else if (p.kind === "lord" || p.kind === "garrison") c.removeParty(p);
       else if (c.partySize(p) > 0) { p.stunned = 6; p.mode = "flee"; p.gold = 0; }   // the routed survive and scatter
@@ -530,6 +543,55 @@ export class MapUI {
   }
   private buyPrice(it: Item) { return Math.round(itemPrice(it) * (1 - 0.05 * this.c.co.hero.skills.handel)); }
   private sellPrice(it: Item) { return Math.round(itemPrice(it) * (0.35 + 0.05 * this.c.co.hero.skills.handel)); }
+  /** Goods market (Warband trade screen, as a table). */
+  goodsMarket(s: Settlement, msg = "") {
+    const c = this.c, t = tradeOf(c);
+    const rows = GOOD_IDS.map((g) => {
+      const p = price(c, s.id, g), h = t.cargo[g], best = bestKnown(c, g, s.id);
+      const tag = econOf(s.id).make.includes(g) ? " <small>(tu wyrabiają)</small>" : econOf(s.id).want.includes(g) ? " <small>(tu potrzebują)</small>" : "";
+      const known = best ? `${c.w.settlements.find((x) => x.id === best.sid)!.name}: ${best.v} gr <small>(${c.day - best.day} d temu)</small>` : "—";
+      return `<tr><td>${GOODS[g].name}${tag}</td><td class="num">${p.buy}</td><td class="num">${p.sell}</td><td class="num">${p.stock}</td><td class="num">${h ? `${h.n} <small>po ${Math.round(h.cost)}</small>` : ""}</td><td>${known}</td><td><button type="button" class="ib" data-buy="${g}">Kup 1</button> <button type="button" class="ib" data-buy5="${g}">5</button> <button type="button" class="ib" data-sell="${g}" ${h ? "" : "disabled"}>Sprzedaj 1</button> <button type="button" class="ib" data-sellall="${g}" ${h ? "" : "disabled"}>wszystko</button></td></tr>`;
+    }).join("");
+    const body = (msg ? `<p class="meta"><b>${msg}</b></p>` : "") + `<p class="meta">Srebro ${c.co.party.gold} gr · ładunek ${cargoCount(c)}/${cargoCap(c)} (wozy; więcej z Handlem i ludźmi) · Handel ${c.co.hero.skills.handel} zwęża różnicę cen</p>` +
+      `<table class="tbl"><thead><tr><th>Towar</th><th>Kupno</th><th>Sprzedaż</th><th>W składzie</th><th>Masz</th><th>Najlepsza znana sprzedaż</th><th></th></tr></thead><tbody>${rows}</tbody></table>` +
+      `<p class="meta">Ceny rosną, gdy wykupujesz, spadają, gdy zalewasz rynek; składy wracają do normy po 2 sztuki dziennie. Ceny z odwiedzonych osad się pamięta.</p>`;
+    this.show(`${s.name}: kupcy`, body, [{ label: "Wróć", on: () => this.settlement(s.id) }], true);
+    const on = (sel: string, f: (g: Good) => string) => { for (const b of document.querySelectorAll<HTMLButtonElement>(`#mbody [${sel}]`)) b.addEventListener("click", () => this.goodsMarket(s, f(b.getAttribute(sel) as Good))); };
+    on("data-buy", (g) => { buy(c, s.id, g, 1); return ""; });
+    on("data-buy5", (g) => { buy(c, s.id, g, 5); return ""; });
+    on("data-sell", (g) => { const pr = sell(c, s.id, g, 1); return `Zysk: ${pr >= 0 ? "+" : ""}${pr} gr`; });
+    on("data-sellall", (g) => { const pr = sell(c, s.id, g, 999); return `Zysk: ${pr >= 0 ? "+" : ""}${pr} gr`; });
+  }
+  private offerQuest(_from: string, q: Quest | null, back: () => void) {
+    if (!q) { this.show("Zadanie", `<p>Nie mają teraz dla ciebie roboty.</p>`, [{ label: "Wróć", on: back }]); return; }
+    this.show("Zadanie", `<p>${q.text}.</p><p class="meta">Nagroda ${q.reward} gr · termin ${q.until - this.c.day} dni · niewykonane: relacja i sława w dół.</p>`, [
+      { label: "Przyjmij", kind: "go", on: () => { accept(this.c, q); back(); } },
+      { label: "Odmów", on: () => { if (q.party) { const p = this.c.parties.find((x) => x.id === q.party); if (p) this.c.removeParty(p); } back(); } },
+    ]);
+  }
+  /** Tournament: entry, a bet on yourself, three bouts. */
+  tourneyState: { sid: string; round: number; bet: number } | null = null;
+  tourneyMenu(s: Settlement) {
+    const c = this.c, me = c.co.party;
+    const body = `<p>Szranki z belek, trybuny z desek, chorągwie mieszczan. Walczy się tępą bronią, do pierwszej krwi albo nieprzytomności. Śmierć zdarza się rzadko.</p><p class="meta">3 walki jeden na jeden, coraz silniejsi przeciwnicy (zbrojny, płytowy, rycerz) · wpisowe 20 gr · nagroda 250 gr, sława +25, pan miasta +5 · zakład na siebie: wygrana całości ×3.</p>`;
+    const go = (bet: number) => { if (me.gold < 20 + bet) return; me.gold -= 20 + bet; this.tourneyState = { sid: s.id, round: 0, bet }; this.close(); this.h.tourney(s.id, 0); };
+    this.show(`${s.name}: turniej`, body, [
+      { label: "Zgłoś się", sub: "20 gr", off: me.gold < 20, kind: "go", on: () => go(0) },
+      { label: "Zgłoś się i postaw na siebie 50 gr", sub: "wygrasz wszystkie trzy walki: 150 gr", off: me.gold < 70, on: () => go(50) },
+      { label: "Zgłoś się i postaw na siebie 150 gr", sub: "wygrasz wszystkie trzy walki: 450 gr", off: me.gold < 170, on: () => go(150) },
+      { label: "Wróć", on: () => this.settlement(s.id) },
+    ]);
+  }
+  tourneyResult(win: boolean) {
+    const c = this.c, st = this.tourneyState!; const s = c.w.settlements.find((x) => x.id === st.sid)!;
+    if (!win) { this.tourneyState = null; c.note(`Turniej w ${s.name}: odpadasz w ${st.round + 1}. walce.`, "warn"); this.show(`${s.name}: turniej`, `<p>Leżysz w piachu, nad tobą twarz herolda. Tłum gwiżdże. Zakład przepada.</p>`, [{ label: "Dalej", on: () => this.close() }]); return; }
+    if (st.round < 2) { st.round++; this.show(`${s.name}: turniej`, `<p>Przeciwnik zniesiony z placu. Tłum ryczy twoje imię, a przynajmniej coś podobnego.</p><p class="meta">Walka ${st.round + 1} z 3.</p>`, [{ label: "Do następnej walki", kind: "go", on: () => { this.close(); this.h.tourney(st.sid, st.round); } }]); return; }
+    const prize = 250 + st.bet * 3; c.co.party.gold += prize; c.co.hero.renown += 25;
+    const lid = c.fx.fief[s.id]; if (lid && lid !== "player") lordRel(c, lid, 5);
+    this.tourneyState = null; tradeOf(c).tourney = undefined;
+    c.note(`Zwycięstwo w turnieju w ${s.name}: ${prize} gr i sława.`, "good");
+    this.show(`${s.name}: turniej`, `<p>Wygrywasz turniej. Pan miasta wręcza ci sakiewkę, a jakaś dama rzuca chustkę, którą zaraz kradnie twój pachołek.</p><p class="meta">${prize} gr, sława +25.</p>`, [{ label: "Dalej", on: () => this.close() }]);
+  }
   private horseMarket(s: Settlement) {
     const c = this.c, h = c.co.hero, me = c.co.party;
     const sell = h.horse ? Math.round(HORSES[h.horse].price * 0.5) : 0;
@@ -588,7 +650,8 @@ export class MapUI {
   // ---------- chronicle ----------
   chronicle() {
     const c = this.c;
-    const ks = c.contracts.map((k) => { const d = monsterDef(k.monster); return `<div class="warn"><b>Kontrakt:</b> ${esc(d.name)} · ${esc(c.w.settlements.find((q) => q.id === k.from)!.name)} · ${k.reward} gr · śledztwo ${k.steps}/3 · zostało ${k.until - c.day} d</div>`; }).join("");
+    const qs = quests(c).map((q) => `<div class="warn"><b>Zadanie:</b> ${esc(q.text)} · ${q.reward} gr · zostało ${q.until - c.day} d</div>`).join("");
+    const ks = qs + c.contracts.map((k) => { const d = monsterDef(k.monster); return `<div class="warn"><b>Kontrakt:</b> ${esc(d.name)} · ${esc(c.w.settlements.find((q) => q.id === k.from)!.name)} · ${k.reward} gr · śledztwo ${k.steps}/3 · zostało ${k.until - c.day} d</div>`; }).join("");
     const list = ks + c.notes.map((n) => `<div class="${n.kind}"><span class="when">${(n.day % 30) + 1}. dzień, ${String(Math.floor(n.hour)).padStart(2, "0")}:00</span> ${esc(n.text)}</div>`).join("");
     this.show("Kronika", `<div class="chron">${list}</div>`, [{ label: "Zamknij", on: () => this.close() }], true);
   }

@@ -164,7 +164,7 @@ let targetT = 0;
 // ---------- campaign ----------
 type Mode = "title" | "map" | "battle";
 let mode: Mode = "title";
-let battleKind: "waves" | "encounter" = "waves";
+let battleKind: "waves" | "encounter" | "tourney" = "waves";
 let camp: Campaign | null = null;
 let ui: MapUI | null = null;
 interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form" | "fire"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number; raiseCD: number; raised: Set<number>; risen: Set<number>; weak?: boolean; allyParty?: Party; defend?: string; allied: Map<number, number>; garrison0: number }
@@ -566,6 +566,7 @@ function applyHit(att: Warrior, o: Warrior, dmg: number, type: DmgType, dir: Dir
     if (type === "blunt" && zone === "head") bleed(hp, dx, dz, 50);
     if (o.aiToken) { o.aiToken = false; tokens.used = Math.max(0, tokens.used - 1); }
     if (o !== player) { if (att === player) kills++; pushLog(goreText(gore, att, o) ?? t("killed", { who: nm(o) }), att === player ? "good" : ""); }
+    else if (battleKind === "tourney") { pushLog(L("Padasz na piach. Koniec walki.", "You hit the sand. The bout is over."), "bad"); }
     else if (battleKind === "encounter") { pushLog(lang === "pl" ? "Padasz ogłuszony. Bitwa toczy się bez ciebie." : "You go down, stunned. The battle goes on without you.", "bad"); }
     else { $("dead").hidden = false; $("deadSub").textContent = t("deadSub", { n: Math.max(0, wave - 1) }); try { document.exitPointerLock(); } catch { /* */ } }
   } else if (dmg >= 6 || o.attacking) o.stagger();
@@ -717,6 +718,7 @@ function step(dt: number) {
   for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0) parts.splice(i, 1);
 
   if (battleKind === "encounter") { encounterTick(); }
+  if (battleKind === "tourney") tourneyTick(dt);
   const alive = fighters.filter((f) => f.team === 1 && f.alive).length;
   if (battleKind === "waves" && player.alive && started && alive === 0) {
     if (waveBreak <= 0 && wave > 0) { waveBreak = 6; banner(t("cleared"), `${t("kills")}: ${kills}`); player.hp = Math.min(player.maxHp, player.hp + 45); }
@@ -911,7 +913,7 @@ function startCampaign(fresh = false) {
     if (!fresh) { try { const sv = localStorage.getItem(SAVE_KEY); if (sv && camp.load(sv)) { camp.note("Wczytano zapis kampanii.", ""); loaded = true; } } catch { /* */ } }
     created = !loaded;
     camp.onDay = () => saveCampaign();
-    ui = new MapUI(camp, { fight: (p, o) => startEncounter(p, o), refresh: () => ui?.hud(), snapshot: (x, z, d) => mapSnapshot(x, z, d) });
+    ui = new MapUI(camp, { tourney: (sid, r) => startTourney(sid, r), fight: (p, o) => startEncounter(p, o), refresh: () => ui?.hud(), snapshot: (x, z, d) => mapSnapshot(x, z, d) });
     camp.onEncounter = (p) => { ui!.encounter(p); };
     camp.enterSettlement = (id) => ui!.settlement(id);
     buildMapMeshes();
@@ -1075,7 +1077,7 @@ window.addEventListener("mousemove", (e) => {
 });
 window.addEventListener("mouseup", () => { mapDrag = false; });
 canvas.addEventListener("wheel", (e) => {
-  if (mode === "battle" && player?.alive && player.state === "idle") { e.preventDefault(); weaponSlot = (weaponSlot + (e.deltaY > 0 ? 1 : weaponCount() - 1)) % weaponCount(); player.setKit(R, playerKit()); pushLog(wName(player.weaponId), "sys"); return; }
+  if (mode === "battle" && battleKind !== "tourney" && player?.alive && player.state === "idle") { e.preventDefault(); weaponSlot = (weaponSlot + (e.deltaY > 0 ? 1 : weaponCount() - 1)) % weaponCount(); player.setKit(R, playerKit()); pushLog(wName(player.weaponId), "sys"); return; }
   if (mode !== "map") return; e.preventDefault(); mapDist = clamp(mapDist * (e.deltaY > 0 ? 1.12 : 0.89), 22, 160); }, { passive: false });
 window.addEventListener("keydown", (e) => {
   if (mode === "map" && camp && ui) {
@@ -1505,6 +1507,39 @@ function orderHud() {
   el.innerHTML = rows.join("") + (fled ? `<div class="fled">${L("uciekło", "fled")}: ${fled}</div>` : "") + `<div class="menu">${menu}</div>`;
 }
 
+// ---------- tournament (build 16): three one-on-one bouts with blunt weapons ----------
+let tourneyEnd = 0;
+function startTourney(sid: string, round: number) {
+  const c = camp!, h = c.co.hero;
+  setBattlefield("fields", 900 + round * 13 + c.day, c.winter, false); rebuildField();
+  mode = "battle"; battleKind = "tourney"; enc = null; started = true; hour = 13;
+  $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true); ($("orders") as HTMLElement).hidden = true; $("glabels").hidden = true;
+  fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 1; parts.length = 0; projs.length = 0; smokes.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0;
+  player = new Warrior(R, { name: { pl: t("you"), en: t("you") }, loadout: h.armour, weapon: "mace", shield: true, armour: ARMOURS[ARMOUR_OF[h.armour]], hp: heroHp(h), skill: clamp(0.55 + h.prof.oh / 250, 0.6, 1.5) }, 0, 4, 0);
+  player.yaw = Math.PI; player.hideHead = firstPerson; camYaw = Math.PI; camPitch = -0.1;
+  const ft = (["zbrojny", "plytowy", "rycerz"] as TroopId[])[Math.min(2, round)];
+  const foe = new Warrior(R, { ...kitOf(ft), weapon: "mace", shield: true, horse: undefined, side: undefined }, 0, -4, 1);
+  foe.yaw = 0; brains.set(foe.id, new Brain(foe));
+  fighters = [player, foe];
+  tourneyEnd = 0; camOverride = null;
+  $("dead").hidden = true; log.length = 0; renderLog();
+  banner(L(`Turniej: walka ${round + 1} z 3`, `Tournament: bout ${round + 1} of 3`), `${L("Przeciwnik", "Opponent")}: ${TROOPS[ft].name[lang]}`);
+  tryLock();
+}
+function tourneyTick(dt: number) {
+  if (tourneyEnd > 0) { tourneyEnd -= dt; if (tourneyEnd <= 0) { tourneyEnd = 1e9; setTimeout(endTourney, 0); } return; }
+  const foe = fighters.find((f) => f.team === 1);
+  if (!player.alive || !foe || !foe.alive) { tourneyEnd = 1.8; banner(player.alive ? L("Wygrana walka", "Bout won") : L("Przegrana", "Defeat"), ""); }
+}
+function endTourney() {
+  const win = player.alive;
+  mode = "map"; started = false; battleKind = "waves";
+  $("mapHud").hidden = false; $("labels").hidden = false; setBattleHud(false); $("banner").hidden = true; $("dead").hidden = true;
+  try { document.exitPointerLock(); } catch { /* */ }
+  fighters = []; brains.clear(); player = undefined as unknown as Warrior;
+  ui!.tourneyResult(win);
+}
+
 /** win: true / false, or null = player knocked out → the rest is decided without him. */
 function endEncounter(win: boolean | null) {
   if (!enc || !camp || !ui) return;
@@ -1587,6 +1622,6 @@ function loop(now: number) {
   start() { startWaves(); }, setHour(h: number) { hour = h; }, pause(v: boolean) { paused = v; },
   look(yaw: number, pitch: number) { camYaw = yaw; camPitch = pitch; },
   attack(d: Dir) { player.attack(d); }, block(d: Dir) { player.block(d); }, unblock() { player.unblock(); }, spawn() { spawnWave(); },
-  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) { step(1 / 60); for (const f of fighters) f.draw([]); } }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, cam(e: V3 | null, t?: V3) { camOverride = e && t ? [e, t] : null; }, dbg: () => JSON.stringify({ tokens, b: [...brains.values()].map((b) => ({ cd: b.cooldown, tok: b.me.aiToken, st: b.me.state, mcd: b.me.cd })) }), bot(x: number, z: number, run = false) { botWish = x || z ? [x, z] : null; botRun = run; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
+  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) { if (mode !== "battle" || !player) break; step(1 / 60); for (const f of fighters) f.draw([]); } }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, cam(e: V3 | null, t?: V3) { camOverride = e && t ? [e, t] : null; }, dbg: () => JSON.stringify({ tokens, b: [...brains.values()].map((b) => ({ cd: b.cooldown, tok: b.me.aiToken, st: b.me.state, mcd: b.me.cd })) }), bot(x: number, z: number, run = false) { botWish = x || z ? [x, z] : null; botRun = run; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
 };
 requestAnimationFrame(loop);

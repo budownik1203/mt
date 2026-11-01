@@ -21,6 +21,7 @@ Aktualizuj po każdym buildzie. Linki do artefaktów claude.ai są prywatne dla 
 | mb2 build 13 | 2026-11-01 | konie i jazda: modele koni (szkapa, koń wierzchowy, rumak w kropierzu z naczółkiem) z chodem nóg, jeździec w siodle, ruch konia (przyspieszanie, hamowanie, skręt zależny od prędkości), premia prędkości do ciosów, kopia kładzie się sama w galopie (szarża), koń taranuje pieszych, ciosy z ziemi i pociski trafiają w konia, koń pada i zrzuca jeźdźca (kopijnik bierze miecz), AI jazdy (szarża na wylot, cios w przejeździe, nawrót), konny zbrojny i rycerz z kopią w kompaniach, karczmach i armiach frakcji, targ koński w miastach, umiejętność Jazda konna, kompania konna +20% na mapie, M w próbnej bitwie = koń | claude.ai/artifact/Hm7u93JPs4Ui2317Zh1bhy |
 | mb2 build 14 | 2026-11-01 | oblężenia: szturm miasta lub zamku to bitwa pod murem (kurtyna z blankami i chodnikiem, baszty bramne z ogniem, brama z dębu z punktami wytrzymałości, dwie drabiny, schody od środka, wieże narożne), obrońcy: strzelcy i część piechoty na murach przy drabinach, reszta za bramą; atakujący idą do najbliższej drabiny albo bramy, wspinają się, rąbią bramę (gracz też), wyłom otwiera drogę i łamie morale obrońców; na starcie szturmu wszystkie grupy ruszają; pociski z murów | claude.ai/artifact/LDb6w1xQG9mFhXZ1cfBt1g |
 | mb2 build 15 | 2026-11-01 | bitwy lordów trwają 3 godziny i można do nich dołączyć (okno „Bitwa w polu” ze składem obu stron, wybór strony, wojska sojusznika jako grupa 8, straty sojusznika, relacja +10); obrona własnych miast i zamków: oblężenie przez lorda trwa 3 dni z ostrzeżeniem w kronice, w osadzie „Bronić murów” = bitwa na murach razem z załogą (role odwrócone: wróg z drabinami i pod bramą), wygrana zdejmuje oblężenie, przegrana oddaje osadę; oblężenie przez głodzenie (obóz pod murami, załoga traci ok. 12% dziennie, poddaje się poniżej 4, przerwanie przy odejściu) | claude.ai/artifact/2Bbjrx7bE9D9TJWdnLsrnF |
+| mb2 build 16 | 2026-11-01 | handel, zadania, turnieje: 7 towarów (sól, żelazo, sukno, wino, futra, wosk, smoła), każda osada coś wyrabia (tanio) i czegoś potrzebuje (drogo), ceny ruchome od zapasów, ładowność wozów, pamięć cen z odwiedzonych osad (najlepsza znana sprzedaż), tabela kupców w każdej osadzie; zadania od lordów (list do innego lorda, banda do rozbicia) i od sołtysów/rad (dostawa towaru, banda pod wsią) z nagrodą i terminem, lista zadań w Kronice; turnieje ogłaszane w miastach (3 walki tępą bronią z coraz silniejszymi, wpisowe, zakład na siebie, nagroda i sława) | (patrz ostatnia wiadomość) |
 
 Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Zg2su1kEkFC; dokument projektu (Claude Doc) claude.ai/artifact/LSVQm1s9kszcteorQCNAqK.
 
@@ -29,7 +30,7 @@ Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Z
 - Rytuał Licza bez zadania i filakterium (na razie sam rytuał). Brak zszywańców, upiorów, kościanych koni.
 - Brak frontów pogody, śladów na mapie, nocnych napadów na obóz.
 - Rany trwałe gracza tylko jako wpis w kronice.
-- Brak relacji z wsiami, zadań od sołtysów i lordów, turniejów, handlu towarami (Warband: zboże, żelazo, sukno itd.).
+- Zadania: tylko 3 rodzaje (list, banda, dostawa). Turniej bez drużyn i bez zmiany broni między rundami.
 - Wrogowie nie używają formacji (zawsze szarża). Jazda: brak łuczników konnych, koni bez jeźdźców uciekających z pola, wsiadania na cudzego konia, osobnej animacji konia przy skręcie i staniu dęba. Strzały nie wbijają się w ciała (znikają), brak strzał zapalających i ostrzału z murów.
 - Morale kompanii na mapie jedno (tura 2 chce osobnych grup: żywi, nieumarli, najemnicy, fanatycy).
 - Frakcje: brak dyplomacji gracza (pokój na żądanie, trybut), rady lordów, małżeństw, własnej frakcji gracza; lordowie bez ziemi nie odchodzą; wsie nie zmieniają właściciela razem z zamkiem; brak obrony osad przez lordów (odsiecz).
@@ -44,5 +45,7 @@ Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Z
 6. ~~Build 13: konie i jazda~~ (zrobione).
 7. ~~Build 14: oblężenia~~ (zrobione; bez wież oblężniczych, taranów i obrony własnych murów).
 8. ~~Build 15: obrona osad, dołączanie do bitew, głodzenie~~ (zrobione; taran i wieża oblężnicza zostają na później).
-9. **Build 16: handel i zadania** (towary: zboże, żelazo, sukno, sól, ceny wg miast; zadania od lordów i sołtysów; turnieje w miastach).
-10. Dalej: kolejne regiony i frakcje do 16, pogoda w bitwie, zmęczenie, rozbijanie tarcz, egzekucje jeńców, turnieje, handel towarami, zadania lordów.
+9. ~~Build 16: handel, zadania, turnieje~~ (zrobione).
+10. **Build 17: drugi region i kolejne frakcje** (nowa mapa za granicą: Liga Wolnych Miast, Zakon rycerski, Władztwo Licza; przejście między regionami; nowe osady, lordowie, wojska).
+11. **Build 18: pogoda w bitwie i zmęczenie** (deszcz, mgła, śnieg w bitwie; wytrzymałość w walce; rozbijanie tarcz; egzekucje jeńców).
+12. Dalej: frakcje do 16, herezje i kulty, wieże oblężnicze i tarany, małżeństwa i rady lordów, własna frakcja gracza.

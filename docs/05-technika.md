@@ -41,6 +41,7 @@ Zmienna `CHROME` wskazuje własną przeglądarkę dla Playwrighta.
 | `map/events.ts` | wydarzenia w podróży (17 scen z wyborami) |
 | `map/factions.ts` | frakcje, lordowie (dane i stan), wojny i rozejmy, AI lordów (werbunek, patrol, grabież, oblężenie, bitwy AI–AI), służba gracza (najemnik, wasal), czynsze, przejęcia osad |
 | `char/horse.ts` | konie: dane (`HORSES`), model z czterema nogami, chód (`legAngles`); `Warrior.mount`, `setMount`, `moveMounted`, `horseDies`; poza w siodle (`Equip.ride`), kopia (`COUCH_KEY`) |
+| `map/trade.ts`, `map/quests.ts` | towary, ceny, zapasy, ładunek, pamięć cen, ogłaszanie turniejów; zadania (list, banda, dostawa) i ich rozliczanie |
 | `map/faith.ts` | wiara: bohater, pobożność, łaska, wiara żołnierzy i morale, klasztor i gaj, obrzędy w obozie, łaski, ekskomunika, święta |
 | `map/monsters.ts` | bestie i legowiska, AI nocnych napadów, kontrakty, śledztwo (3 kroki), nagrody |
 | `char/monster.ts` | modele bestii: wilkołak, utopiec, strzyga (`Kit.undead` = werewolf/drowner/strzyga) |
@@ -53,6 +54,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b16.mjs` handel (kupno, sprzedaż z zyskiem, pamięć cen), zadania (dostawa/banda, list), turniej 3 walki.
 - `b15.mjs` dołączenie do bitwy lordów, obrona murów (role odwrócone), głodzenie miasta.
 - `b14.mjs` szturm: obrońcy na murach, wspinaczka po drabinach, walka na murach, wyłom w bramie.
 - `b13.mjs` koń w próbnej bitwie, galop, kopia, śmierć konia, targ koński, kompania konna na mapie, bitwa jazdy z AI.

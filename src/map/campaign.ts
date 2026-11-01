@@ -2,6 +2,8 @@
 // money, morale), parties roaming the region, settlements, battlefields left
 // behind, and the daily tick that makes hunger, winter and unpaid wages bite.
 import { necroDaily } from "./necro.ts";
+import { TradeState, tradeDaily } from "./trade.ts";
+import { Quest, questsDaily } from "./quests.ts";
 import { FaithState, faithDaily, boon, isDziady } from "./faith.ts";
 import { Contract, MONSTERS, spawnMonster, monstersDaily, monsterThink } from "./monsters.ts";
 import { FxState, FactionId, newFx, spawnLords, factionsDaily, lordThink, hostileTo } from "./factions.ts";
@@ -63,6 +65,8 @@ export interface Company {
   faith?: FaithState;
   /** Starving a settlement out (build 15). */
   siegeOf?: string; siegeDays?: number;
+  /** Trade and quests (build 16). */
+  trade?: TradeState; quests?: Quest[];
 }
 
 export class Campaign {
@@ -411,6 +415,8 @@ export class Campaign {
     factionsDaily(this);
     monstersDaily(this);
     faithDaily(this);
+    tradeDaily(this);
+    questsDaily(this);
     if (isDziady(this)) for (const g of this.w.pois.filter((q) => q.kind === "graveyard" || q.kind === "cursed")) this.spawn("undead", { x: g.x, z: g.z }, 6);
     if (this.day % (DAYS_PER_SEASON * 4) === 0) this.year++;
     if (this.day % DAYS_PER_SEASON === 0) this.note(`Nastaje ${SEASONS.pl[this.season]}.`, "warn");
