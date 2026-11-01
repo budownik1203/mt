@@ -1,6 +1,7 @@
 // Campaign rules: the calendar, the player's company (troops, food, water,
 // money, morale), parties roaming the region, settlements, battlefields left
 // behind, and the daily tick that makes hunger, winter and unpaid wages bite.
+import { necroDaily } from "./necro.ts";
 import { clamp, rng } from "../core/math.ts";
 import { World, buildWorld, astar, cellOf, centerOf, pathCost, terrainSpeed, nearRiver, biomeAt, Settlement, MAP } from "./world.ts";
 import { TROOPS, TroopId, power } from "./troops.ts";
@@ -12,7 +13,7 @@ export const DAYS_PER_SEASON = 30;
 export const SEASONS = { pl: ["wiosna", "lato", "jesień", "zima"], en: ["spring", "summer", "autumn", "winter"] };
 
 export interface Stack { t: TroopId; n: number; wounded: number; xp: number }
-export type PartyKind = "player" | "bandits" | "deserters" | "caravan" | "peasants" | "undead";
+export type PartyKind = "player" | "bandits" | "deserters" | "caravan" | "peasants" | "undead" | "necro" | "hunters";
 export interface Party {
   id: number; kind: PartyKind; name: string; x: number; z: number;
   troops: Stack[]; gold: number;
@@ -49,6 +50,8 @@ export interface Company {
   prisoners?: { t: TroopId; n: number }[];
   fear?: number;
   seenEvents?: string[];
+  /** Necromancy materials (build 8): corpses rot (−30%/day), bones keep. */
+  corpses?: number; bones?: number; foundBook?: boolean; dugDay?: number;
 }
 
 export class Campaign {
@@ -127,6 +130,8 @@ export class Campaign {
     }
     if (p.kind === "caravan") v *= 0.85;
     if (p.kind === "undead") v *= 0.7;
+    if (p.kind === "necro") v *= 0.8;
+    if (p.kind === "hunters") v *= 1.05;
     return v;
   }
   /** How far a party sees (map units): shorter at night and in forest. */
@@ -239,12 +244,12 @@ export class Campaign {
       p.home = { x: at.x, z: at.z }; p.gold = 0;
     }
   }
-  private newParty(kind: PartyKind, name: string, x: number, z: number, troops: Stack[]): Party {
+  newParty(kind: PartyKind, name: string, x: number, z: number, troops: Stack[]): Party {
     const [i, j] = cellOf(x, z); const [cx, cz] = centerOf(i, j);
     const p: Party = { id: this.nextId++, kind, name, x: cx, z: cz, troops, gold: 0, path: [], mode: "roam", think: this.r() * 2, stunned: 0 };
     this.parties.push(p); return p;
   }
-  hostile(p: Party) { return p.kind === "bandits" || p.kind === "deserters" || p.kind === "undead"; }
+  hostile(p: Party) { return p.kind === "bandits" || p.kind === "deserters" || p.kind === "undead" || p.kind === "necro" || (p.kind === "hunters" && (this.co.hero.corruption ?? 0) >= 50); }
 
   private thinkAI(h: number) {
     const me = this.co.party;
@@ -377,6 +382,7 @@ export class Campaign {
       this.note("Zaćmienie. Na cmentarzach ruszyła ziemia.", "bad");
       for (const g of this.w.pois.filter((q) => q.kind === "graveyard" || q.kind === "cursed")) this.spawn("undead", { x: g.x, z: g.z }, 8);
     }
+    necroDaily(this);
     if (this.day % (DAYS_PER_SEASON * 4) === 0) this.year++;
     if (this.day % DAYS_PER_SEASON === 0) this.note(`Nastaje ${SEASONS.pl[this.season]}.`, "warn");
   }
@@ -446,6 +452,7 @@ export class Campaign {
       const me = this.parties.find((p) => p.kind === "player")!;
       this.co = { ...d.co, party: me };
       if (!this.co.hero) this.co.hero = newHero();
+      this.co.hero.skills.nekromancja ??= 0;
       this.co.stash = this.co.stash ?? []; this.co.prisoners = this.co.prisoners ?? [];
       for (const q of d.sett) { const s = this.w.settlements.find((x) => x.id === q.id); if (s) Object.assign(s, q); }
       return true;

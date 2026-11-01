@@ -8,6 +8,8 @@ import { Settlement } from "./world.ts";
 import { ATTRS, SKILLS, PROFS, Attr, Skill, Item, itemName, itemPrice, skillCap, xpForLevel, addXp, heroHp, partyLimit, prisonerLimit, ORIGINS, WEAPON_PRICE, ARMOUR_PRICE, ARMOUR_NAME } from "./hero.ts";
 import type { TravelEvent } from "./events.ts";
 import { power } from "./troops.ts";
+import { rites, doRite, placeActs, undeadCount, livingCount, harvest, corrupt, learnNecromancy } from "./necro.ts";
+import { undeadLimit, corruptionWord } from "./hero.ts";
 import { WEAPONS, WeaponId } from "../char/weapons.ts";
 import type { Loadout } from "../char/gear.ts";
 
@@ -28,7 +30,7 @@ export class MapUI {
       const b = (e.target as HTMLElement).closest("button"); if (!b) return;
       this.c.speed = Number(b.dataset.s); this.hud();
     });
-    $("mcamp").addEventListener("click", () => this.toggleCamp());
+    $("mcamp").addEventListener("click", () => this.campMenu());
     $("mparty").addEventListener("click", () => this.partyPanel());
     $("menu").addEventListener("click", (e) => { if (e.target === $("menu")) this.close(); });
   }
@@ -39,6 +41,22 @@ export class MapUI {
     if (co.camp && this.c.speed === 0) this.c.speed = 1;
     this.c.note(co.camp ? "Rozbijacie obóz. Ognisko trzyma potwory z daleka, ale widać je z daleka." : "Zwijacie obóz.", "");
     this.hud();
+  }
+
+  /** Warband-style camp menu: pitch/strike camp, rites, what can be done at this place. */
+  campMenu(msg = "") {
+    const c = this.c, co = c.co, h = co.hero;
+    c.speed = 0;
+    this.picture("camp", co.party.x, co.party.z, 7);
+    const und = undeadCount(c);
+    let body = msg || `<p>${co.camp ? "Ognisko się tli, warty stoją na skraju światła." : "Kompania stoi w polu. Można rozbić obóz albo ruszać dalej."}</p>`;
+    if (h.necro) body += `<p class="meta">Nekromancja ${h.skills.nekromancja} · nieumarli ${und}/${undeadLimit(h)} · zwłoki ${co.corpses ?? 0} (gniją) · kości ${co.bones ?? 0} · zepsucie ${Math.round(h.corruption ?? 0)}/100 (${corruptionWord(h.corruption ?? 0)})${h.lich ? " · <b>licz</b>" : ""}</p>`;
+    const acts: Act[] = [];
+    acts.push({ label: co.camp ? "Zwiń obóz" : "Rozbij obóz", sub: co.camp ? "ruszacie dalej" : "odpoczynek, ognisko, rytuały", on: () => { this.toggleCamp(); this.campMenu(); } });
+    for (const pa of placeActs(c)) acts.push({ label: pa.label, sub: pa.sub, off: pa.off, on: () => this.campMenu(pa.run()) });
+    if (h.necro) for (const r of rites(c)) acts.push({ label: r.name, sub: r.sub, off: r.off, kind: r.id === "release" ? "" : "bad", on: () => this.campMenu(doRite(c, r.id)) });
+    acts.push({ label: "Wróć na mapę", on: () => { this.close(); if (co.camp) c.speed = 1; } });
+    this.show("Obóz", body, acts);
   }
 
   hud() {
@@ -61,6 +79,8 @@ export class MapUI {
     if (c.fullMoon) flags.push("pełnia");
     if (co.hungerDays) flags.push(`głód ${co.hungerDays} d`);
     if (!c.clockRuns) flags.push("czas stoi");
+    if (co.hero.necro) flags.push(`zepsucie ${Math.round(co.hero.corruption ?? 0)}`);
+    if (undeadCount(c)) flags.push(`nieumarli ${undeadCount(c)}`);
     $("mflags").textContent = flags.join(" · ");
     $("mnotes").innerHTML = c.notes.slice(0, 6).map((n) => `<div class="${n.kind}">${esc(n.text)}</div>`).join("");
   }
@@ -97,16 +117,31 @@ export class MapUI {
     if (s.burned) { this.show(s.name, `<p>Zgliszcza. Wiatr nosi popiół. Nikt tu nie został.</p>`, [{ label: "Odejdź", on: () => this.close() }]); return; }
     const kind = s.kind === "town" ? "Miasto" : s.kind === "castle" ? "Zamek" : "Wieś";
     const mood = s.prosperity > 0.6 ? "syta" : s.prosperity > 0.4 ? "biedna" : "głodująca";
-    const body = `<p class="meta">${kind} · ${s.pop} dusz · ludność ${mood}</p>` + flavour(s);
+    let body = `<p class="meta">${kind} · ${s.pop} dusz · ludność ${mood}</p>` + flavour(s);
     const acts: Act[] = [];
-    const room = partyLimit(c.co.hero) - c.partySize(c.co.party);
-    if (s.kind === "village") acts.push({ label: `Werbuj ochotników`, sub: room <= 0 ? "kompania pełna (limit z Dowodzenia i sławy)" : `${s.recruits} chętnych · 10 gr za głowę`, off: s.recruits <= 0 || c.co.party.gold < 10 || room <= 0, on: () => this.recruit(s) });
+    const cor = c.co.hero.corruption ?? 0, und = undeadCount(c);
+    if (s.kind !== "village" && (cor >= 75 || (und && s.kind === "castle"))) {
+      this.show(s.name, body + `<p>Straż zamyka bramę. Z murów ktoś krzyczy, żebyś zabrał ${und ? "swoje trupy" : "swój smród"} i szedł precz. Kusznicy już naciągają cięciwy.</p>`, [{ label: "Odejdź", on: () => this.close() }]);
+      return;
+    }
+    if (und) body += `<p class="meta">Nieumarli (${und}) czekają za ${s.kind === "town" ? "murami" : "opłotkami"}. ${s.kind === "village" ? "Wieś patrzy na nich zza okiennic." : "Strażnicy na bramie patrzą na ciebie dłużej niż trzeba."}</p>`;
+    const room = partyLimit(c.co.hero) - (c.partySize(c.co.party) - undeadCount(c));
+    if (s.kind === "village" && cor >= 75) acts.push({ label: "Werbuj ochotników", sub: "nikt nie chce iść za kimś, od kogo czuć grób", off: true, on: () => {} });
+    else if (s.kind === "village") acts.push({ label: `Werbuj ochotników`, sub: room <= 0 ? "kompania pełna (limit z Dowodzenia i sławy)" : `${s.recruits} chętnych · 10 gr za głowę`, off: s.recruits <= 0 || c.co.party.gold < 10 || room <= 0, on: () => this.recruit(s) });
     if (s.kind !== "castle") acts.push({ label: s.kind === "town" ? "Targ" : "Kup żywność", sub: "jedzenie, piwo, futra, bukłaki", on: () => this.market(s) });
     if (s.kind === "town") {
       acts.push({ label: "Karczma: najemnicy", sub: "zbrojni i halabardnicy za srebro", on: () => this.tavern(s) });
       acts.push({ label: "Plotki", sub: "kto, gdzie, za ile", on: () => this.rumours(s) });
       acts.push({ label: "Zbrojownia: awanse", sub: "doświadczeni ludzie dostają lepszy sprzęt", on: () => this.upgrades(s) });
       acts.push({ label: "Kowal i płatnerz", sub: "broń i zbroje dla ciebie; sprzedaż łupów", on: () => this.smith(s) });
+      if (s.id === "morwen" && (c.co.hero.corruption ?? 0) > 0) {
+        const cost = 40 + Math.round(cor * 2);
+        acts.push({ label: "Spowiedź u inkwizytora", sub: und ? "najpierw uwolnij nieumarłych (menu obozu)" : `${cost} gr · zepsucie −20 · post i bicz`, off: !!und || c.co.party.gold < cost, on: () => {
+          c.co.party.gold -= cost; corrupt(c, -20); c.passHours(6);
+          c.note("Spowiedź w Sankt Morwen. Plecy krwawią, dusza lżejsza.", "good");
+          this.show(s.name, `<p>Inkwizytor słucha bez słowa, potem każe zdjąć koszulę. Sześć godzin modlitwy i bicza. Wychodzisz lżejszy o ${cost} groszy i o część tego, co w tobie gniło.</p>`, [{ label: "Wróć", on: () => this.settlement(s.id) }]);
+        } });
+      }
       if (c.prisonerCount) acts.push({ label: "Pośrednik okupów", sub: `${c.prisonerCount} jeńców do sprzedania`, on: () => this.ransom(s) });
     }
     if (s.kind === "castle") acts.push({ label: "Pod bramą", sub: "kasztelan każe czekać", off: true, on: () => {} });
@@ -115,7 +150,7 @@ export class MapUI {
     this.show(s.name, body, acts);
   }
   private recruit(s: Settlement) {
-    const c = this.c, n = Math.min(s.recruits, Math.floor(c.co.party.gold / 10), partyLimit(c.co.hero) - c.partySize(c.co.party));
+    const c = this.c, n = Math.min(s.recruits, Math.floor(c.co.party.gold / 10), partyLimit(c.co.hero) - (c.partySize(c.co.party) - undeadCount(c)));
     if (n <= 0) return;
     c.co.party.gold -= n * 10; s.recruits -= n; s.pop = Math.max(20, s.pop - n);
     c.addTroops(c.co.party, "chlop", n);
@@ -160,7 +195,7 @@ export class MapUI {
     const c = this.c, co = c.co;
     const acts: Act[] = [];
     for (const st of co.party.troops) {
-      const T = TROOPS[st.t]; if (!T.upTo) continue;
+      const T = TROOPS[st.t]; if (!T.upTo || T.undead) continue;
       const ready = Math.min(st.n - st.wounded, Math.floor(st.xp));
       acts.push({ label: `${tn(st.t)} → ${tn(T.upTo)}`, sub: `${ready} gotowych · ${T.upCost} gr za człowieka`, off: ready <= 0 || co.party.gold < T.upCost!, on: () => {
         const n = Math.min(ready, Math.floor(co.party.gold / T.upCost!)); if (n <= 0) return;
@@ -196,13 +231,15 @@ export class MapUI {
     const intro = p.kind === "bandits" ? "Z zarośli wychodzą ludzie z siekierami. Nie pytają o drogę." :
       p.kind === "deserters" ? "Dezerterzy. Głodni, uzbrojeni i bez nic do stracenia." :
       p.kind === "undead" ? "Smród dochodzi pierwszy. Potem kroki, nierówne, bez oddechu." :
+      p.kind === "necro" ? "Człowiek w czarnym płaszczu, a za nim kości i coś na czworakach. Zabij jego, a reszta padnie." :
+      p.kind === "hunters" ? ((c.co.hero.corruption ?? 0) >= 50 ? "Łowcy czarownic. Srebrne ćwieki, księga i stos drewna na wozie. Przyszli po ciebie." : "Łowcy czarownic z Sankt Morwen. Przyglądają się twoim ludziom, potem jadą dalej.") :
       p.kind === "caravan" ? "Wozy pod plandekami, strażnicy w kolczugach. Kupiec zerka nieufnie." : "Chłopi z wózkiem. Na twój widok cofają się do rowu.";
     const body = `<p>${intro}</p><p class="meta">${esc(p.name)}: ${esc(comp)}.</p><p class="meta">Siły: ${odds}.</p>`;
     const acts: Act[] = [];
     if (hostile) {
       acts.push({ label: "Do walki", sub: "bitwa na tym terenie, o tej porze", kind: "go", on: () => { this.close(); this.h.fight(p); } });
       acts.push({ label: "Rozstrzygnij bez walki", sub: "kapitanowie prowadzą ludzi, ty patrzysz", on: () => this.auto(p) });
-      if (p.kind !== "undead") {
+      if (p.kind !== "undead" && p.kind !== "necro" && p.kind !== "hunters") {
         const bribe = 5 * c.partySize(p);
         acts.push({ label: "Przekup", sub: `${bribe} gr za spokój`, off: me.gold < bribe, on: () => { me.gold -= bribe; p.stunned = 6; c.note(`Zapłaciłeś ${bribe} gr. ${p.name} odchodzą, licząc srebro.`, "warn"); this.close(); } });
       }
@@ -236,13 +273,13 @@ export class MapUI {
       const share = Math.round(loot * co.lootShare);
       me.gold += loot - share;
       co.morale = Math.min(100, co.morale + 8 + co.lootShare * 20);
-      const food = p.kind === "undead" ? 0 : Math.floor((c.partySize(p) + theirDead) * 2 + (p.kind === "caravan" ? 30 : 0));
+      const food = p.kind === "undead" || p.kind === "necro" ? 0 : Math.floor((c.partySize(p) + theirDead) * 2 + (p.kind === "caravan" ? 30 : 0));
       if (food) { const b = co.food.find((f) => f.type === "grain" && f.age === 0); if (b) b.n += food; else co.food.push({ type: "grain", n: food, age: 0 }); }
       for (const s of me.troops) s.xp = Math.min(s.n, s.xp + (s.n - s.wounded));
       const h = co.hero;
       // prisoners: the enemy's wounded, as many as you can guard
       let took = 0;
-      if (p.kind !== "undead") {
+      if (p.kind !== "undead" && p.kind !== "necro") {
         co.prisoners = co.prisoners ?? [];
         for (const st of p.troops) {
           const room = prisonerLimit(h) - c.prisonerCount; if (room <= 0) break;
@@ -259,11 +296,12 @@ export class MapUI {
       for (let i = 0; i < drops; i++) items.push({ kind: "weapon", id: pool[Math.floor(c.rand() * pool.length)] });
       if (p.kind === "caravan" && c.rand() < 0.5) items.push({ kind: "armour", id: "sergeant" });
       co.stash = [...(co.stash ?? []), ...items];
+      if (p.kind === "necro" && !co.hero.necro && c.rand() < 0.6) { co.foundBook = true; lootText += `<p>Przy trupie nekromanty: zeszyt w czarnej oprawie, pełen notatek. Czytasz go przy ognisku do świtu.</p>`; learnNecromancy(c, "Zeszyt nekromanty."); }
       // experience and renown
       const xp = Math.round(theirDead * 55 + 60 + p.troops.reduce((a, x) => a + power(x.t) * x.n, 0) * 10);
       const ups = addXp(h, xp);
       h.won++; h.renown += Math.round((theirDead + c.partySize(p)) * 0.5) + 1;
-      lootText = `<p class="meta">Łup: ${loot} gr (ludzie biorą ${share}), ${food} porcji jedzenia${items.length ? ", " + items.map(itemName).join(", ") : ""}.${took ? ` Jeńcy: ${took}.` : ""}</p><p class="meta">Doświadczenie +${xp}${ups ? ` · <b>Nowy poziom (${h.level})</b>: punkty do rozdania w oknie Postać` : ""} · sława ${h.renown}</p>`;
+      lootText += `<p class="meta">Łup: ${loot} gr (ludzie biorą ${share}), ${food} porcji jedzenia${items.length ? ", " + items.map(itemName).join(", ") : ""}.${took ? ` Jeńcy: ${took}.` : ""}</p><p class="meta">Doświadczenie +${xp}${ups ? ` · <b>Nowy poziom (${h.level})</b>: punkty do rozdania w oknie Postać` : ""} · sława ${h.renown}</p>`;
       if (c.partySize(p) > 0) { p.stunned = 6; p.mode = "flee"; p.gold = 0; }   // the routed survive and scatter
       else c.removeParty(p);
       c.note(`Zwycięstwo nad: ${p.name}.`, "good");
@@ -279,6 +317,10 @@ export class MapUI {
       const buryH = Math.max(1, Math.round(bodies / 14 * 10) / 10), burnH = Math.max(0.5, Math.round(buryH * 4) / 10);
       acts.push({ label: `Pochowajcie zabitych`, sub: `${bodies} ciał · ok. ${buryH.toFixed(1)} h · morale i wiara`, on: () => { c.passHours(buryH); co.morale += myDead ? 5 : 2; c.note("Zabici leżą w ziemi. Ktoś odmówił modlitwę.", ""); this.close(); } });
       acts.push({ label: `Spalcie ciała`, sub: `ok. ${burnH.toFixed(1)} h · szybciej, ale bez obrzędu`, on: () => { c.passHours(burnH); co.morale += 1; c.note("Stos płonie do świtu. Nic z tych ciał już nie wstanie.", ""); this.close(); } });
+      if (co.hero.necro) {
+        const undeadFoes = p.kind === "undead" || p.kind === "necro" ? theirDead : 0, liv = bodies - undeadFoes;
+        acts.push({ label: "Zbierzcie ciała i kości", sub: `na rytuały · ${livingCount(c) ? "żywi patrzą na to krzywo · " : ""}zepsucie +1`, kind: "bad", on: () => { const t = harvest(c, p, liv, undeadFoes); c.note(`Z pobojowiska: ${t}.`, "warn"); this.close(); } });
+      }
       acts.push({ label: "Zostawcie ich krukom", sub: "nic nie kosztuje… na razie", kind: "bad", on: () => { c.leaveField(me.x + 1, me.z + 1, bodies); co.morale -= myDead ? 8 : 2; c.note("Zostawiacie pobojowisko krukom.", "warn"); this.close(); } });
     } else {
       if (bodies > 0) c.leaveField(me.x + 1, me.z + 1, bodies);
@@ -298,7 +340,7 @@ export class MapUI {
     const c = this.c, h = c.co.hero;
     const need = xpForLevel(h.level);
     const attrRows = (Object.keys(ATTRS) as Attr[]).map((a) => `<tr><td>${ATTRS[a].pl}<small>${ATTRS[a].desc}</small></td><td class="num">${h.attr[a]}</td><td>${h.attrPts ? `<button type="button" class="ib plus" data-a="${a}">+</button>` : ""}</td></tr>`).join("");
-    const skillRows = (Object.keys(SKILLS) as Skill[]).map((k) => { const cap = skillCap(h, k), v = h.skills[k]; return `<tr><td>${SKILLS[k].pl}<small>${SKILLS[k].desc} · limit ${cap} (${ATTRS[SKILLS[k].attr].pl} / 3)</small></td><td class="num">${v}</td><td>${h.skillPts && v < cap ? `<button type="button" class="ib plus" data-s="${k}">+</button>` : ""}</td></tr>`; }).join("");
+    const skillRows = (Object.keys(SKILLS) as Skill[]).map((k) => { const cap = k === "nekromancja" && !h.necro ? 0 : skillCap(h, k), v = h.skills[k] ?? 0; return `<tr><td>${SKILLS[k].pl}<small>${SKILLS[k].desc} · ${k === "nekromancja" && !h.necro ? "zamknięta: potrzebna księga albo nauczyciel" : "limit " + cap}${k === "nekromancja" && !h.necro ? "" : ` (${ATTRS[SKILLS[k].attr].pl} / 3)`}</small></td><td class="num">${v}</td><td>${h.skillPts && v < cap ? `<button type="button" class="ib plus" data-s="${k}">+</button>` : ""}</td></tr>`; }).join("");
     const profRows = (Object.keys(PROFS) as (keyof typeof PROFS)[]).map((p) => `<tr><td>${PROFS[p]}</td><td class="num">${Math.round(h.prof[p])}</td><td></td></tr>`).join("");
     const nick = h.kills >= 40 ? "Rzeźnik" : (c.co.fear ?? 0) >= 6 ? "Wieszatiel" : h.won >= 10 ? "Pogromca band" : h.won >= 3 ? "Kapitan z gościńca" : "nikt szczególny";
     const body = `<p class="meta"><input id="hname" value="${esc(h.name)}" maxlength="24" aria-label="Imię"> · ${esc(h.origin || "")} · przydomek: <b>${nick}</b></p>` +

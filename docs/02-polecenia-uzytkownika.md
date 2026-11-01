@@ -32,3 +32,5 @@ Wszystkie ważne polecenia, po kolei, możliwie dosłownie (pisane głosem, stą
 23. „Żeby ta gra **wyglądała jak Mount & Blade**.” Doprecyzowane w ankiecie: **menu i interfejs jak w Warbandzie** oraz **całość (układ, kamera, interfejs, mapa) jak w Warbandzie, ale paleta i klimat zostają grimdarkowe**.
 24. „Przede wszystkim teraz: **interfejs, opcje, content**.”
 25. „No i **mechaniki**: **podstawowe mechaniki z Warbanda**.” (postać z atrybutami i umiejętnościami, poziomy, biegłości, ekwipunek, kowal, jeńcy, okupy, sława, limit kompanii, tworzenie postaci).
+26. „Generalnie **nie czekaj na mnie** i na moje odpowiedzi, po prostu leć z kolejnymi buildami. Pamiętaj, żeby **aktualizować repo**.”
+27. „Przede wszystkim **jakość i czytelność mechanik jak w Warbandzie**.” (priorytet: każda mechanika ma być czytelna w interfejsie: liczby, limity, przyczyny zablokowania przycisków, jak w menu Warbanda.)

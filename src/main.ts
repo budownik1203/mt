@@ -18,7 +18,8 @@ import { TroopId, kitOf, TROOPS, DEFAULT_GROUP } from "./map/troops.ts";
 import { invert } from "./core/math.ts";
 import { settings, saveSettings, RES } from "./core/settings.ts";
 import { openOptions } from "./core/optionsui.ts";
-import { heroHp, profOf } from "./map/hero.ts";
+import { heroHp, profOf, undeadLimit } from "./map/hero.ts";
+import { undeadCount, corrupt, spawnHunters } from "./map/necro.ts";
 import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY } from "./game/tactics.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
@@ -117,7 +118,7 @@ let mode: Mode = "title";
 let battleKind: "waves" | "encounter" = "waves";
 let camp: Campaign | null = null;
 let ui: MapUI | null = null;
-interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number }
+interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number; raiseCD: number; raised: Set<number>; risen: Set<number> }
 let enc: Enc | null = null;
 let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
@@ -338,6 +339,7 @@ function resolve(att: Warrior) {
     moraleShock(o.x, o.z, o.team, gore ? 16 : 7, gore ? 10 : 7, 3);
     if (o.bearer) { moraleShock(o.x, o.z, o.team, 14, 80); pushLog(o.team === 0 ? L("Sztandar pada!", "The standard falls!") : L("Sztandar wroga pada!", "The enemy standard falls!"), o.team === 0 ? "bad" : "good"); }
     if (o.leader && o !== player) moraleShock(o.x, o.z, o.team, 12, 80);
+    if (enc.troopOf.get(o.id) === "nekromanta") collapseUndead(o.team);
   }
   if (lethal || gore) {
     o.hp = 0;
@@ -571,6 +573,7 @@ function render(now: number) {
   for (const sp of spurts) { const J = sp.w.lastJ; if (J) items.push({ mesh: bloodG, model: mul(m4(), J[sp.parent], trs(m4(), sp.at[0], sp.at[1], sp.at[2], 0, 0, 0, 0.1, 0.035, 0.1)) }); }
   for (const f of fighters) for (const j of f.severed) { const info = SEVER[j]; if (info && !f.severed.has(info.parent) && f.lastJ) items.push({ mesh: bloodG, model: mul(m4(), f.lastJ[info.parent], trs(m4(), info.at[0], info.at[1], info.at[2], 0, 0, 0, 0.11, 0.04, 0.11)) }); }
   for (const f of fighters) {
+    if (enc?.raised.has(f.id)) continue;
     items.push({ mesh: blobG, model: trs(m4(), f.x, f.y, f.z, f.yaw) });
     if (f.bearer && f.alive && f.lastJ) items.push({ mesh: bannerG[f.team === 0 ? 0 : 1], model: mul(m4(), f.lastJ.torso, trs(m4(), 0.06, -0.2, -0.2)) });
     f.draw(items);
@@ -711,7 +714,7 @@ function buildMapMeshes() {
     terr: [up(buildMapTerrain(c.w, false)), up(buildMapTerrain(c.w, true))],
     feat: [up(buildMapFeatures(c.w, false)), up(buildMapFeatures(c.w, true))],
     sett,
-    figs: { player: fig(0x2b2f36, 0x7a1a14, true), bandits: fig(0x3b3128, 0x1a1a1a, true), deserters: fig(0x4a4436, 0x5a5440, true), caravan: fig(0x5a4a34, 0xa08a4a, true), peasants: fig(0x5d5444, 0x6b5a3a, false), undead: fig(0x6d6a5e, 0x2a3a2a, true) },
+    figs: { player: fig(0x2b2f36, 0x7a1a14, true), bandits: fig(0x3b3128, 0x1a1a1a, true), deserters: fig(0x4a4436, 0x5a5440, true), caravan: fig(0x5a4a34, 0xa08a4a, true), peasants: fig(0x5d5444, 0x6b5a3a, false), undead: fig(0x6d6a5e, 0x2a3a2a, true), necro: fig(0x141214, 0x3a5a2a, true), hunters: fig(0x3a3430, 0xb8b0a0, true) },
     mark, ring,
   };
   // labels for settlements
@@ -900,7 +903,7 @@ function startEncounter(p: Party) {
   const groups = newGroups();
   const used = [...new Set(allyQ.map((q) => q.g))].sort();
   used.forEach((g, k) => { const G = groups[g - 1]; G.ax = (k - (used.length - 1) / 2) * 9; G.az = 6; G.ayaw = Math.PI; G.order = "hold"; G.formation = g === 2 ? "line" : "line"; });
-  enc = { enemy: p, allyQ, enemyQ, reserveQ: [], troopOf: new Map(), groups, sel: new Set(used), menu: null, deploy: true, cryCD: 0, routed: { 0: [], 1: [] }, startHour: c.hour, startDay: c.day, done: false, moraleT: 0 };
+  enc = { enemy: p, allyQ, enemyQ, reserveQ: [], troopOf: new Map(), groups, sel: new Set(used), menu: null, deploy: true, cryCD: 0, routed: { 0: [], 1: [] }, startHour: c.hour, startDay: c.day, done: false, moraleT: 0, raiseCD: 0, raised: new Set(), risen: new Set() };
   mode = "battle"; battleKind = "encounter"; started = true; hour = c.hour;
   $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
   fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
@@ -913,8 +916,9 @@ function startEncounter(p: Party) {
   // the standard: carried by the best man of the first group; big enemy bands have one too
   const pickBearer = (team: 0 | 1) => fighters.filter((f) => f.team === team && f !== player).sort((a, b) => b.maxHp - a.maxHp)[0];
   const ab = pickBearer(0); if (ab) ab.bearer = true;
-  if (p.troops.reduce((a, s) => a + s.n, 0) >= 10 && p.kind !== "undead") { const eb = pickBearer(1); if (eb) eb.bearer = true; }
-  for (const f of fighters) if (enc.troopOf.get(f.id) === "herszt") f.leader = true;
+  if (p.troops.reduce((a, s) => a + s.n, 0) >= 10 && p.kind !== "undead" && p.kind !== "necro") { const eb = pickBearer(1); if (eb) eb.bearer = true; }
+  for (const f of fighters) { const t = enc.troopOf.get(f.id); if (t === "herszt" || t === "nekromanta" || t === "lowca") f.leader = true; }
+  if (p.kind === "necro" || p.kind === "undead") banner(p.name, L("Zabij nekromantę, a jego martwi padną", "Kill the necromancer and his dead fall"));
   $("dead").hidden = true; log.length = 0; renderLog();
   $("glabels").hidden = false;
   camOverride = [[0, 19, 27], [0, 0, 3]];
@@ -951,6 +955,7 @@ function reinforce(team: 0 | 1, first = false) {
     f.noMorale = !!TROOPS[it.t].undead;
     f.morale = f.baseMorale = moraleBase(team, it.t);
     fighters.push(f); brains.set(f.id, new Brain(f)); enc!.troopOf.set(f.id, it.t);
+    if (it.t === "nekromanta") f.leader = true;
   });
   if (!first) banner(L("Posiłki", "Reinforcements"), team === 0 ? L("twoi ludzie", "your men") : L("wroga", "the enemy's"));
   if (first && team === 0) placeDeployed();
@@ -997,19 +1002,21 @@ function commandStep(dt: number) {
 function moraleStep(dt: number) {
   if (!enc) return;
   enc.cryCD = Math.max(0, enc.cryCD - dt);
+  enc.raiseCD = Math.max(0, enc.raiseCD - dt);
   enc.moraleT -= dt;
   const tick = enc.moraleT <= 0; if (tick) enc.moraleT = 0.5;
   for (const f of fighters) {
     if (f === player || !f.alive || f.noMorale) continue;
     if (tick) {
-      let allies = 0, foes = 0, lead = false, flag = false;
+      let allies = 0, foes = 0, dread = 0, lead = false, flag = false;
       for (const o of fighters) {
         if (!o.alive || o === f) continue;
         const d = Math.hypot(o.x - f.x, o.z - f.z);
         if (o.team === f.team) { if (d < 6 && !o.fleeing) allies++; if (o.leader && d < 10) lead = true; if (o.bearer && d < 12) flag = true; }
-        else if (d < 6 && !o.fleeing) foes++;
+        else if (d < 6 && !o.fleeing) { foes++; if (o.noMorale && d < 4) dread++; }
       }
       if (foes > allies + 1) f.morale -= 1.6 * (foes - allies);
+      if (dread) f.morale -= 0.7 * dread * (enc.enemy.kind === "hunters" && f.team === 1 ? 0.3 : 1);   // the dead frighten the living; hunters are used to it
       if (lead) f.morale += f.fleeing ? 6 : 1.5;
       if (flag) f.morale += f.fleeing ? 3 : 1;
       if (!foes) f.morale += (f.baseMorale - f.morale) * 0.04;
@@ -1038,6 +1045,39 @@ function moraleShock(x: number, z: number, team: number, amount: number, radius:
     if (f.team === team) f.morale -= amount * (1 - d / radius / 2); else f.morale += cheer;
   }
 }
+/** The necromancer is dead: what he held up falls. */
+function collapseUndead(team: number) {
+  if (!enc) return;
+  let n = 0;
+  for (const f of fighters) if (f.team === team && f.alive && f.noMorale && f !== player) { f.hp = 0; f.die(); n++; }
+  if (n) { pushLog(team === 1 ? L(`Nekromanta pada. ${n} trupów osuwa się na ziemię.`, `The necromancer falls. ${n} corpses collapse.`) : L("Twoi martwi padają.", "Your dead fall."), team === 1 ? "good" : "bad"); shake = Math.max(shake, 0.2); }
+}
+/** Hero ability (N): raise the fallen around you as risen corpses fighting for you. */
+function raiseDead() {
+  if (!enc || !camp || enc.deploy || enc.done || !player.alive) return;
+  const h = camp.co.hero;
+  if (!h.necro) { pushLog(L("Nie znasz słów, które budzą martwych.", "You do not know the words that wake the dead."), "warn"); return; }
+  if (enc.raiseCD > 0) { pushLog(L(`Jeszcze nie (${Math.ceil(enc.raiseCD)} s)`, `Not yet (${Math.ceil(enc.raiseCD)} s)`), "warn"); return; }
+  const mine = fighters.filter((f) => f.team === 0 && f.alive && f.noMorale).length + undeadCount(camp);
+  const room = undeadLimit(h) - mine;
+  const want = Math.min(2 + Math.floor(h.skills.nekromancja / 2), Math.max(0, room));
+  const bodies = fighters.filter((f) => !f.alive && f !== player && !enc!.raised.has(f.id) && !f.severed.has("head" as Joint) && Math.hypot(f.x - player.x, f.z - player.z) < 14)
+    .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z)).slice(0, want);
+  if (!bodies.length) { pushLog(want ? L("Nie ma tu ciał, które by wstały.", "No bodies here that could rise.") : L("Więcej martwych nie utrzymasz.", "You cannot hold more dead."), "warn"); return; }
+  enc.raiseCD = 35;
+  for (const b of bodies) {
+    enc.raised.add(b.id);
+    const f = new Warrior(R, kitOf("zywy_trup"), b.x, b.z, 0);
+    f.yaw = b.yaw; f.group = 1; f.noMorale = true; f.morale = f.baseMorale = 100;
+    fighters.push(f); brains.set(f.id, new Brain(f)); enc.troopOf.set(f.id, "zywy_trup"); enc.risen.add(f.id);
+    bleed([f.x, f.y + 0.4, f.z], 0, 0, 6);
+  }
+  corrupt(camp, 2);
+  moraleShock(player.x, player.z, 1, 10, 16);
+  moraleShock(player.x, player.z, 0, 4, 12);
+  shake = Math.max(shake, 0.25); audio.grunt(1);
+  pushLog(L(`Mówisz słowa z księgi. ${bodies.length} martwych wstaje.`, `You speak the words. ${bodies.length} dead rise.`), "good");
+}
 function warCry() {
   if (!enc || enc.cryCD > 0 || !player.alive) return;
   enc.cryCD = 25;
@@ -1059,6 +1099,7 @@ function battleKey(e: KeyboardEvent) {
   if (code === "Digit0" || code === "Backquote") { enc.sel = new Set(groupMembers().keys()); enc.menu = null; return; }
   if (code === "Escape") { enc.menu = null; return; }
   if (code === "KeyX") { warCry(); return; }
+  if (code === "KeyN") { raiseDead(); return; }
   if (code === "Tab") {
     e.preventDefault();
     if (enc.deploy || enc.done) return;
@@ -1166,7 +1207,7 @@ function orderHud() {
   if (enc.deploy) menu = L("Rozstawienie · klik: ustaw · F2 formacja · R rezerwa · spacja: do boju", "Deploy · click: place · F2 formation · R reserve · space: fight");
   else if (enc.menu === "move") menu = "F1 " + L("stać tutaj", "hold here") + " · F2 " + L("za mną", "follow") + " · F3 " + L("naprzód", "charge") + " · F4 " + L("cofnąć się", "fall back");
   else if (enc.menu === "form") menu = FORMATIONS.map((f, i) => `F${i + 1} ${FORM_NAMES[f][lang]}`).join(" · ");
-  else menu = L("F1 ruch · F2 formacja · F3 rezerwa · X okrzyk", "F1 move · F2 formation · F3 reserve · X war cry") + (enc.cryCD > 0 ? ` (${Math.ceil(enc.cryCD)} s)` : "");
+  else menu = L("F1 ruch · F2 formacja · F3 rezerwa · X okrzyk", "F1 move · F2 formation · F3 reserve · X war cry") + (enc.cryCD > 0 ? ` (${Math.ceil(enc.cryCD)} s)` : "") + (camp?.co.hero.necro ? " · N " + L("wskrześ", "raise") + (enc.raiseCD > 0 ? ` (${Math.ceil(enc.raiseCD)} s)` : "") : "");
   el.innerHTML = rows.join("") + (fled ? `<div class="fled">${L("uciekło", "fled")}: ${fled}</div>` : "") + `<div class="menu">${menu}</div>`;
 }
 
@@ -1181,7 +1222,7 @@ function endEncounter(win: boolean | null) {
   const surg = c.co.hero.skills.chirurgia * 0.04;
   for (const f of fighters) {
     if (f.alive || f === player) continue;
-    const t = enc.troopOf.get(f.id); if (!t) continue;
+    const t = enc.troopOf.get(f.id); if (!t || enc.risen.has(f.id)) continue;
     let how: "dead" | "wounded" = fate(f);
     if (f.team === 0 && how === "dead" && f.severed.size === 0 && Math.random() < surg) how = "wounded";   // the surgeon saves one
     if (f.team === 0) { lose(me, t, how); if (how === "dead") myDead++; else myWounded++; }
@@ -1189,6 +1230,8 @@ function endEncounter(win: boolean | null) {
   }
   me.troops = me.troops.filter((s) => s.n > 0); p.troops = p.troops.filter((s) => s.n > 0);
   let body = "";
+  const stood = fighters.filter((f) => f.alive && enc!.risen.has(f.id)).length;
+  if (stood && win !== false) { c.addTroops(me, "zywy_trup", stood); body += `<p class="meta">${stood} wskrzeszonych idzie za tobą dalej (żywe trupy).</p>`; }
   if (win === null) {
     const res = c.autoResolve(p);
     win = res.win;
@@ -1226,6 +1269,7 @@ function loop(now: number) {
 // hooks for automated tests
 (window as unknown as { mb2: unknown }).mb2 = {
   get player() { return player; }, get fighters() { return fighters; },
+  collapse(team: number) { collapseUndead(team); }, spawnHunters() { if (camp) spawnHunters(camp); },
   get camp() { return camp; }, get ui() { return ui; }, get mode() { return mode; }, get enc() { return enc; },
   campaign() { startCampaign(); }, waves() { startWaves(); },
   mapTick(sec: number) { for (let i = 0; i < sec * 30; i++) mapStep(1 / 30); },

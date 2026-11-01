@@ -22,6 +22,8 @@ Czytaj to pierwsze. Ten plik i folder `docs/` to **jedyne źródło prawdy** o p
 - Granica treści: tortury, egzekucje, wnętrzności tak; **przemocy seksualnej i krzywdy dzieci nie robimy** (najwyżej ogólny fakt świata poza kadrem).
 - Buildy: nazwa **„mb2 build N”**, plik `dist/mb2-build-N.html` (jeden plik, gra w przeglądarce). Każdy build: działający link + commit w repo + szczegółowy changelog dla właściciela + zrzuty/GIF-y.
 - Testy automatyczne przed każdym wydaniem (Playwright, `tools/*.mjs`), zero błędów konsoli.
+- Priorytet: **jakość i czytelność mechanik jak w Warbandzie** (każdy przycisk mówi, ile kosztuje, ile trwa i czemu jest zablokowany; liczby i limity widoczne w menu).
+- Kolejne buildy rób bez czekania na odpowiedzi właściciela; po każdym aktualizuj repo.
 - Czas na mapie: **1 minuta = 1 doba** przy tempie 1× (decyzja właściciela).
 
 ## Po każdej pracy

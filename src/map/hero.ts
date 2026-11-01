@@ -11,7 +11,7 @@ export const ATTRS: Record<Attr, { pl: string; en: string; desc: string }> = {
   wiedza: { pl: "Wiedza", en: "Lore", desc: "medycyna, taktyka, zwiad, więcej punktów umiejętności" },
   posluch: { pl: "Posłuch", en: "Command", desc: "dowodzenie, handel, perswazja, jeńcy" },
 };
-export type Skill = "twarde" | "sila" | "atletyka" | "dowodzenie" | "handel" | "chirurgia" | "leczenie" | "szkolenie" | "taktyka" | "tropienie" | "zwiad" | "lupy" | "jency" | "perswazja";
+export type Skill = "twarde" | "sila" | "atletyka" | "dowodzenie" | "handel" | "chirurgia" | "leczenie" | "szkolenie" | "taktyka" | "tropienie" | "zwiad" | "lupy" | "jency" | "perswazja" | "nekromancja";
 export const SKILLS: Record<Skill, { pl: string; attr: Attr; desc: string }> = {
   twarde: { pl: "Twarde ciało", attr: "cialo", desc: "+4 zdrowia na poziom" },
   sila: { pl: "Siła ciosu", attr: "cialo", desc: "+8% obrażeń wręcz na poziom" },
@@ -27,6 +27,7 @@ export const SKILLS: Record<Skill, { pl: string; attr: Attr; desc: string }> = {
   lupy: { pl: "Łupiestwo", attr: "refleks", desc: "+10% łupów na poziom" },
   jency: { pl: "Pilnowanie jeńców", attr: "posluch", desc: "+5 miejsc na jeńców na poziom" },
   perswazja: { pl: "Perswazja", attr: "posluch", desc: "jeńcy łatwiej przechodzą na twoją stronę" },
+  nekromancja: { pl: "Nekromancja", attr: "wiedza", desc: "tylko z księgą: rytuały, +4 nieumarłych na poziom, wskrzeszanie w bitwie" },
 };
 export type Prof = "oh" | "th" | "pa";
 export const PROFS: Record<Prof, string> = { oh: "Broń jednoręczna", th: "Broń dwuręczna", pa: "Broń drzewcowa" };
@@ -38,6 +39,8 @@ export interface Hero {
   attr: Record<Attr, number>; skills: Record<Skill, number>; prof: Record<Prof, number>;
   renown: number; kills: number; won: number; lost: number;
   armour: Loadout; weapons: WeaponId[]; shield: boolean;
+  /** Necromancy (build 8): known from a book or a teacher; corruption 0–100; the lich at the end of the road. */
+  necro?: boolean; corruption?: number; lich?: boolean;
 }
 export function newHero(): Hero {
   const skills = Object.fromEntries(Object.keys(SKILLS).map((k) => [k, 0])) as Record<Skill, number>;
@@ -74,9 +77,12 @@ export const ORIGINS: Origin[] = [
 
 // ---------- items and prices ----------
 import { WEAPONS } from "../char/weapons.ts";
-export const WEAPON_PRICE: Record<WeaponId, number> = { kord: 40, hatchet: 35, mace: 60, sword: 110, spear: 45, longsword: 220, greataxe: 160, glaive: 130 };
+export const WEAPON_PRICE: Record<WeaponId, number> = { claws: 0, kord: 40, hatchet: 35, mace: 60, sword: 110, spear: 45, longsword: 220, greataxe: 160, glaive: 130 };
 export const ARMOUR_PRICE: Record<Loadout, number> = { base: 10, levy: 70, sergeant: 320, knight: 900, plate: 1400 };
 export const ARMOUR_NAME: Record<Loadout, string> = { base: "Łachmany i owijacze", levy: "Przeszywanica i kapalin", sergeant: "Kolczuga, czepiec i szyszak", knight: "Kolczuga, wappenrock i hełm garnczkowy", plate: "Zbroja płytowa" };
 export const itemName = (it: Item) => (it.kind === "weapon" ? WEAPONS[it.id].name : ARMOUR_NAME[it.id]);
 export const itemPrice = (it: Item) => (it.kind === "weapon" ? WEAPON_PRICE[it.id] : ARMOUR_PRICE[it.id]);
 export const profOf = (w: WeaponId): Prof => WEAPONS[w].cls as Prof;
+
+export const undeadLimit = (h: Hero) => (h.necro ? 4 + 4 * h.skills.nekromancja : 0) * (h.lich ? 2 : 1);
+export function corruptionWord(c: number) { return c >= 100 ? "martwe serce" : c >= 75 ? "trupi odór" : c >= 50 ? "oczy jak węgle" : c >= 25 ? "blada skóra" : "czysty"; }

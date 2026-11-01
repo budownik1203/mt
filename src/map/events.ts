@@ -3,6 +3,7 @@
 import type { Campaign } from "./campaign.ts";
 import type { WeaponId } from "../char/weapons.ts";
 import { biomeAt } from "./world.ts";
+import { learnNecromancy, corrupt, undeadCount, livingCount } from "./necro.ts";
 
 export interface EvChoice { label: string; sub?: string; ok?: (c: Campaign) => boolean; run: (c: Campaign) => string }
 export interface TravelEvent { id: string; title: string; text: string; when?: (c: Campaign) => boolean; choices: EvChoice[] }
@@ -12,6 +13,22 @@ const addFood = (c: Campaign, n: number) => { const b = c.co.food.find((f) => f.
 const loot = (c: Campaign, w: WeaponId) => { c.co.stash = c.co.stash ?? []; c.co.stash.push({ kind: "weapon", id: w }); };
 
 export const EVENTS: TravelEvent[] = [
+  { id: "nauczyciel", title: "Starzec przy ognisku", text: "Na rozstajach siedzi starzec przy ognisku, które nie daje ciepła. Mówi, że widział, jak walczysz, i że śmierć to tylko drzwi, które da się otworzyć z obu stron. Za sto groszy pokaże ci klucz.", when: (c) => !c.co.hero.necro,
+    choices: [
+      { label: "Zapłacić i słuchać", sub: "100 gr · nekromancja · zepsucie", ok: (c) => c.co.party.gold >= 100, run: (c) => { c.co.party.gold -= 100; c.passHours(4); learnNecromancy(c, "Starzec z rozstajów nauczył cię słów."); return "Mówi do świtu. Część słów zapominasz, zanim wybrzmią, inne zostają w tobie jak drzazgi. Rano po starcu jest tylko popiół, zimny od dawna."; } },
+      { label: "Przegnać go", run: (c) => { c.co.morale += 1; return "Śmieje się, wstaje i odchodzi w ciemność. Ognisko gaśnie razem z nim."; } },
+      { label: "Kazać go spalić", sub: "jak każe Inkwizycja", run: (c) => { c.co.morale -= 2; c.co.fear = (c.co.fear ?? 0) + 2; return "Pali się długo i nie krzyczy. Ludzie nie rozmawiają o tym do wieczora."; } },
+    ] },
+  { id: "strach_trupow", title: "Ludzie nie śpią", text: "Żywi w kompanii nie chcą spać obok tego, co chodzi za wami bez oddechu. Kilku stoi pod twoim namiotem i żąda, żebyś się tego pozbył.", when: (c) => undeadCount(c) >= 4 && livingCount(c) > 0,
+    choices: [
+      { label: "Obiecać osobny obóz dla martwych", sub: "wolniej, ale spokojniej", run: (c) => { c.co.morale += 4; return "Martwi stoją odtąd sto kroków dalej, w ciemności. Żywi udają, że ich nie widzą."; } },
+      { label: "Kazać im milczeć", run: (c) => { c.co.morale -= 6; c.co.fear = (c.co.fear ?? 0) + 1; return "Milkną. Na razie."; } },
+    ] },
+  { id: "kurhan", title: "Kurhan", text: "Przy drodze stary kurhan z rozwalonym wejściem. Ktoś kopał tu przed wami i uciekł, zostawiając łopatę.", when: (c) => !!c.co.hero.necro,
+    choices: [
+      { label: "Zabrać kości", sub: "2 h · zepsucie", run: (c) => { c.passHours(2); const n = 5 + Math.floor(c.rand() * 6); c.co.bones = (c.co.bones ?? 0) + n; corrupt(c, 1); return `${n} kości. Jedna czaszka ma w skroni grot strzały starszy niż Cesarstwo.`; } },
+      { label: "Zostawić", run: () => "Niech śpią. Na razie." },
+    ] },
   { id: "wisielec", title: "Wisielec przy drodze", text: "Na suchym dębie wisi człowiek. Wrony zdążyły już zabrać oczy. Przy pasie ma sakiewkę, a na piersi tabliczkę: ZŁODZIEJ.",
     choices: [
       { label: "Przeszukać trupa", run: (c) => { const g = 5 + Math.floor(c.rand() * 20); c.co.party.gold += g; c.co.morale -= 2; return `${g} groszy. Ludzie patrzą na ciebie krzywo: z wisielca się nie bierze.`; } },

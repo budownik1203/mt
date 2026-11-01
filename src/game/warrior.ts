@@ -5,6 +5,7 @@ import { PSX, GMesh } from "../char/psx.ts";
 import { LEVELS, buildHuman, Joint } from "../char/human.ts";
 import { buildGear, Loadout } from "../char/gear.ts";
 import { buildWeapon, buildShield, WeaponId, WEAPONS } from "../char/weapons.ts";
+import { buildUndead } from "../char/undead.ts";
 import { frame, makeTrack, sampleTrack, trackLength, guardKey, Track, WK, AttackDir, BlockDir } from "../char/anim.ts";
 import { Armour, DmgType, Dir, DIR } from "./combat.ts";
 
@@ -18,6 +19,7 @@ export const WSTATS: Record<WeaponId, WStats> = {
   longsword: { mass: 1.3, reach: 1.3, speed: 0.9, swing: { dmg: 38, type: "cut" }, thrust: { dmg: 30, type: "pierce" } },
   greataxe: { mass: 1.6, reach: 1.1, speed: 0.8, swing: { dmg: 46, type: "cut" }, thrust: null },
   spear: { mass: 1.15, reach: 1.85, speed: 0.95, swing: { dmg: 16, type: "blunt" }, thrust: { dmg: 36, type: "pierce" } },
+  claws: { mass: 0.7, reach: 0.65, speed: 1.15, swing: { dmg: 22, type: "cut" }, thrust: null },
   glaive: { mass: 1.45, reach: 1.95, speed: 0.88, swing: { dmg: 36, type: "cut" }, thrust: { dmg: 28, type: "pierce" } },
 };
 
@@ -25,6 +27,8 @@ export interface Kit {
   name: { pl: string; en: string };
   loadout: Loadout; weapon: WeaponId; shield: boolean;
   armour: Armour; hp: number; skill: number;
+  /** Undead bodies replace the human mesh (build 8). */
+  undead?: "skeleton" | "ghoul" | "zombie" | "necro"; tier?: number;
 }
 
 export type State = "idle" | "windup" | "hold" | "release" | "recover" | "block" | "stagger" | "blockstun" | "dead";
@@ -36,10 +40,15 @@ export interface CharMesh { parts: { joint: Joint; mesh: GMesh }[]; weapon: GMes
 const meshCache = new Map<string, CharMesh>();
 export function charMesh(R: PSX, kit: Kit): CharMesh {
   const sh = shieldMode(kit);
-  const key = `${kit.loadout}|${kit.weapon}|${sh}`;
+  const key = `${kit.loadout}|${kit.weapon}|${sh}|${kit.undead ?? ""}${kit.tier ?? ""}`;
   const hit = meshCache.get(key);
   if (hit) return hit;
   const L = LEVELS.hfa;
+  if (kit.undead && kit.undead !== "necro") {
+    const parts = buildUndead(kit.undead, kit.tier ?? 0).map((p) => ({ joint: p.joint, mesh: R.upload(p.mesh, 3, false) }));
+    const cm: CharMesh = { parts, weapon: R.upload(buildWeapon(kit.weapon, L.smooth, L.limb), 1, false), shield: sh !== "none" ? R.upload(buildShield(), 1, false) : null };
+    meshCache.set(key, cm); return cm;
+  }
   const g = buildGear(L, kit.loadout);
   const twoHand = WEAPONS[kit.weapon].offhand !== 0;
   const h = buildHuman(L, { fistR: true, fistL: twoHand, hide: g.hide });

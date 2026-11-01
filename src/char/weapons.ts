@@ -10,7 +10,7 @@ export const GRIP = (): Mat4 => trs(m4(), 0, -0.07, 0.004);
 
 /** Weapon classes share one set of animations, exactly like Mount & Blade: only the model in the hand changes. */
 export type WClass = "oh" | "th" | "pa";
-export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive";
+export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive" | "claws";
 export interface WeaponSpec {
   id: WeaponId; name: string; cls: WClass;
   thrust: boolean;          // weapons that cannot thrust turn the thrust into an overhead (M&B rule)
@@ -26,6 +26,7 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   greataxe: { id: "greataxe", name: "Topór dwuręczny", cls: "th", thrust: false, offhand: -0.22, tip: 0.85 },
   spear: { id: "spear", name: "Włócznia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.6 },
   glaive: { id: "glaive", name: "Glewia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.75 },
+  claws: { id: "claws", name: "Pazury", cls: "oh", thrust: false, offhand: 0, tip: 0.3 },
 };
 export const CLASS_NAME: Record<WClass, string> = { oh: "jednoręczna", th: "dwuręczna", pa: "drzewcowa" };
 
@@ -98,6 +99,12 @@ export function buildWeapon(id: WeaponId, smooth: boolean, detail: number): TMes
       // knife-like single-edged head with a back spike
       zl(t, I, [[1.33, 0.008, 0.03, 0, 0.006], [1.55, 0.007, 0.042, 0, -0.008], [1.7, 0.005, 0.03, 0, -0.012], [1.76, 0.001, 0.004, 0, 0.012]], 4, GREG.blade, { smooth: false });
       t.box(trs(m4(), 0, 0.05, 1.38, 0, -0.5, 0), 0.012, 0.012, 0.08, GREG.steelDark);
+      break;
+    }
+    case "claws": {
+      // a ghoul's hooked nails, black with old blood
+      t.mat = 0;
+      for (const [x, a] of [[-0.025, -0.2], [0, 0], [0.025, 0.2]] as [number, number][]) { t.box(trs(m4(), x, -0.01, 0.13, a * 0.3, -0.2, 0), 0.012, 0.012, 0.22, GREG.steelDark); t.box(trs(m4(), x, -0.035, 0.25, a * 0.3, -0.9, 0), 0.01, 0.01, 0.07, GREG.steelDark); }
       break;
     }
     case "spear": {

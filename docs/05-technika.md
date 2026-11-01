@@ -37,7 +37,9 @@ Zmienna `CHROME` wskazuje własną przeglądarkę dla Playwrighta.
 | `core/i18n.ts`, `audio.ts`, `math.ts` | teksty PL/EN, dźwięk syntetyzowany, matematyka |
 | `core/settings.ts`, `optionsui.ts` | opcje gracza (liczebność bitwy, jakość, przemoc, trudność, blok, czułość, głośność), zapis w przeglądarce, okno Opcje |
 | `map/hero.ts` | bohater: atrybuty (Ciało, Refleks, Wiedza, Posłuch), 14 umiejętności z limitem atrybut/3, biegłości, poziomy i doświadczenie, sława, limity kompanii i jeńców, pochodzenia (tworzenie postaci), przedmioty i ceny |
-| `map/events.ts` | wydarzenia w podróży (14 scen z wyborami) |
+| `map/events.ts` | wydarzenia w podróży (17 scen z wyborami) |
+| `map/necro.ts` | nekromancja: zepsucie i progi, rytuały obozowe, miejsca (kaplica, cmentarz), zbiór zwłok, łowcy, nekromanci, reguły dzienne |
+| `char/undead.ts` | modele nieumarłych (szkielet, ghul, żywy trup) na tym samym szkielecie co ludzie; `Kit.undead`, `Kit.tier` |
 | `lab.ts` + `web/lab.html` | pracownia modeli (style, zestawy, bronie, pozy, światło) |
 
 ## Testy
@@ -45,6 +47,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b8.mjs` nekromancja od księgi po spowiedź, wskrzeszanie (N), rozsypanie armii nekromanty; `b8show.mjs` zbliżenia modeli.
 - `b7.mjs` menu główne, opcje, tworzenie postaci, miasto, kowal, postać, ekwipunek, bitwa z ekwipunkiem bohatera, jeńcy, doświadczenie.
 - `lab*.mjs`, `gif*.mjs` zrzuty i GIF-y z pracowni.
 Przed wydaniem: typecheck, build, co najmniej `g4`, `g6`, `g7`, `m2`, `b6` bez błędów konsoli.
