@@ -31,6 +31,7 @@ Zmienna `CHROME` wskazuje własną przeglądarkę dla Playwrighta.
 | `world/terrain.ts`, `props.ts` | teren i dekoracje pola bitwy; `setBattlefield(biome, seed, zima, droga)` dla bitew z mapy, `setClassicField()` dla próbnej bitwy |
 | `map/world.ts` | region kampanii: wysokości, biomy, rzeka z brodami, drogi (MST + A*), osady (ręczny układ), punkty POI, A* i koszty ruchu |
 | `map/campaign.ts` | reguły kampanii: kalendarz (`HOUR_SECONDS = 2.5` → 1 min = 1 doba), kompania, jedzenie/woda/zima/żołd/morale, AI band, spotkania, autoresolve, pobojowiska i wstający umarli, zapis/odczyt |
+| `world/terrain.ts` (siege) | `BF.siege`, `WALL`, `siegeLift` (wysokość chodnika, drabin, schodów); `props.ts`: `siegeWorks` (mur, baszty, drabiny, schody, kolizje lica) |
 | `map/troops.ts` | typy żołnierzy (kit do bitwy, żołd, awans), siła, domyślne grupy |
 | `map/mapmesh.ts` | geometria mapy (teren lato/zima, rzeka, drogi, lasy, osady, POI, figurki oddziałów) |
 | `map/ui.ts` | HUD mapy i menu (osady, targ, karczma, plotki, awanse, spotkania, po bitwie, kompania) |
@@ -52,6 +53,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b14.mjs` szturm: obrońcy na murach, wspinaczka po drabinach, walka na murach, wyłom w bramie.
 - `b13.mjs` koń w próbnej bitwie, galop, kopia, śmierć konia, targ koński, kompania konna na mapie, bitwa jazdy z AI.
 - `b12.mjs` klasztor, gaj, kapłani, obrzędy, łaski, ofiara z jeńca → ekskomunika → pokuta, wiara w panelu, wydarzenia, Dziady, morale w bitwie z błogosławieństwem.
 - `b11.mjs` strzał gracza z łuku, kuszy i arkebuzu (obrażenia), dym, pozy celowania, bitwa strzelców z salwami.

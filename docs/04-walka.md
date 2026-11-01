@@ -47,3 +47,7 @@ Zasada nadrzędna: **kopia Mount & Blade: Warband**, z ciężarem i gore ponad o
 - Ciosy z siodła dostają premię z prędkości (jak w Warbandzie, do +50%). Kopia: przy prędkości > 6,2 m/s i spokojnych rękach kładzie się sama; trafia wroga do 3,3 m przed koniem za 26 + 6,5 × prędkość obrażeń kłutych, potem 1,8 s przerwy. Koń w biegu > 4,5 m/s taranuje pieszych (3 + 1,3 × prędkość, przewrócenie), sam zwalnia.
 - Ciosy pieszego w konnego: niskie (nogi) i 22% pozostałych trafiają konia (pancerz konia). Pociski poniżej 1,5 m trafiają konia. Koń pada → jeździec spada (6–16 obrażeń, zachwianie), kopijnik bierze broń boczną.
 - AI jazdy: szarża przez cel z przesunięciem na stronę miecza, cios w przejeździe, 1,6–2,4 s jazdy dalej, nawrót.
+
+## Oblężenia (build 14)
+- Mur w poprzek pola na z = −10: chodnik 3,4 m nad ziemią (od −1,5 do +1,2 m wokół linii muru), lico z kolizjami (nikt nie przechodzi przez mur), brama 4,6 m (420 punktów, cios obuchem ×1,2, ostrzem ×0,7), drabiny na x = ±13 (rampa 4,4 m), schody od środka na x = ±24. Wysokość chodzenia: `siegeLift(x, z)` dodawane do terenu.
+- Atakujący przed murem idą do najbliższego wejścia (brama ma karę 6 m, póki stoi), na drabinie zawsze wspinają się dalej, pod bramą rąbią. Obrońcy na murze nie schodzą, póki wróg jest pod murem (pilnują chodnika wzdłuż x). Wyłom w bramie: −14 morale obrońców w promieniu 30 m.
