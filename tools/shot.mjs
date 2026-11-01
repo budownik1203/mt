@@ -1,7 +1,9 @@
 // Headless smoke test: loads the build, reports console errors, takes screenshots.
 import { chromium } from "playwright";
 const file = process.argv[2], script = process.argv[3] || "";
-const b = await chromium.launch({ executablePath: "/usr/bin/google-chrome", args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
+import { existsSync } from "node:fs";
+const exe = process.env.CHROME || (existsSync("/usr/bin/google-chrome") ? "/usr/bin/google-chrome" : undefined);
+const b = await chromium.launch({ executablePath: exe, args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = [];
 p.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errs.push(m.type() + ": " + m.text()); });

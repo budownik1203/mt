@@ -64,6 +64,14 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 .vign{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,#0000 55%,#0007 100%)}
 .build{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));font-size:12px;color:#ffffff55;letter-spacing:.1em;text-transform:uppercase;pointer-events:none}
 
+/* ---------- battle command ---------- */
+#glabels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.glbl{position:absolute;left:0;top:0;font-family:var(--display);font-size:20px;color:var(--bone);background:#000a;border:1px solid #ffffff33;padding:0 8px;text-shadow:0 1px 2px #000}
+.glbl.sel{border-color:var(--ember);color:var(--ember)}
+#orders{left:max(16px,env(safe-area-inset-left,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));display:grid;gap:2px;font-size:13px;color:var(--dim);text-shadow:0 1px 2px #000;max-width:min(520px,80vw)}
+#orders b{display:inline-block;width:18px;color:var(--bone);font-weight:700}
+#orders .sel{color:var(--bone)} #orders .sel b{color:var(--ember)} #orders span{color:#ffffff88}
+#orders .fled{color:#e07a6a} #orders .menu{margin-top:6px;color:var(--ember);font-size:13px}
 /* ---------- campaign map: iron and parchment ---------- */
 #labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 .lbl{position:absolute;left:0;top:0;font-family:var(--display);font-size:16px;color:var(--bone);text-shadow:0 1px 3px #000,0 0 8px #000;white-space:nowrap}
@@ -114,14 +122,16 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 <div class="hud" id="help" hidden></div>
 <div class="screen" id="title">
   <div class="inner">
-    <div class="eyebrow">mb2 build 1 · mapa świata</div>
+    <div class="eyebrow">mb2 build 1 · kampania</div>
     <h1>Montablate</h1>
     <div class="sub" id="tsub"></div>
     <div class="btns"><button type="button" class="go" id="tcamp">Kampania</button><button type="button" class="go" id="tnew" hidden>Nowa kampania</button><button type="button" class="go" id="tstart"></button></div>
-    <div class="keys">Kampania: mapa świata, kompania, osady, bandy. Próbna bitwa: fale wrogów jak dotąd.<br>Bitwa: WSAD · Shift · LPM · PPM · 1–8 · B · V · F2–F4 rozkazy · F1 pomoc</div>
+    <div class="keys">Kampania: mapa świata, kompania, osady, bandy. Próbna bitwa: fale wrogów jak dotąd.<br>Bitwa: WSAD · Shift · LPM · PPM · kółko broń · B · V · 1–9 grupy · F1 ruch · F2 formacja · F3 rezerwa · X okrzyk</div>
   </div>
 </div>
 <div id="labels" hidden></div>
+<div id="glabels" hidden></div>
+<div class="hud" id="orders" hidden></div>
 <div id="mapHud" hidden>
   <div class="bar">
     <span id="mdate"></span><span id="mstats"></span><span id="mflags"></span>

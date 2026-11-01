@@ -1,12 +1,19 @@
 {
-  "name": "mt",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "montablate-mb2",
+  "version": "0.6.0",
+  "private": true,
+  "description": "Montablate 2.0 — grimdarkowa gra w stylu Mount & Blade: Warband (WebGL2, TypeScript)",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "typecheck": "tsc -p .",
+    "build": "node build.mjs game",
+    "lab": "node build.mjs lab",
+    "test:battle": "node tools/shot.mjs dist/mb2-build-dev.html tools/g7.mjs",
+    "test:map": "node tools/shot.mjs dist/mb2-build-dev.html tools/m2.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "6.0.3",
+    "playwright": "1.63.0"
+  }
 }

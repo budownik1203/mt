@@ -14,8 +14,9 @@ import { Campaign, Party } from "./map/campaign.ts";
 import { MapUI } from "./map/ui.ts";
 import { buildMapTerrain, buildMapFeatures, settlementModel, partyFigure } from "./map/mapmesh.ts";
 import { biomeAt, cellOf, cellIndex, MAP } from "./map/world.ts";
-import { TroopId, kitOf, TROOPS } from "./map/troops.ts";
+import { TroopId, kitOf, TROOPS, DEFAULT_GROUP } from "./map/troops.ts";
 import { invert } from "./core/math.ts";
+import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY } from "./game/tactics.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
 import { Brain } from "./game/ai.ts";
@@ -71,6 +72,8 @@ const ashG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 0
 // crows wheel over the gallows and the killing field; ash drifts down everywhere
 const crows = Array.from({ length: 14 }, (_, i) => ({ cx: i < 6 ? 14 : (Math.random() - 0.5) * 50, cz: i < 6 ? -16 : (Math.random() - 0.5) * 50, r: 4 + Math.random() * 9, h: 9 + Math.random() * 12, sp: (0.25 + Math.random() * 0.3) * (Math.random() < 0.5 ? -1 : 1), ph: Math.random() * 7 }));
 const ash = Array.from({ length: 260 }, () => ({ x: (Math.random() - 0.5) * 40, y: Math.random() * 14, z: (Math.random() - 0.5) * 40, ph: Math.random() * 7 }));
+const flagG = (col: number) => { const b = new MeshBuilder(); b.jitter = 0.04; b.box(T(0, 1.15, 0), 0.04, 2.6, 0.04, hex(0x2d241d)); b.box(T(0.33, 2.15, 0), 0.62, 0.55, 0.025, hex(col)); b.box(T(0.33, 1.82, 0), 0.62, 0.1, 0.03, hex(0x111111)); return R.upload(fromBuilder(b), 3, false); };
+const bannerG = [flagG(0x7a1a14), flagG(0x1e1c1a)];
 const blobG = (() => { const t = new TMesh(256); t.box(trs(m4(), 0, 0.02, 0), 0.8, 0.001, 0.66, REG.blob); return R.upload(t, 0, false); })();
 
 // ---------- kits ----------
@@ -103,7 +106,7 @@ let mode: Mode = "title";
 let battleKind: "waves" | "encounter" = "waves";
 let camp: Campaign | null = null;
 let ui: MapUI | null = null;
-interface Enc { enemy: Party; allyQ: TroopId[]; enemyQ: TroopId[]; troopOf: Map<number, TroopId>; order: "charge" | "hold" | "follow"; startHour: number; startDay: number; done: boolean }
+interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number }
 let enc: Enc | null = null;
 let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
@@ -162,7 +165,7 @@ const SENS = 0.0024;
 
 canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 window.addEventListener("keydown", (e) => {
-  if (e.code === "F1") { e.preventDefault(); toggleHelp(); return; }
+  if (e.code === "F1" && !(mode === "battle" && battleKind === "encounter")) { e.preventDefault(); toggleHelp(); return; }
   keys.add(e.code);
   if (!started || mode !== "battle") return;
   if (e.code === "KeyV") { firstPerson = !firstPerson; player.hideHead = firstPerson; }
@@ -171,7 +174,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyB") { autoBlock = !autoBlock; pushLog(autoBlock ? t("autoOn") : t("autoOff"), "sys"); }
   if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
   if (e.code === "KeyR" && !player.alive) reset();
-  if (/^Digit[1-8]$/.test(e.code) && player.alive && player.state === "idle") {
+  if (battleKind === "waves" && /^Digit[1-8]$/.test(e.code) && player.alive && player.state === "idle") {
     weaponSlot = Number(e.code.slice(5)) - 1;
     player.setKit(R, playerKit());
     pushLog(wName(player.weaponId), "sys");
@@ -290,7 +293,7 @@ function resolve(att: Warrior) {
   const zoneMult = zone === "arm" ? 0.72 : 1;
   let dmg = Math.round(damage(raw * zoneMult, atk.type, o.kit.armour[part], part, closing) * tooClose);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
-  o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; (o as Warrior & { lastType?: string }).lastType = atk.type;
+  o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; o.morale -= dmg * 0.35; (o as Warrior & { lastType?: string }).lastType = atk.type;
   // weight of the blow: hit-stop on both, the victim is shoved and twisted by it
   const mass = att.weapon.mass, force = Math.min(1.4, (0.35 + dmg / 45) * (0.7 + mass * 0.3));
   att.freeze = Math.max(att.freeze, 0.05 + mass * 0.035 + Math.min(0.06, dmg / 700));
@@ -312,6 +315,11 @@ function resolve(att: Warrior) {
     else if (zone === "legs" && (lethal || dmg >= 34) && SEVER[joint]) gore = joint;
   }
   if (gore) sever(o, gore as Joint, dx, dz, att);
+  if ((lethal || gore) && enc) {
+    moraleShock(o.x, o.z, o.team, gore ? 16 : 7, gore ? 10 : 7, 3);
+    if (o.bearer) { moraleShock(o.x, o.z, o.team, 14, 80); pushLog(o.team === 0 ? L("Sztandar pada!", "The standard falls!") : L("Sztandar wroga pada!", "The enemy standard falls!"), o.team === 0 ? "bad" : "good"); }
+    if (o.leader && o !== player) moraleShock(o.x, o.z, o.team, 12, 80);
+  }
   if (lethal || gore) {
     o.hp = 0;
     if (o.alive) o.die();
@@ -383,6 +391,7 @@ function collide(f: Warrior) {
 }
 
 function step(dt: number) {
+  if (enc?.deploy) { placeDeployed(); for (const f of fighters) f.update(0, false); return; }
   hour = (hour + dt / 60) % 24;
   if (player.alive && started) {
     const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
@@ -417,14 +426,12 @@ function step(dt: number) {
   for (const f of fighters) {
     const b = brains.get(f.id);
     const tg = targets.get(f.id);
-    if (b && !noAI && tg) {
+    if (b && !noAI && tg && !f.fleeing) {
       b.update(dt, tg, fighters, tg === player ? tokens : freeTok);
-      if (enc && f.team === 0 && f.alive) {
-        const dE = Math.hypot(tg.x - f.x, tg.z - f.z), dP = Math.hypot(player.x - f.x, player.z - f.z);
-        if (enc.order === "hold" && dE > 5) { f.wish.x = f.wish.z = 0; }
-        if (enc.order === "follow" && dE > 6 && dP > 3.5 && player.alive) { f.wish.x = (player.x - f.x) / dP; f.wish.z = (player.z - f.z) / dP; f.wish.run = dP > 10; }
-      }
     } else if (b && !tg && f !== player) { f.wish.x = f.wish.z = 0; }
+  }
+  if (enc) { commandStep(dt); moraleStep(dt); }
+  for (const f of fighters) {
     let hold: boolean;
     if (f === player) hold = lmb;
     else { f.aiHold -= dt; hold = f.aiHold > 0; }
@@ -544,6 +551,7 @@ function render(now: number) {
   for (const f of fighters) for (const j of f.severed) { const info = SEVER[j]; if (info && !f.severed.has(info.parent) && f.lastJ) items.push({ mesh: bloodG, model: mul(m4(), f.lastJ[info.parent], trs(m4(), info.at[0], info.at[1], info.at[2], 0, 0, 0, 0.11, 0.04, 0.11)) }); }
   for (const f of fighters) {
     items.push({ mesh: blobG, model: trs(m4(), f.x, f.y, f.z, f.yaw) });
+    if (f.bearer && f.alive && f.lastJ) items.push({ mesh: bannerG[f.team === 0 ? 0 : 1], model: mul(m4(), f.lastJ.torso, trs(m4(), 0.06, -0.2, -0.2)) });
     f.draw(items);
   }
   const tt = now / 1000;
@@ -565,6 +573,7 @@ function render(now: number) {
   items.sort((a, b) => a.mesh.tex - b.mesh.tex);
   R.render(MODE, vp, eye, L, items, false, L.bg, near, far);
   ($("hurt") as HTMLElement).style.opacity = String(hurt);
+  if (enc) groupLabels();
   hud();
   void lastPhase;
 }
@@ -576,6 +585,7 @@ function resize() {
 
 const chev = { [DIR.OVER]: $("dU"), [DIR.RIGHT]: $("dR"), [DIR.LEFT]: $("dL"), [DIR.THRUST]: $("dD") } as Record<Dir, HTMLElement>;
 function hud() {
+  orderHud();
   const hpP = clamp(player.hp / player.maxHp, 0, 1);
   ($("hpfill") as HTMLElement).style.width = `${hpP * 100}%`;
   $("hptext").textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
@@ -585,7 +595,7 @@ function hud() {
   const hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
   if (enc) {
     const mine = fighters.filter((f) => f.team === 0 && f.alive && f !== player).length, foe = fighters.filter((f) => f.team === 1 && f.alive).length;
-    $("clock").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${lang === "pl" ? "twoi" : "yours"} ${mine}${enc.allyQ.length ? "+" + enc.allyQ.length : ""} · ${lang === "pl" ? "wróg" : "enemy"} ${foe}${enc.enemyQ.length ? "+" + enc.enemyQ.length : ""} · ${({ charge: lang === "pl" ? "naprzód" : "charge", hold: lang === "pl" ? "stać" : "hold", follow: lang === "pl" ? "za mną" : "follow me" })[enc.order]}`;
+    $("clock").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${lang === "pl" ? "twoi" : "yours"} ${mine}${enc.allyQ.length ? "+" + enc.allyQ.length : ""} · ${lang === "pl" ? "wróg" : "enemy"} ${foe}${enc.enemyQ.length ? "+" + enc.enemyQ.length : ""} · ${enc.deploy ? L("rozstawienie", "deployment") : ""}`;
   } else
   $("clock").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${t("wave")} ${wave} · ${t("kills")} ${kills}`;
   const incoming = hints ? threat() : -1;
@@ -782,7 +792,9 @@ window.addEventListener("mousemove", (e) => {
   mapLX = e.clientX; mapLY = e.clientY; mapMoved++;
 });
 window.addEventListener("mouseup", () => { mapDrag = false; });
-canvas.addEventListener("wheel", (e) => { if (mode !== "map") return; e.preventDefault(); mapDist = clamp(mapDist * (e.deltaY > 0 ? 1.12 : 0.89), 22, 160); }, { passive: false });
+canvas.addEventListener("wheel", (e) => {
+  if (mode === "battle" && player?.alive && player.state === "idle") { e.preventDefault(); weaponSlot = (weaponSlot + (e.deltaY > 0 ? 1 : 7)) % 8; player.setKit(R, playerKit()); pushLog(wName(player.weaponId), "sys"); return; }
+  if (mode !== "map") return; e.preventDefault(); mapDist = clamp(mapDist * (e.deltaY > 0 ? 1.12 : 0.89), 22, 160); }, { passive: false });
 window.addEventListener("keydown", (e) => {
   if (mode === "map" && camp && ui) {
     if (e.code === "Escape" && ui.open) { ui.close(); return; }
@@ -795,13 +807,15 @@ window.addEventListener("keydown", (e) => {
     if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
     ui.hud();
   } else if (mode === "battle" && enc) {
-    const o = e.code === "F2" ? "charge" : e.code === "F3" ? "hold" : e.code === "F4" ? "follow" : null;
-    if (o) { e.preventDefault(); enc.order = o; pushLog(lang === "pl" ? `Rozkaz: ${({ charge: "naprzód", hold: "stać", follow: "za mną" })[o]}` : `Order: ${o}`, "warn"); audio.grunt(0.5); }
+    battleKey(e);
   }
 });
 
-// ---------- battle from an encounter on the map ----------
-const CAP = 14;            // fighters per side in the scene at once; the rest come as reinforcements
+// ---------- battle from an encounter on the map (build 6: groups, formations, morale) ----------
+const CAP = 18;            // fighters per side in the scene at once; the rest come as reinforcements
+function groupOfTroop(t: TroopId) { return camp?.co.groups?.[t] ?? DEFAULT_GROUP[t] ?? 1; }
+const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+
 function startEncounter(p: Party) {
   const c = camp!, me = c.co.party;
   const mb = biomeAt(c.w, me.x, me.z);
@@ -809,49 +823,275 @@ function startEncounter(p: Party) {
   const [i, j] = cellOf(me.x, me.z);
   setBattlefield(biome, p.id + c.day * 7, c.winter, !!c.w.road[cellIndex(i, j)]);
   rebuildField();
-  const allyQ: TroopId[] = [], enemyQ: TroopId[] = [];
-  for (const s of me.troops) for (let k = 0; k < s.n - s.wounded; k++) allyQ.push(s.t);
-  for (const s of p.troops) for (let k = 0; k < s.n - s.wounded; k++) enemyQ.push(s.t);
-  enc = { enemy: p, allyQ, enemyQ, troopOf: new Map(), order: "charge", startHour: c.hour, startDay: c.day, done: false };
+  const allyQ: Q[] = [], enemyQ: Q[] = [];
+  for (const s of me.troops) for (let k = 0; k < s.n - s.wounded; k++) allyQ.push({ t: s.t, g: groupOfTroop(s.t) });
+  for (const s of p.troops) for (let k = 0; k < s.n - s.wounded; k++) enemyQ.push({ t: s.t, g: 1 });
+  // strongest first into the scene, reserve groups stay behind
+  allyQ.sort((a, b) => TROOPS[b.t].tier - TROOPS[a.t].tier);
+  const groups = newGroups();
+  const used = [...new Set(allyQ.map((q) => q.g))].sort();
+  used.forEach((g, k) => { const G = groups[g - 1]; G.ax = (k - (used.length - 1) / 2) * 9; G.az = 6; G.ayaw = Math.PI; G.order = "hold"; G.formation = g === 2 ? "line" : "line"; });
+  enc = { enemy: p, allyQ, enemyQ, reserveQ: [], troopOf: new Map(), groups, sel: new Set(used), menu: null, deploy: true, cryCD: 0, routed: { 0: [], 1: [] }, startHour: c.hour, startDay: c.day, done: false, moraleT: 0 };
   mode = "battle"; battleKind = "encounter"; started = true; hour = c.hour;
   $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
   fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
   camYaw = Math.PI; camPitch = -0.1;
-  player = new Warrior(R, playerKit(), 0, 12, 0); player.yaw = Math.PI; player.hideHead = firstPerson;
+  player = new Warrior(R, playerKit(), 0, 13, 0); player.yaw = Math.PI; player.hideHead = firstPerson; player.leader = true;
   fighters.push(player);
   reinforce(0, true); reinforce(1, true);
+  // the standard: carried by the best man of the first group; big enemy bands have one too
+  const pickBearer = (team: 0 | 1) => fighters.filter((f) => f.team === team && f !== player).sort((a, b) => b.maxHp - a.maxHp)[0];
+  const ab = pickBearer(0); if (ab) ab.bearer = true;
+  if (p.troops.reduce((a, s) => a + s.n, 0) >= 10 && p.kind !== "undead") { const eb = pickBearer(1); if (eb) eb.bearer = true; }
+  for (const f of fighters) if (enc.troopOf.get(f.id) === "herszt") f.leader = true;
   $("dead").hidden = true; log.length = 0; renderLog();
-  banner(p.name, lang === "pl" ? "F2 naprzód · F3 stać · F4 za mną" : "F2 charge · F3 hold · F4 follow me");
-  tryLock();
+  $("glabels").hidden = false;
+  camOverride = [[0, 19, 27], [0, 0, 3]];
+  banner(p.name, L("Rozstawienie: 1–9 wybór grupy · klik: ustaw grupę · F2 formacja · R rezerwa · spacja: do boju", "Deployment: 1–9 select group · click: place · F2 formation · R reserve · space: fight"));
+  try { document.exitPointerLock(); } catch { /* */ }
 }
+interface Q { t: TroopId; g: number }
+
+function moraleBase(team: 0 | 1, t: TroopId): number {
+  if (TROOPS[t].undead) return 100;
+  if (team === 0) return clamp((camp?.co.morale ?? 50) * 0.5 + 30 + TROOPS[t].tier * 6, 25, 95);
+  const k = enc?.enemy.kind;
+  return (k === "peasants" ? 30 : k === "bandits" ? 45 : k === "caravan" ? 55 : 52) + TROOPS[t].tier * 6;
+}
+
 function reinforce(team: 0 | 1, first = false) {
   if (!enc) return;
   const q = team === 0 ? enc.allyQ : enc.enemyQ;
-  const alive = fighters.filter((f) => f.team === team && f.alive && f !== player).length;
-  let n = Math.min(q.length, CAP - alive);
-  if (n <= 0) return;
+  const alive = fighters.filter((f) => f.team === team && f.alive && !f.fleeing && f !== player).length;
   if (!first && alive > CAP * 0.4) return;
-  const z0 = team === 0 ? 15 : -16, dir = team === 0 ? 1 : -1;
-  let k = 0;
-  while (n-- > 0) {
-    const t = q.shift()!;
-    const row = Math.floor(k / 7), col = (k % 7) - 3; k++;
-    const x = col * 1.6 + (Math.random() - 0.5) * 0.4, z = z0 + dir * row * 1.6 + (first ? 0 : dir * 8);
-    const f = new Warrior(R, kitOf(t), x, z, team);
-    f.yaw = team === 0 ? Math.PI : 0;
-    fighters.push(f); brains.set(f.id, new Brain(f)); enc.troopOf.set(f.id, t);
+  // reserve groups do not come in on their own
+  const take: Q[] = [];
+  for (let k = 0; k < q.length && take.length < CAP - alive; ) {
+    if (team === 0 && enc.groups[q[k].g - 1].reserve) { k++; continue; }
+    take.push(q.splice(k, 1)[0]);
   }
-  if (!first) banner(lang === "pl" ? "Posiłki" : "Reinforcements", team === 0 ? (lang === "pl" ? "twoi ludzie" : "your men") : (lang === "pl" ? "wroga" : "the enemy's"));
+  if (!take.length) return;
+  const z0 = team === 0 ? 15 : -16, dir = team === 0 ? 1 : -1;
+  take.forEach((it, k) => {
+    const row = Math.floor(k / 7), col = (k % 7) - 3;
+    const x = col * 1.6 + (Math.random() - 0.5) * 0.4, z = z0 + dir * row * 1.6 + (first ? 0 : dir * 10);
+    const f = new Warrior(R, kitOf(it.t), x, z, team);
+    f.yaw = team === 0 ? Math.PI : 0; f.group = it.g;
+    f.noMorale = !!TROOPS[it.t].undead;
+    f.morale = f.baseMorale = moraleBase(team, it.t);
+    fighters.push(f); brains.set(f.id, new Brain(f)); enc!.troopOf.set(f.id, it.t);
+  });
+  if (!first) banner(L("Posiłki", "Reinforcements"), team === 0 ? L("twoi ludzie", "your men") : L("wroga", "the enemy's"));
+  if (first && team === 0) placeDeployed();
 }
+
+/** Members of each of the player's groups, in a stable order (their slots). */
+function groupMembers(): Map<number, Warrior[]> {
+  const m = new Map<number, Warrior[]>();
+  for (const f of fighters) if (f.team === 0 && f !== player && f.alive && !f.fleeing) { const a = m.get(f.group) ?? []; a.push(f); m.set(f.group, a); }
+  for (const a of m.values()) a.sort((p, q) => p.id - q.id);
+  return m;
+}
+function placeDeployed() {
+  if (!enc) return;
+  for (const [g, list] of groupMembers()) {
+    const G = enc.groups[g - 1];
+    list.forEach((f, i) => { const [x, z] = slotWorld(G, G.formation, i, list.length); f.x = x; f.z = z; f.yaw = G.ayaw; f.vx = f.vz = 0; f.y = ground(x, z); });
+  }
+}
+
+/** Every step: soldiers keep their slots unless the enemy is close enough to fight. */
+function commandStep(dt: number) {
+  if (!enc) return;
+  const members = groupMembers();
+  for (const [g, list] of members) {
+    const G = enc.groups[g - 1];
+    if (G.order === "follow" && player.alive) { const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw); G.ax = player.x - fx * 4; G.az = player.z - fz * 4; G.ayaw = player.yaw; }
+    if (G.order === "charge") continue;
+    const R0 = engageRadius(G);
+    list.forEach((f, i) => {
+      const [sx, sz] = slotWorld(G, G.formation, i, list.length);
+      const ds = Math.hypot(sx - f.x, sz - f.z);
+      const tg = targets.get(f.id), dE = tg ? Math.hypot(tg.x - f.x, tg.z - f.z) : 999;
+      if (dE < R0 && ds < 6) return;                 // fight from the formation
+      if (f.attacking) return;
+      if (ds > 0.5) { f.wish.x = (sx - f.x) / ds; f.wish.z = (sz - f.z) / ds; f.wish.run = ds > 5 || G.order === "fallback"; }
+      else { f.wish.x = f.wish.z = 0; f.faceTo(G.formation === "hedgehog" ? Math.atan2(f.x - G.ax, f.z - G.az) : G.ayaw, dt, 4); }
+      if (f.state === "block" && dE > 4) f.unblock();
+    });
+  }
+}
+
+/** Battle morale: neighbours, leaders, standards; rout and rally. */
+function moraleStep(dt: number) {
+  if (!enc) return;
+  enc.cryCD = Math.max(0, enc.cryCD - dt);
+  enc.moraleT -= dt;
+  const tick = enc.moraleT <= 0; if (tick) enc.moraleT = 0.5;
+  for (const f of fighters) {
+    if (f === player || !f.alive || f.noMorale) continue;
+    if (tick) {
+      let allies = 0, foes = 0, lead = false, flag = false;
+      for (const o of fighters) {
+        if (!o.alive || o === f) continue;
+        const d = Math.hypot(o.x - f.x, o.z - f.z);
+        if (o.team === f.team) { if (d < 6 && !o.fleeing) allies++; if (o.leader && d < 10) lead = true; if (o.bearer && d < 12) flag = true; }
+        else if (d < 6 && !o.fleeing) foes++;
+      }
+      if (foes > allies + 1) f.morale -= 1.6 * (foes - allies);
+      if (lead) f.morale += f.fleeing ? 6 : 1.5;
+      if (flag) f.morale += f.fleeing ? 3 : 1;
+      if (!foes) f.morale += (f.baseMorale - f.morale) * 0.04;
+      f.morale = clamp(f.morale, 0, 100);
+      if (!f.fleeing && f.morale < ROUT) { f.fleeing = true; if (f.state === "block") f.unblock(); if (f.team === 0) pushLog(L(`${f.kit.name[lang]} ucieka z pola`, `${f.kit.name[lang]} flees`), "bad"); }
+      else if (f.fleeing && f.morale > RALLY) { f.fleeing = false; if (f.team === 0) pushLog(L(`${f.kit.name[lang]} wraca do szyku`, `${f.kit.name[lang]} rallies`), "good"); }
+    }
+    if (f.fleeing) {
+      // run for your own edge of the field
+      const ex = f.x * 0.2, ez = f.team === 0 ? 1 : -1, l = Math.hypot(ex, ez);
+      f.wish.x = ex / l; f.wish.z = ez / l; f.wish.run = true;
+      if (Math.abs(f.z) > 52 || Math.abs(f.x) > 52) {
+        enc.routed[f.team as 0 | 1].push(enc.troopOf.get(f.id)!);
+        fighters.splice(fighters.indexOf(f), 1); brains.delete(f.id);
+        if (f.team === 1) pushLog(L(`${f.kit.name[lang]} uciekł z pola`, `${f.kit.name[lang]} escaped`), "warn");
+        return moraleStep(0);   // array changed; finish next frame
+      }
+    }
+  }
+}
+/** Something terrible happened at (x,z) to a man of `team`: those around feel it. */
+function moraleShock(x: number, z: number, team: number, amount: number, radius: number, cheer = 0) {
+  for (const f of fighters) {
+    if (!f.alive || f.noMorale || f === player) continue;
+    const d = Math.hypot(f.x - x, f.z - z); if (d > radius) continue;
+    if (f.team === team) f.morale -= amount * (1 - d / radius / 2); else f.morale += cheer;
+  }
+}
+function warCry() {
+  if (!enc || enc.cryCD > 0 || !player.alive) return;
+  enc.cryCD = 25;
+  for (const f of fighters) { if (!f.alive || f.noMorale) continue; const d = Math.hypot(f.x - player.x, f.z - player.z); if (f.team === 0 && d < 14) f.morale += 18; if (f.team === 1 && d < 8) f.morale -= 6; }
+  audio.grunt(1); shake = Math.max(shake, 0.15);
+  pushLog(L("Twój okrzyk niesie się nad polem", "Your war cry carries over the field"), "good");
+}
+
+function battleKey(e: KeyboardEvent) {
+  if (!enc) return;
+  const code = e.code;
+  const sel = [...enc.sel].map((g) => enc!.groups[g - 1]);
+  const say = (s: string) => { pushLog(s, "warn"); audio.grunt(0.4); };
+  if (/^Digit[1-9]$/.test(code)) {
+    const g = Number(code.slice(5));
+    if (e.shiftKey) { if (enc.sel.has(g)) enc.sel.delete(g); else enc.sel.add(g); } else enc.sel = new Set([g]);
+    enc.menu = null; e.preventDefault(); return;
+  }
+  if (code === "Digit0" || code === "Backquote") { enc.sel = new Set(groupMembers().keys()); enc.menu = null; return; }
+  if (code === "Escape") { enc.menu = null; return; }
+  if (code === "KeyX") { warCry(); return; }
+  if (enc.deploy) {
+    if (code === "KeyR") { for (const G of sel) G.reserve = !G.reserve; return; }
+    if (code === "F2") { e.preventDefault(); for (const G of sel) G.formation = FORMATIONS[(FORMATIONS.indexOf(G.formation) + 1) % FORMATIONS.length]; placeDeployed(); return; }
+    if (code === "Space" || code === "Enter") { e.preventDefault(); startFight(); }
+    return;
+  }
+  if (!/^F[1-9]$/.test(code)) return;
+  e.preventDefault();
+  const n = Number(code.slice(1));
+  if (!enc.menu) {
+    if (n === 1) enc.menu = "move"; else if (n === 2) enc.menu = "form";
+    else if (n === 3) {
+      // release the reserve
+      let k = 0; for (const G of enc.groups) if (G.reserve && (enc.sel.has(G.id) || enc.sel.size === 0)) { G.reserve = false; G.order = "charge"; k++; }
+      if (k) { say(L("Rezerwa rusza do boju!", "The reserve goes in!")); reinforce(0, true); }
+    }
+    return;
+  }
+  if (enc.menu === "move") {
+    const ord: Order | null = n === 1 ? "hold" : n === 2 ? "follow" : n === 3 ? "charge" : n === 4 ? "fallback" : null;
+    if (ord) {
+      const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw);
+      const mem = groupMembers();
+      for (const G of sel) {
+        G.order = ord;
+        if (ord === "hold") { G.ax = player.x + fx * 5; G.az = player.z + fz * 5; G.ayaw = player.yaw; }
+        if (ord === "fallback") { const list = mem.get(G.id) ?? []; const cx = list.reduce((a, f) => a + f.x, 0) / (list.length || 1), cz = list.reduce((a, f) => a + f.z, 0) / (list.length || 1); G.ax = cx; G.az = Math.min(40, cz + 12); G.ayaw = Math.PI; }
+      }
+      say(L(`Grupy ${[...enc.sel].join(", ")}: ${ORDER_NAMES[ord].pl}!`, `Groups ${[...enc.sel].join(", ")}: ${ORDER_NAMES[ord].en}!`));
+    }
+  } else if (enc.menu === "form") {
+    const f = FORMATIONS[n - 1];
+    if (f) { for (const G of sel) { G.formation = f; if (G.order === "charge") { G.order = "hold"; const mem = groupMembers().get(G.id) ?? []; G.ax = mem.reduce((a, q) => a + q.x, 0) / (mem.length || 1); G.az = mem.reduce((a, q) => a + q.z, 0) / (mem.length || 1); G.ayaw = player.yaw; } } say(L(`Formacja: ${FORM_NAMES[f].pl}`, `Formation: ${FORM_NAMES[f].en}`)); }
+  }
+  enc.menu = null;
+}
+function startFight() {
+  if (!enc) return;
+  enc.deploy = false; camOverride = null;
+  banner(enc.enemy.name, L("F1 ruch · F2 formacja · F3 rezerwa · 1–9 grupy · X okrzyk", "F1 move · F2 formation · F3 reserve · 1–9 groups · X war cry"));
+  tryLock();
+}
+/** Mouse → point on the battlefield ground (deployment). */
+function battlePick(cx: number, cy: number): [number, number] | null {
+  const inv = invert(m4(), vp);
+  const nx = (cx / canvas.clientWidth) * 2 - 1, ny = 1 - (cy / canvas.clientHeight) * 2;
+  const un = (z: number): V3 => { const v = xform(inv, nx, ny, z); const w = inv[3] * nx + inv[7] * ny + inv[11] * z + inv[15]; return [v[0] / w, v[1] / w, v[2] / w]; };
+  const a = un(-1), b = un(1), d: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len = Math.hypot(...d);
+  for (let t = 0; t < Math.min(len, 260); t += 0.3) { const x = a[0] + d[0] / len * t, y = a[1] + d[1] / len * t, z = a[2] + d[2] / len * t; if (y <= ground(x, z)) return [x, z]; }
+  return null;
+}
+canvas.addEventListener("mousedown", (e) => {
+  if (mode !== "battle" || !enc?.deploy || e.button !== 0) return;
+  const hit = battlePick(e.clientX, e.clientY); if (!hit) return;
+  for (const g of enc.sel) { const G = enc.groups[g - 1]; G.ax = clamp(hit[0], -30, 30); G.az = clamp(hit[1], -2, 30); G.ayaw = Math.PI; }
+  placeDeployed();
+});
 function encounterTick() {
   if (!enc || enc.done) return;
   reinforce(0); reinforce(1);
-  const foes = fighters.filter((f) => f.team === 1 && f.alive).length + enc.enemyQ.length;
-  const mine = fighters.filter((f) => f.team === 0 && f.alive && f !== player).length + enc.allyQ.length;
-  if (foes === 0) { enc.done = true; setTimeout(() => endEncounter(true), 2200); return; }
+  const foes = fighters.filter((f) => f.team === 1 && f.alive && !f.fleeing).length + enc.enemyQ.length;
+  if (foes === 0) { enc.done = true; banner(L("Zwycięstwo", "Victory"), enc.routed[1].length ? L("reszta ucieka", "the rest flee") : ""); setTimeout(() => endEncounter(true), 2200); return; }
   if (!player.alive) { enc.done = true; setTimeout(() => endEncounter(null), 2500); return; }
-  void mine;
 }
+function groupLabels() {
+  const box = $("glabels"); const mem = groupMembers();
+  const want = new Set<number>();
+  for (const [g, list] of mem) {
+    if (!list.length) continue; want.add(g);
+    let el = box.querySelector(`[data-g="${g}"]`) as HTMLElement | null;
+    if (!el) { el = document.createElement("div"); el.className = "glbl"; el.dataset.g = String(g); box.append(el); }
+    const cx = list.reduce((a, f) => a + f.x, 0) / list.length, cz = list.reduce((a, f) => a + f.z, 0) / list.length;
+    const m = vp, x = cx, y = ground(cx, cz) + 2.6, z = cz, w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    el.textContent = String(g); el.classList.toggle("sel", !!enc?.sel.has(g));
+    if (w <= 0.1) { el.hidden = true; continue; }
+    const nx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w, ny = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+    el.hidden = Math.abs(nx) > 1 || Math.abs(ny) > 1;
+    el.style.transform = `translate(${(nx * 0.5 + 0.5) * canvas.clientWidth}px, ${(1 - (ny * 0.5 + 0.5)) * canvas.clientHeight}px) translate(-50%, -100%)`;
+  }
+  for (const el of [...box.children] as HTMLElement[]) if (!want.has(Number(el.dataset.g))) el.remove();
+}
+function orderHud() {
+  const el = $("orders") as HTMLElement;
+  if (!enc) { el.hidden = true; return; }
+  el.hidden = false;
+  const mem = groupMembers();
+  const rows: string[] = [];
+  const counts = new Map<number, number>();
+  for (const q of [...enc.allyQ]) counts.set(q.g, (counts.get(q.g) ?? 0) + 1);
+  for (const G of enc.groups) {
+    const n = (mem.get(G.id)?.length ?? 0), w = counts.get(G.id) ?? 0;
+    if (!n && !w) continue;
+    const names = [...new Set((mem.get(G.id) ?? []).map((f) => enc!.troopOf.get(f.id)!))].map((t) => TROOPS[t].name[lang].split(" ")[0]).join(", ");
+    rows.push(`<div class="${enc.sel.has(G.id) ? "sel" : ""}"><b>${G.id}</b> ${names || "—"} <span>${n}${w ? "+" + w : ""} · ${G.reserve ? L("rezerwa", "reserve") : ORDER_NAMES[G.order][lang]} · ${FORM_NAMES[G.formation][lang]}</span></div>`);
+  }
+  const fled = enc.routed[0].length;
+  let menu = "";
+  if (enc.deploy) menu = L("Rozstawienie · klik: ustaw · F2 formacja · R rezerwa · spacja: do boju", "Deploy · click: place · F2 formation · R reserve · space: fight");
+  else if (enc.menu === "move") menu = "F1 " + L("stać tutaj", "hold here") + " · F2 " + L("za mną", "follow") + " · F3 " + L("naprzód", "charge") + " · F4 " + L("cofnąć się", "fall back");
+  else if (enc.menu === "form") menu = FORMATIONS.map((f, i) => `F${i + 1} ${FORM_NAMES[f][lang]}`).join(" · ");
+  else menu = L("F1 ruch · F2 formacja · F3 rezerwa · X okrzyk", "F1 move · F2 formation · F3 reserve · X war cry") + (enc.cryCD > 0 ? ` (${Math.ceil(enc.cryCD)} s)` : "");
+  el.innerHTML = rows.join("") + (fled ? `<div class="fled">${L("uciekło", "fled")}: ${fled}</div>` : "") + `<div class="menu">${menu}</div>`;
+}
+
 /** win: true / false, or null = player knocked out → the rest is decided without him. */
 function endEncounter(win: boolean | null) {
   if (!enc || !camp || !ui) return;
@@ -870,21 +1110,20 @@ function endEncounter(win: boolean | null) {
   me.troops = me.troops.filter((s) => s.n > 0); p.troops = p.troops.filter((s) => s.n > 0);
   let body = "";
   if (win === null) {
-    // the player is down: the rest of the fight is resolved by the numbers still standing
     const res = c.autoResolve(p);
     win = res.win;
     myDead += res.mine.killed; myWounded += res.mine.wounded; theirDead += res.theirs.killed;
     body += `<p>Padasz ogłuszony. Gdy otwierasz oczy, ${win ? "twoi ludzie stoją nad trupami wroga" : "twoi ludzie wloką cię z pola"}.</p>`;
     c.note("Zostałeś ogłuszony w bitwie. Głowa pęka, ale żyjesz.", "warn");
-  } else body += `<p>${win ? "Ostatni z wrogów pada w błoto." : "Wycofujecie się."}</p>`;
-  body += `<p class="meta">Twoje straty: ${myDead} zabitych, ${myWounded} rannych. Wróg: ${theirDead} zabitych.</p>`;
-  // the time the fight took
+  } else body += `<p>${win ? (enc.routed[1].length ? `Wróg pęka. ${enc.routed[1].length} uciekło w zarośla.` : "Ostatni z wrogów pada w błoto.") : "Wycofujecie się."}</p>`;
+  body += `<p class="meta">Twoje straty: ${myDead} zabitych, ${myWounded} rannych${enc.routed[0].length ? `, ${enc.routed[0].length} uciekło z pola (wrócili po bitwie)` : ""}. Wróg: ${theirDead} zabitych.</p>`;
+  if (enc.routed[0].length) c.co.morale -= enc.routed[0].length * 1.5;
   const hrs = ((hour - enc.startHour) + 24) % 24;
   c.co.inside = true;
   c.passHours(Math.min(3, Math.max(0.5, hrs)));
   const e = enc; enc = null;
   mode = "map"; started = false; battleKind = "waves";
-  $("mapHud").hidden = false; $("labels").hidden = false; setBattleHud(false); $("banner").hidden = true;
+  $("mapHud").hidden = false; $("labels").hidden = false; $("glabels").hidden = true; ($("orders") as HTMLElement).hidden = true; setBattleHud(false); $("banner").hidden = true;
   try { document.exitPointerLock(); } catch { /* */ }
   fighters = []; brains.clear(); player = undefined as unknown as Warrior;
   ui.after(e.enemy, win, myDead, theirDead, 0, body);

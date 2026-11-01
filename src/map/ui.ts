@@ -2,7 +2,7 @@
 // aftermath and company panels. Pure presentation over Campaign; battle
 // start/end goes through the hooks the game passes in.
 import { Campaign, Party, FOOD, FoodType, Stack } from "./campaign.ts";
-import { TROOPS, TroopId } from "./troops.ts";
+import { TROOPS, TroopId, DEFAULT_GROUP } from "./troops.ts";
 import { lang } from "../core/i18n.ts";
 import { Settlement } from "./world.ts";
 
@@ -244,17 +244,23 @@ export class MapUI {
   // ---------- company ----------
   partyPanel() {
     const c = this.c, co = c.co;
-    const row = (s: Stack) => `<tr><td>${esc(tn(s.t))}</td><td>${s.n}</td><td>${s.wounded || ""}</td><td>${Math.floor(s.xp) || ""}</td><td>${TROOPS[s.t].wage * s.n}</td></tr>`;
+    const grp = (t: TroopId) => co.groups?.[t] ?? DEFAULT_GROUP[t] ?? 1;
+    const row = (s: Stack) => `<tr><td>${esc(tn(s.t))}</td><td>${s.n}</td><td>${s.wounded || ""}</td><td>${Math.floor(s.xp) || ""}</td><td>${TROOPS[s.t].wage * s.n}</td><td><button type="button" class="ib grp" data-t="${s.t}" title="Zmień grupę w bitwie">${grp(s.t)}</button></td></tr>`;
     const food = co.food.map((f) => `<tr><td>${FOOD[f.type].pl}</td><td>${f.n}</td><td>${FOOD[f.type].spoil < 99 ? Math.max(0, FOOD[f.type].spoil - f.age) + " d" : "—"}</td></tr>`).join("");
-    const body = `<table class="tbl"><thead><tr><th>Oddział</th><th>Ludzi</th><th>Rannych</th><th>Gotowi do awansu</th><th>Żołd/tydz.</th></tr></thead><tbody>${co.party.troops.map(row).join("")}</tbody>` +
-      `<tfoot><tr><td>Razem</td><td>${c.men - 1}</td><td></td><td></td><td>${c.weeklyWage}</td></tr></tfoot></table>` +
+    const body = `<table class="tbl"><thead><tr><th>Oddział</th><th>Ludzi</th><th>Rannych</th><th>Gotowi do awansu</th><th>Żołd/tydz.</th><th>Grupa</th></tr></thead><tbody>${co.party.troops.map(row).join("")}</tbody>` +
+      `<tfoot><tr><td>Razem</td><td>${c.men - 1}</td><td></td><td></td><td>${c.weeklyWage}</td><td></td></tr></tfoot></table>` +
       `<table class="tbl"><thead><tr><th>Zapasy</th><th>Porcji</th><th>Do zepsucia</th></tr></thead><tbody>${food}</tbody></table>` +
-      `<p class="meta">Woda: ${co.water}/${co.waterCap} dni · futra i koce: ${co.furs} · morale ${Math.round(co.morale)}/100 · udział ludzi w łupach: ${Math.round(co.lootShare * 100)}%</p>`;
+      `<p class="meta">Grupy decydują, kto stoi razem w bitwie (klawisze 1–9, F1 ruch, F2 formacja).</p><p class="meta">Woda: ${co.water}/${co.waterCap} dni · futra i koce: ${co.furs} · morale ${Math.round(co.morale)}/100 · udział ludzi w łupach: ${Math.round(co.lootShare * 100)}%</p>`;
     this.show("Kompania", body, [
       { label: "Udział w łupach −10%", sub: "więcej srebra dla ciebie, mniej serca u ludzi", off: co.lootShare <= 0, on: () => { co.lootShare = Math.max(0, co.lootShare - 0.1); this.partyPanel(); } },
       { label: "Udział w łupach +10%", sub: "ludzie walczą chętniej", off: co.lootShare >= 0.5, on: () => { co.lootShare = Math.min(0.5, co.lootShare + 0.1); this.partyPanel(); } },
       { label: "Zamknij", on: () => this.close() },
     ], true);
+    // battle groups: click to cycle 1..9
+    for (const b of document.querySelectorAll<HTMLButtonElement>("#mbody .grp")) b.addEventListener("click", () => {
+      const t = b.dataset.t as TroopId; co.groups = co.groups ?? {};
+      co.groups[t] = ((co.groups[t] ?? DEFAULT_GROUP[t] ?? 1) % 9) + 1; this.partyPanel();
+    });
   }
 }
 

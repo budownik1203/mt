@@ -98,6 +98,8 @@ export class Warrior {
   react: [number, number, number] = [0, 0, 0]; reactV: [number, number, number] = [0, 0, 0];
   /** Knock-back / lunge velocity on top of walking. */
   kx = 0; kz = 0;
+  /** Battle command and morale (build 6). */
+  group = 1; morale = 60; baseMorale = 60; fleeing = false; noMorale = false; bearer = false; leader = false;
 
   constructor(R: PSX, kit: Kit, x: number, z: number, team: number) {
     this.kit = kit; this.x = x; this.z = z; this.team = team;

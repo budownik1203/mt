@@ -5,7 +5,7 @@ import { clamp, rng } from "../core/math.ts";
 import { World, buildWorld, astar, cellOf, centerOf, pathCost, terrainSpeed, nearRiver, biomeAt, Settlement, MAP } from "./world.ts";
 import { TROOPS, TroopId, power } from "./troops.ts";
 
-export const HOUR_SECONDS = 5;          // one game hour = 5 s at 1× (a day ≈ 2 min)
+export const HOUR_SECONDS = 2.5;        // one game hour = 2.5 s at 1× (a day = 1 min, user decision)
 export const DAYS_PER_SEASON = 30;
 export const SEASONS = { pl: ["wiosna", "lato", "jesień", "zima"], en: ["spring", "summer", "autumn", "winter"] };
 
@@ -41,6 +41,7 @@ export interface Company {
   wagesDue: number;          // accumulated this week
   furs: number;              // furs and blankets against frost
   inside?: boolean;          // in a settlement: bands do not attack
+  groups?: Partial<Record<TroopId, number>>;   // battle group (1–9) per troop type
 }
 
 export class Campaign {
@@ -102,7 +103,7 @@ export class Campaign {
 
   /** Map speed (units per game hour) of a party. */
   speedOf(p: Party) {
-    let v = 2.2 * terrainSpeed(this.w, p.x, p.z);
+    let v = 3.2 * terrainSpeed(this.w, p.x, p.z);
     if (this.night) v *= 0.8;
     if (this.winter) v *= 0.7;
     const size = this.partySize(p);

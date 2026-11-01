@@ -32,3 +32,6 @@ export function power(t: TroopId): number {
   const T = TROOPS[t], a = T.kit.armour;
   return (T.kit.hp / 100) * (1 + (a.body + a.head) / 90) * (0.55 + T.kit.skill);
 }
+
+/** Default battle group per troop type (1 melee, 2 polearms, 3 heavy). */
+export const DEFAULT_GROUP: Partial<Record<TroopId, number>> = { chlop: 1, pacholek: 2, zbrojny: 1, halabardnik: 2, plytowy: 3, rycerz: 3, kupiec: 1, rozbojnik: 1, dezerter: 2, herszt: 1, zywy_trup: 1 };

@@ -1,0 +1,79 @@
+# Dokument projektu
+
+Streszczenie ustaleń z rad projektowych (tura 1: 300 pytań o całość, tura 2: 200 pytań o mechaniki). Surowe odpowiedzi z identyfikatorami pytań (f01, s04, 2m03 itd.) są w `design/odpowiedzi-tura1.txt` i `design/odpowiedzi-tura2.txt`; w razie wątpliwości one rozstrzygają. Kopia robocza tego dokumentu istnieje też jako Claude Doc właściciela („Montablate 2.0 — dokument projektu”), ale repo jest nadrzędne.
+
+## Sprzeczności rozstrzygnięte przez Claude'a (do korekty przez właściciela)
+| Nr | Kłopot | Rozstrzygnięcie |
+| --- | --- | --- |
+| 1 | d07 osady jako menu, o14 kamera 1./3. os. w osadach | Osady przez menu; sceny z chodzeniem to lochy, ruiny, karczmy, cmentarze |
+| 2 | o10 słabe laptopy vs b06 bitwy 100–200 i f07 200 osad | Ustawienia jakości i suwak liczebności (słaby laptop 60–100, średni PC 200) |
+| 3 | k01 16 frakcji docelowo przy 200 osadach | Pierwsza wersja sprzedażowa: 8 frakcji, ok. 100 osad; reszta aktualizacjami |
+| 4 | b20 gracz nie traci kończyn, c08 rany trwałe z ręką | Rany trwałe (oko, palce, kulawizna, blizna, ręka) jako skutek ogłuszenia w bitwie; w samej walce gracza się nie rozczłonkowuje; wszystkie uleczalne (2r03) |
+| 5 | m25 efektowna magia vs low fantasy | Efektownie, ale w palecie świata (zielonkawy ogień, dym, popiół) |
+| 6 | m20 wampira nie rani słońce | Słabości: srebro, ogień, poświęcona ziemia, głód krwi, wrogość Kościoła |
+| 7 | f12 „nic nie wykluczamy” | Tortury i egzekucje tak; przemoc seksualna i krzywda dzieci nie |
+| 8 | f01 bez sztywnej daty | Każda frakcja w swoim momencie technologicznym (patrz 01-wizja) |
+
+## Filary
+- Sandbox w stylu Warbanda, skala Calradii: docelowo ok. 200 osad i 16 frakcji, 60–100 h do końca, przejście całej mapy ok. 20 dni gry.
+- Luźny główny wątek: narasta kataklizm, można go ignorować, odkrywany warstwami. Kilka zakończeń, w tym „złe” (Licz-Cesarz).
+- **Zegar zagłady**: przy starcie losowany jeden z kilku (Wielka Zaraza, Długa Noc, Najazd Licza, Przebudzenie Głębin, Głód Pożeracza), wyłączalny w opcjach (jak najazdy w modzie Perisno), do zatrzymania łańcuchem zadań i wielką bitwą lub rytuałem. Kryzysy co rok gry (zaćmienie, sroga zima).
+- Śmierć gracza jak w Warbandzie (niewola/ucieczka). Autozapis i tryb żelazny. Multiplayer później (pojedynki, bitwy drużynowe).
+- Pierwszy rok: mapa świata i pętla sandboksu jak najszybciej, walka równolegle.
+
+## Świat
+- Świat zawsze był podły; pokolenie temu nałożyło się wszystko: zaraza, pęknięcie zaświatów, wojna z użyciem nekromancji. Nekromancja to tabu.
+- Cesarstwo upadło w trakcie krucjaty przeciw poganom; jego ruiny, drogi i forty widać na mapie.
+- Umarli wstają sami tylko w przeklętych miejscach i podczas zaćmień. **Po bitwie trzeba palić lub chować zwłoki, inaczej wracają.**
+- Ludzie, odmieńcy (zmutowani, przeklęci) i stare ludy w ukryciu (leśne plemię, ludzie z bagien) zamiast elfów, krasnoludów, orków.
+- Wszystkie biomy; ok. 1/4 mapy to strefy nieludzkie (bagna, bory, przeklęte ziemie); kilka przeklętych miejsc; na krańcu świata mur/mgła/martwa ziemia.
+- Pełny cykl pór roku, zima zabija; noc niebezpieczna. Głód i zarazy jako mechanika. Kanibalizm i czarny rynek trupów pokazane z dystansem.
+- Świat zmienia się mocno bez gracza; legendy częściowo prawdziwe; jedna waluta (srebrne grosze).
+
+## Frakcje (16 docelowo, nazwy robocze; „start” = propozycja 8 na pierwszą wersję)
+| Nr | Frakcja | Charakter | Moment | Start |
+| --- | --- | --- | --- | --- |
+| 1 | Cesarstwo Popielne | resztki cesarstwa, niemieckie, landsknechci, rajtarzy | ok. 1500 | tak |
+| 2 | Arcybiskupstwo | Kościół-państwo, Inkwizycja jako zakon z wojskiem, biczownicy | ok. 1480 | tak |
+| 3 | Liga Wolnych Miast | bogactwo, cechy, proch, najemnicy | ok. 1520 | tak |
+| 4 | Księstwo słowiańskie | prowincja, bojarzy, Kościół walczy z pogaństwem | ok. 1450 | tak |
+| 5 | Zakon rycerski | państwo zakonne przeciw nieumarłym | ok. 1450 | tak |
+| 6 | Marchia Graniczna | biedne królestwo na skraju przeklętych ziem | ok. 1470 | później |
+| 7 | Plemię północne | poganie, panteon bałtycki | ok. 1300 | tak |
+| 8 | Plemię leśne | poganie borów, wiedźmy | ok. 1300 | później |
+| 9 | Plemię bagienne | poganie bagien | ok. 1300 | później |
+| 10 | Ród wampirów I | arystokracja krwi | gotyk | tak |
+| 11 | Ród wampirów II | inny ród, inne cechy | gotyk | później |
+| 12 | Władztwo Licza | nekromanckie państwo | gotyk | tak |
+| 13 | Najemne Kompanie | Czarni Rajtarzy, landsknechci | ok. 1520 | później |
+| 14 | Kult Głodu | wyznawcy Pożeracza | gotyk | później |
+| 15 | Kult Głębin | wybrzeże, utopce | gotyk | później |
+| 16 | Stare Ludy | ukryci, nieludzcy | dawny | później |
+
+Bez państwa (ponad 10 grup): bandyci, dezerterzy, sekty, łowcy czarownic, rozproszeni nekromanci z hordami, szaleni uczeni, wrogie demony, odmieńcy. Ciemne frakcje to pełnoprawne państwa z miastami i lordami. Ludzie walczą ze sobą bez przerwy. Dyplomacja: wojna, pokój, sojusz, trybut; sojusze z ciemnymi tylko potajemnie (ekskomunika, bunty). Krucjaty. Władcy i najważniejsi lordowie pisani ręcznie i **nieśmiertelni**, reszta generowana i ginie rzadko. Rody szlacheckie, rozpad w wojnie domowej, bunty chłopskie. Gracz: reputacja + strach jako dwie osie, rozbudowane wasalstwo, własna frakcja i własna wiara/kult. Wojny rzadkie, ale długie; decyduje władca z radą lordów; lordowie z osobowościami i pamięcią zdarzeń; małżeństwo polityczne z córką lorda.
+
+## Wiara
+Osobna oś niezależna od państw (pasywne premie, jednostki, obrzędy i cuda; punkty pobożności). Kościół monoteistyczny wzorowany na katolickim, **własne symbole zamiast krzyża**, arcybiskup w stolicy, istnienie boga nierozstrzygnięte, **Kościół nie używa nekromancji**. 2–3 herezje (biczownicy, ruch Ubóstwa, czciciele Męczennika). Pogański panteon słowiańsko-bałtycki: bogowie istnieją i są głodni, ofiary z jeńców, gniew zaniedbanych bogów. Kult Głodu, Kult Głębin. Kupała i Dziady z efektami na mapie. Ekskomunika (cofana pokutą), spowiedź, nawracanie osad, stosy czarownic, wróżby (czasem kłamliwe), relikwie, klasztory i gaje, kapłani w oddziale, żywi święci (czasem fałszywi). Morale zależy od zgodności wiary (kara tylko przy dużych proporcjach).
+
+## Magia i nekromancja
+Każdy może, płacąc zdrowiem, umysłem, reputacją i zepsuciem; zasady tajemnicze. Szkoły: nekromancja, demonologia, czary ludowe, cuda, alchemia, runy (kolejne do zaproponowania). Rytuały w obozie (godziny, ryzyko przerwania) i kilka mocnych zaklęć w bitwie (fala strachu, wskrzeszanie poległych). Składniki: zwłoki, kości, krew jeńców, groby, czarny rynek. Nieumarli trwali, nic nie jedzą, bez morale (wróg przy nich panikuje), awans przez rytuały, limit z umiejętności nekromancji. Drzewka: Szkielet → Kościany wojownik → Kościany strażnik → Rycerz grobu; Ghul → Ghul cmentarny → Strażnik krypty; zszywańce, upiory (tylko srebro/cud), kościane konie. Start: księga albo nauczyciel z zadania; rytuał 3–5 nieumarłych. Zepsucie 0–100: 25 blada skóra, 50 oczy/psy szczekają/Kościół podejrzliwy, 75 chłopi uciekają, 100 przemiana lub śmierć; licz przez zadanie i wielki rytuał (filakterium). Inkwizycja poluje przy wysokim zepsuciu. Demony silniejsze, mogą się zbuntować. Klątwy jak trucizna z lekarstwem. Wampiryzm tylko przez zadanie, krew co kilka dni. Wilkołactwo kontrolowane. AI też czaruje; zabicie nekromanty rozsypuje jego przywołańców.
+
+## Bestiariusz
+Ponad 20 gatunków, fasetowe jak ludzie, groteskowe proporcje: ludowe (strzygi, utopce, wilkołaki, upiory), gotyckie (wampiry, ghule, licze), body horror (zszywańce, odmieńcy), niematerialne (tylko srebro/cud), olbrzymy (zdeformowani ludzie), zwierzęta, plagi (roje na mapie), bossy z imieniem wielkości domu, jeden smok. Bez latających. Duże potwory: słabe punkty, odcinanie kończyn, strach koni i morale. Rozumne negocjują, można je wcielić do armii. Kontrakty: zlecenie → śledztwo tekstowe → legowisko → walka → nagroda z targowaniem; trofea.
+
+## Postać
+Tylko mężczyzna. Pochodzenie z pytaniami lub gotowe tło (wpływa na start). Atrybuty: ciało, refleks, wola, wiedza, posłuch. Umiejętności: punkty + wzrost z użycia; biegłości bronią tylko z walki. Ścieżki kariery z wykluczającymi się drzewkami. Kilka osi moralności opisanych słowami, przydomki nadawane przez świat. Cechy z czynów (pijak, okrutnik, tchórz…), rany trwałe, choroby, bez starzenia, tylko małżeństwo. 15–20 towarzyszy ze sporami, nie giną (ciężko ranni), stres i szaleństwo tylko u nich. Ekwipunek ze slotami (+ płaszcz, pas, amulet), wagą, zmęczeniem i zużyciem; kowal na zamówienie (ostrze, jelec, rękojeść, głowica, materiał); srebro i poświęcenie broni.
+
+## Walka i bitwy
+Brutalniejsza niż Warband: 2–3 ciosy zabijają nieopancerzonego, płyty przebija pchnięcie w szczelinę, obuch ogłusza. Zmęczenie (ciosy, bloki, bieg, zbroja), rozbijanie tarcz, przewracanie, egzekucje ogłuszonych, rozpłatanie, krwawienie. Łuki, kusze, broń palna (rozrzut, ok. 15 s przeładowania, dym). Kopnięcia. 100–200 żołnierzy z suwakiem; **9 grup, F1–F8, formacje (linia, kolumna, klin, mur tarcz, jeż, rozproszona), rozstawienie przed bitwą, rezerwa**; morale na żołnierza z wpływem sąsiadów, rzeź łamie morale, okrzyk i sztandar podnoszą, uciekający wracają przy dowódcy. Straty: obuch rani, ostrze zabija, odcięcie zawsze zabija. Gracz ogłuszony → bitwa trwa. Konie i oblężenia później. Pojedynki, turnieje, areny.
+
+## Mapa świata, oddział, gospodarka
+Mapa 3D jak w Warbandzie, bez mgły wojny, wykrywanie zależne od pory i terenu. **Czas: 1 minuta = 1 doba przy 1×**, pauza/1×/3×, czas stoi, gdy oddział stoi i nie odpoczywa. Ruch: noc −20%, drogi +30%, bory i bagna −40% z zasadzkami, śnieg −30%; rzeki przez mosty i brody, zimą zamarzają. Spotkania: walka, rozstrzygnięcie bez walki, przekupstwo, wycofanie, ucieczka ze strażą tylną. Pole bitwy odpowiada terenowi z mapy.
+Jedzenie 1 porcja dziennie (zimą 1,5), kilka rodzajów, psucie się; woda. Głód: 2 dni morale, potem dezercje, od 5. dnia śmierci. Obóz (leczenie, morale, rytuały, naprawy, ognisko zdradza pozycję). Zima zabija bez futer. Pochówek (ok. 1 h na kilkanaście ciał), palenie szybsze; niepochowani wstają po 2–3 nocach.
+Oddział: ok. 30 na start, do ok. 250. Żołd co tydzień + premia + udział w łupach (ustawiany procent); bez żołdu: morale, dezercje, bunt. Morale osobne dla grup (żywi, nieumarli, najemnicy, fanatycy). Awans za doświadczenie + sprzęt; weterani z imieniem. Rekrutacja: wsie (zależna od ludności), najemnicy, jeńcy, przywołani, pobór przymusowy. Tabor. Kobiety w kilku armiach. Osady niszczone na stałe i odbudowywane, uchodźcy, rozbudowa, siedziba gracza od obozu do zamku, lenna, podatki, karawany, czarny rynek, ceny mocno zależne od wojen i głodu, bez inflacji.
+
+## Fabuła i wydarzenia
+Prolog w płonącej wsi. Zadania opowieściowe, wątek każdej frakcji, śledztwa z możliwością pomyłki, zadania czasowe, wybory bez dobrego wyjścia. Wydarzenia tekstowe losowo ok. raz w tygodniu (ok. 60 na start), z wyborami i testem umiejętności, zależne od kontekstu. Kilkanaście kluczowych postaci, nemezis rosnący z graczem, świat pamięta decyzje. Kodeks świata, notatki na zwłokach (rzadkie, ręczne). Dialogi: szkice Claude'a, właściciel poprawia. Bez lektora. Duże lochy z prostymi pułapkami.
+
+## Oprawa i technika
+Własny silnik WebGL (zostaje), Steam przez Tauri/Electron, demo w przeglądarce cały czas. Pogoda: deszcz, mgła, śnieg, burze. Krew ciemniejsza i jest jej więcej. Bogaty interfejs „pergamin i żelazo”, kursor kierunków jak teraz, ekrany ładowania z rycinami. Polski i angielski. Modowanie: dane w JSON od początku. Bez konsol i pada. Kolejność: mapa świata + bitwa jako zdarzenie → oddział → nekromancja.

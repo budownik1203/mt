@@ -12,6 +12,7 @@ export default async (p) => {
   // fight
   await p.evaluate(() => { [...document.querySelectorAll("#macts button")].find((b) => b.textContent.startsWith("Do walki")).click(); });
   await p.waitForTimeout(1200);
+  await p.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" })));
   console.log("mode", await p.evaluate(() => mb2.mode + " fighters " + mb2.fighters.length));
   await p.evaluate(() => { mb2.pause(true); mb2.tick(4); });
   await p.waitForTimeout(600); await p.screenshot({ path: "shots/m2_battle.png" });
