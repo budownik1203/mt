@@ -38,3 +38,4 @@ Wszystkie ważne polecenia, po kolei, możliwie dosłownie (pisane głosem, stą
 29. „Jak skończysz, **pracuj dalej**: build 11.”
 30. „Nie czekaj na mnie z następnymi buildami, **po prostu je rób**.” (powtórzone po build 11)
 31. „No to działaj dalej, nie czekaj na mnie.” (po build 14)
+32. „Przeanalizuj wszystkie **HUD, okienka, UI i rozmieszczenie przycisków** i czy nie da się tego bardziej wizualnie poprawić. A jak skończysz, dawaj kolejny build.” → build 17 (przegląd interfejsu), potem build 18.

@@ -143,6 +143,81 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 #title .go:hover{background:var(--blood);border-color:var(--blood)}
 #title:hover .go{background:#0006;border-color:var(--bone)}
 #title .go:hover{background:var(--blood)!important;border-color:var(--blood)!important}
+
+/* ===================== build 16.5: visual pass (iron, bone, old parchment) ===================== */
+:root{--panel:#16130f;--panel2:#1d1913;--rim:#5b4a33;--rim2:#3a3127;--gold:#c8a25e}
+.frame{position:relative;background:linear-gradient(180deg,var(--panel2),var(--panel) 40%),var(--panel)!important;border:1px solid var(--rim)!important;box-shadow:0 0 0 3px #0c0a08,0 0 0 4px var(--rim2),0 22px 60px #000d,inset 0 0 60px #0008!important}
+.frame::before,.frame::after{content:"";position:absolute;width:14px;height:14px;border:2px solid var(--gold);opacity:.55;pointer-events:none}
+.frame::before{left:-6px;top:-6px;border-right:0;border-bottom:0}
+.frame::after{right:-6px;bottom:-6px;border-left:0;border-top:0}
+/* title screen: Warband-like — name on the left, framed menu on the right */
+#title{place-items:stretch;background:radial-gradient(ellipse at 30% 40%,#0000 0%,#000a 70%),linear-gradient(90deg,#000b,#0000 45%,#0009)}
+#title .inner{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:40px;width:min(1100px,100%);margin:0 auto;padding:0 clamp(16px,4vw,48px)}
+#title .tleft{text-align:left;display:grid;gap:8px}
+#title h1{font-size:clamp(52px,9vw,120px)}
+#title .sub{font-size:17px;max-width:40ch}
+.tmenu{min-width:280px;padding:18px 0;margin-top:0}
+.tmenu button{border-bottom:1px solid #ffffff10;text-align:left;padding:10px 28px 10px 36px;position:relative;font-size:25px}
+.tmenu button::before{content:"";position:absolute;left:16px;top:50%;width:6px;height:6px;margin-top:-3px;transform:rotate(45deg);background:#5b4a33}
+.tmenu button:hover{background:linear-gradient(90deg,#8e1f1755,#0000)} .tmenu button:hover::before{background:var(--ember)}
+#title .keys{position:absolute;left:0;right:0;bottom:calc(16px + env(safe-area-inset-bottom,0px));margin:0 auto;text-align:center;font-size:12px;color:#ffffff66;max-width:none;line-height:1.7}
+@media (max-width:720px){#title .inner{grid-template-columns:1fr;justify-items:center}#title .tleft{text-align:center}#title .keys{display:none}}
+/* map top bar: chips with small-caps labels */
+#mapHud .bar{gap:6px 10px;padding-top:6px;padding-bottom:6px;border-bottom:1px solid var(--rim2);box-shadow:0 1px 0 #000,0 6px 18px #0008}
+#mdate{font-size:17px;padding-right:12px;border-right:1px solid var(--rim2);line-height:1.15}
+#mdate small{display:block;font-family:var(--body);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+#mstats{gap:4px}
+.chip{display:inline-grid;line-height:1.1;padding:2px 10px;border-left:1px solid #ffffff12;min-width:58px}
+.chip i{font-style:normal;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8a8275}
+.chip b{font-size:16px;font-weight:500;color:var(--bone)} .chip b small{font-size:12px;color:var(--dim);font-weight:400}
+.chip.warn b,.chip.warn i{color:#e07a6a}
+.mbar{display:block;height:3px;background:#000;margin-top:2px}.mbar>span{display:block;height:100%;background:var(--gold)}
+.chip.warn .mbar>span{background:#c9392a}
+#mflags{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--ember);display:flex;flex-wrap:wrap;gap:4px}
+#mflags span{border:1px solid #d08a3a55;padding:1px 6px;background:#d08a3a14}
+/* bottom bar: key hints */
+#mbottom{bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:5px;gap:3px;background:linear-gradient(#1d1913,#110f0c);border-color:var(--rim)}
+#mbottom button{display:grid;justify-items:center;line-height:1.05;padding:5px 14px 4px;font-size:17px;min-width:76px}
+#mbottom button kbd{font-size:10px;color:#8a7a62;font-weight:500;letter-spacing:.08em}
+#mbottom button:hover kbd{color:var(--ember)}
+/* while a menu is open the notes and hints step back */
+body.menu-open #mnotes,body.menu-open #mkeys{opacity:0}
+#mnotes,#mkeys{transition:opacity .15s}
+#mnotes{bottom:calc(78px + env(safe-area-inset-bottom,0px))!important;background:linear-gradient(270deg,#000a,#0000);padding:6px 10px 6px 30px}
+#mkeys{bottom:calc(80px + env(safe-area-inset-bottom,0px))!important}
+/* menus: below the top bar, above the bottom bar; picture capped; actions always reachable */
+#menu{place-items:start center;padding-top:calc(58px + env(safe-area-inset-top,0px));padding-bottom:76px;background:radial-gradient(ellipse at center,#0007,#000c)}
+#menu .panel{max-height:calc(100vh - 150px);display:flex;flex-direction:column;overflow:hidden;padding:18px 22px 14px}
+#mpic{max-height:28vh;flex:none}
+.mcols{overflow:auto;min-height:0;flex:1;padding-right:4px}
+#mtitle{font-size:31px;display:flex;align-items:center;gap:12px}
+#mtitle::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--rim),#0000)}
+#mtitle{border-bottom:0}
+#macts{margin-top:8px}
+#menu.wide .mcols{display:flex;flex-direction:column;overflow:hidden}
+#menu.wide .mtext{overflow:auto;min-height:0;flex:1;padding-right:6px}
+#menu.wide #macts{flex:none;align-self:stretch;display:flex;flex-wrap:wrap;gap:6px;border-top:1px solid var(--rim2);padding-top:10px;margin-top:6px}
+#menu.wide .act{border:1px solid #3a3127;padding:6px 14px 6px 24px;background:#1b1813}
+.act{transition:background .1s,color .1s}
+.act:not(:disabled):hover{box-shadow:inset 3px 0 0 var(--ember)}
+.tbl tbody tr:hover td{background:#ffffff06}
+.tbl th{font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+/* battle HUD */
+#hp{width:min(320px,60vw);background:linear-gradient(90deg,#000b,#0000);padding:8px 12px;border-left:2px solid var(--blood)}
+#hp .bar{height:12px;box-shadow:inset 0 0 0 1px #000}
+#hp .bar.thin{height:6px}
+#horsebox{margin-top:6px} #horsefill{height:100%;background:linear-gradient(90deg,#4a3a20,#a0803a);transition:width .15s}
+#hptext{color:var(--bone)}
+#weapon{background:linear-gradient(270deg,#000b,#0000);padding:8px 12px;border-right:2px solid var(--ember)}
+#clock{border:1px solid #ffffff1a;background:#000a}
+#orders{background:linear-gradient(90deg,#000c,#0007 70%,#0000);padding:8px 14px 8px 10px;border-left:2px solid var(--ember);font-size:14px!important}
+#orders .menu{border-top:1px solid #ffffff1a;padding-top:5px}
+#log{background:linear-gradient(270deg,#0009,#0000);padding:4px 8px}
+#banner span{display:block;margin-top:4px;font-size:14px}
+#hp .lbl{position:static;font-family:var(--body);text-shadow:none;white-space:normal}
+#log:empty{display:none}
+body:has(#title:not([hidden])) .hud, body:has(#title:not([hidden])) #orders{display:none!important}
+#menu.wide #macts{background:var(--panel)}
 </style>
 <canvas id="c"></canvas>
 <div class="vign"></div>
@@ -152,17 +227,17 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 <div class="hud" id="log"></div>
 <div class="hud" id="banner" hidden></div>
 <div class="hud" id="dirs"><div class="chev" id="dU"></div><div class="chev" id="dR"></div><div class="chev" id="dL"></div><div class="chev" id="dD"></div><div class="dot"></div></div>
-<div class="hud" id="hp"><div class="lbl"><span>HP</span><span id="hptext"></span></div><div class="bar"><div id="hpfill"></div></div></div>
+<div class="hud" id="hp"><div class="lbl"><span id="hpname">Zdrowie</span><span id="hptext"></span></div><div class="bar"><div id="hpfill"></div></div><div id="horsebox" hidden><div class="lbl"><span>Koń</span><span id="horsetext"></span></div><div class="bar thin"><div id="horsefill"></div></div></div></div>
 <div class="hud" id="weapon"></div>
 <div class="hud" id="help" hidden></div>
 <div class="screen" id="title">
   <div class="inner">
-    <div class="eyebrow">mb2 build 1 · kampania</div>
+    <div class="tleft"><div class="eyebrow">mb2 build 1 · kampania</div>
     <h1>Montablate</h1>
-    <div class="sub" id="tsub"></div>
-    <nav class="tmenu" aria-label="Menu główne"><button type="button" id="tcamp">Kampania</button><button type="button" id="tnew" hidden>Nowa kampania</button><button type="button" id="tstart"></button><button type="button" id="topts">Opcje</button><button type="button" id="thelp">Sterowanie</button></nav>
-    <div class="keys">Kampania: mapa świata, kompania, osady, bandy. Próbna bitwa: fale wrogów jak dotąd.<br>Bitwa: WSAD · Shift · LPM · PPM · kółko broń · B · V · 1–9 grupy · F1 ruch · F2 formacja · F3 rezerwa · X okrzyk · N wskrzeszenie</div>
+    <div class="sub" id="tsub"></div></div>
+    <nav class="tmenu frame" aria-label="Menu główne"><button type="button" id="tcamp">Kampania</button><button type="button" id="tnew" hidden>Nowa kampania</button><button type="button" id="tstart"></button><button type="button" id="topts">Opcje</button><button type="button" id="thelp">Sterowanie</button></nav>
   </div>
+  <div class="keys">Kampania: mapa świata, kompania, osady, frakcje · Próbna bitwa: fale wrogów<br>WSAD ruch · Shift bieg · LPM cios · PPM blok · kółko broń · V kamera · 1–9 grupy · F1–F4 rozkazy · X okrzyk · F1 poza bitwą: sterowanie</div>
 </div>
 <div id="labels" hidden></div>
 <div id="glabels" hidden></div>
@@ -174,17 +249,17 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
   </div>
   <div id="mnotes"></div>
   <div id="mbottom">
-    <button type="button" id="mcamp" title="Obóz (O)">Obóz</button>
-    <button type="button" id="mchron" title="Kronika (N)">Kronika</button>
-    <button type="button" id="mchar" title="Postać (C)">Postać</button>
-    <button type="button" id="mfrak" title="Frakcje (F)">Frakcje</button>
-    <button type="button" id="minv" title="Ekwipunek (I)">Ekwipunek</button>
-    <button type="button" id="mparty" title="Kompania (P)">Kompania</button>
-    <button type="button" id="mmenu" title="Menu (Esc)">Menu</button>
+    <button type="button" id="mcamp" title="Obóz (O)"><span class="bl">Obóz</span><kbd>O</kbd></button>
+    <button type="button" id="mchron" title="Kronika (N)"><span class="bl">Kronika</span><kbd>N</kbd></button>
+    <button type="button" id="mchar" title="Postać (C)"><span class="bl">Postać</span><kbd>C</kbd></button>
+    <button type="button" id="mfrak" title="Frakcje (F)"><span class="bl">Frakcje</span><kbd>F</kbd></button>
+    <button type="button" id="minv" title="Ekwipunek (I)"><span class="bl">Ekwipunek</span><kbd>I</kbd></button>
+    <button type="button" id="mparty" title="Kompania (P)"><span class="bl">Kompania</span><kbd>P</kbd></button>
+    <button type="button" id="mmenu" title="Menu (Esc)"><span class="bl">Menu</span><kbd>Esc</kbd></button>
   </div>
   <div id="mkeys">LPM: idź / wejdź / zaatakuj · PPM + ruch: obrót · kółko: zoom · spacja pauza · 1/2 tempo</div>
 </div>
-<div id="menu" hidden><div class="panel" role="dialog" aria-labelledby="mtitle"><img id="mpic" alt="" hidden><div class="mcols"><div class="mtext"><h2 id="mtitle"></h2><div id="mbody"></div></div><div id="macts"></div></div></div></div>
+<div id="menu" hidden><div class="panel frame" role="dialog" aria-labelledby="mtitle"><img id="mpic" alt="" hidden><div class="mcols"><div class="mtext"><h2 id="mtitle"></h2><div id="mbody"></div></div><div id="macts"></div></div></div></div>
 <div id="opts" hidden></div>
 <div class="screen" id="dead" hidden><div><h2 id="deadT">Padłeś</h2><p id="deadSub"></p></div></div>
 <script>/*GAME*/</script>

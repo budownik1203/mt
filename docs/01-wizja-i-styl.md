@@ -24,3 +24,8 @@ Dużo przemocy: wnętrzności, egzekucje, tortury w scenach, odcinanie kończyn 
 - Więcej postaci w bitwie ważniejsze niż więcej detalu na postaci; ma działać też na słabych laptopach (suwak liczebności).
 - Magia: efektowna, ale w palecie świata (zielonkawy ogień, czarny dym, popiół, wstające ciała), bez kolorowych kul energii.
 - Dźwięk: mięsiste, ciężkie odgłosy walki; muzyka średniowieczna i dark folk; okrzyki zamiast dubbingu.
+
+## Interfejs (build 17)
+- Okna i menu: ciemne „żelazo i pergamin” (tło #16130f → #1d1913, ramka #5b4a33 z drugą obwódką #3a3127, złote narożniki #c8a25e), tytuł okna fontem IM Fell English SC z linią do prawej, treść Alegreya Sans.
+- Układ jak w Warbandzie: menu główne z ramką przycisków po prawej; na mapie górny pasek z polami (mała etykieta + liczba), dolny pasek przycisków z klawiszem pod nazwą; okno osady: obraz miejsca u góry, opis po lewej, akcje po prawej (każda akcja: nazwa + drobny opis kosztu/czasu/przyczyny blokady).
+- Bitwa: zdrowie (i koń) w lewym dolnym rogu na tle, broń w prawym dolnym, rozkazy w lewym górnym, dziennik w prawym górnym, zegar u góry na środku.

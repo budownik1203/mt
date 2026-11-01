@@ -72,15 +72,16 @@ export class MapUI {
 
   hud() {
     const c = this.c, co = c.co;
-    $("mdate").textContent = c.dateText(lang);
+    { const dt = c.dateText(lang), i = dt.lastIndexOf("·"); $("mdate").innerHTML = `${esc(dt.slice(i + 1).trim())}<small>${esc(dt.slice(0, i).trim())}</small>`; }
     const fd = c.foodDays;
     const moraleWord = co.morale > 75 ? "wysokie" : co.morale > 50 ? "znośne" : co.morale > 25 ? "niskie" : "bliskie buntu";
+    const chip = (label: string, val: string, title: string, warn = false, bar = -1) => `<span class="chip${warn ? " warn" : ""}" title="${title}"><i>${label}</i><b>${val}</b>${bar >= 0 ? `<span class="mbar"><span style="width:${Math.round(bar)}%"></span></span>` : ""}</span>`;
     $("mstats").innerHTML =
-      `<span title="Srebro"><b>${co.party.gold}</b> gr</span>` +
-      `<span title="Ludzie zdolni do walki / wszyscy"><b>${c.able + 1}</b>/${c.men} ludzi</span>` +
-      `<span class="${fd < 2 ? "warn" : ""}" title="Jedzenia na tyle dni"><b>${fd.toFixed(1)}</b> dni jedzenia</span>` +
-      `<span class="${co.water < 1 ? "warn" : ""}" title="Woda w bukłakach"><b>${co.water}</b>/${co.waterCap} dni wody</span>` +
-      `<span class="${co.morale < 30 ? "warn" : ""}" title="Morale ${Math.round(co.morale)}/100">morale <b>${moraleWord}</b></span>`;
+      chip("srebro", `${co.party.gold} <small>gr</small>`, "Srebro") +
+      chip("ludzie", `${c.able + 1}<small>/${c.men}</small>`, "Zdolni do walki / wszyscy (ranni się leczą)") +
+      chip("jadło", `${fd.toFixed(1)} <small>dni</small>`, "Jedzenia na tyle dni", fd < 2) +
+      chip("woda", `${co.water}<small>/${co.waterCap} dni</small>`, "Woda w bukłakach (rzeka i osady napełniają)", co.water < 1) +
+      chip("morale", moraleWord, `Morale ${Math.round(co.morale)}/100`, co.morale < 30, co.morale);
     for (const b of $("mspeed").querySelectorAll("button")) b.classList.toggle("on", Number((b as HTMLElement).dataset.s) === c.speed);
     $("mcamp").classList.toggle("on", co.camp);
     $("mcamp").textContent = co.camp ? "Zwiń obóz" : "Obóz";
@@ -94,7 +95,7 @@ export class MapUI {
     { const ff = faithOf(c); if (ff.boon && ff.boon.until >= c.day) flags.push(BOONS[ff.boon.id].name.toLowerCase()); if (ff.excom) flags.push("ekskomunika"); }
     if (co.hero.necro) flags.push(`zepsucie ${Math.round(co.hero.corruption ?? 0)}`);
     if (undeadCount(c)) flags.push(`nieumarli ${undeadCount(c)}`);
-    $("mflags").textContent = flags.join(" · ");
+    $("mflags").innerHTML = flags.map((f) => `<span>${esc(f)}</span>`).join("");
     $("mnotes").innerHTML = c.notes.slice(0, 6).map((n) => `<div class="${n.kind}">${esc(n.text)}</div>`).join("");
   }
 
@@ -104,7 +105,7 @@ export class MapUI {
     if (this.picFor !== key || !this.pic) { this.pic = this.h.snapshot(x, z, dist); this.picFor = key; }
   }
   show(title: string, body: string, acts: Act[], wide = false) {
-    this.open = true;
+    this.open = true; document.body.classList.add("menu-open");
     $("menu").hidden = false; $("menu").classList.toggle("wide", wide);
     const img = $("mpic") as HTMLImageElement;
     img.hidden = wide || !this.pic; if (this.pic && !wide) img.src = this.pic;
@@ -119,7 +120,7 @@ export class MapUI {
       box.append(b);
     }
   }
-  close() { this.open = false; this.picFor = ""; this.pic = null; $("menu").hidden = true; this.c.co.resting = false; this.c.co.inside = false; this.h.refresh(); }
+  close() { document.body.classList.remove("menu-open"); this.open = false; this.picFor = ""; this.pic = null; $("menu").hidden = true; this.c.co.resting = false; this.c.co.inside = false; this.h.refresh(); }
 
   // ---------- settlements ----------
   settlement(id: string) {

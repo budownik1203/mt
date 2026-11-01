@@ -840,7 +840,10 @@ function hud() {
   orderHud();
   const hpP = clamp(player.hp / player.maxHp, 0, 1);
   ($("hpfill") as HTMLElement).style.width = `${hpP * 100}%`;
-  $("hptext").textContent = `${Math.ceil(player.hp)} / ${player.maxHp}` + (player.mount ? (player.mount.dead ? L(" · koń padł", " · horse down") : ` · ${L("koń", "horse")} ${Math.ceil(player.mount.hp)}/${player.mount.maxHp} · ${Math.round(player.mount.speed * 3.6)} km/h`) : "");
+  $("hpname").textContent = L("Zdrowie", "Health");
+  $("hptext").textContent = `${Math.max(0, Math.ceil(player.hp))} / ${player.maxHp}`;
+  const m = player.mount; $("horsebox").hidden = !m;
+  if (m) { $("horsetext").textContent = m.dead ? L("padł", "down") : `${Math.ceil(m.hp)}/${m.maxHp} · ${Math.round(m.speed * 3.6)} km/h`; ($("horsefill") as HTMLElement).style.width = `${m.dead ? 0 : clamp(m.hp / m.maxHp, 0, 1) * 100}%`; }
   const ws = WSTATS[player.weaponId];
   const types = [ws.swing ? t(ws.swing.type) : null, ws.thrust ? t(ws.thrust.type) : null].filter(Boolean).join(" / ");
   const rg = player.ranged;
@@ -1180,7 +1183,7 @@ function startEncounter(p: Party, opts: { ally?: Party; defend?: string } = {}) 
   }
   if (opts.ally) pushLog(L(`Walczysz u boku: ${opts.ally.name} (grupa 8)`, `You fight beside ${opts.ally.name} (group 8)`), "good");
   camOverride = [[0, 19, 27], [0, 0, 3]];
-  banner(p.name, L("Rozstawienie: 1–9 wybór grupy · klik: ustaw grupę · F2 formacja · R rezerwa · spacja: do boju", "Deployment: 1–9 select group · click: place · F2 formation · R reserve · space: fight"));
+  banner(p.name, L("Rozstawienie wojsk · spacja: do boju", "Deployment · space: fight"));
   try { document.exitPointerLock(); } catch { /* */ }
 }
 interface Q { t: TroopId; g: number; ally?: number }
@@ -1439,7 +1442,7 @@ function startFight() {
   if (!enc) return;
   enc.deploy = false; camOverride = null;
   if (BF.siege) { for (const G of enc.groups) if (!G.reserve) G.order = "charge"; pushLog(L("Szturm! Drabiny i brama: wszyscy naprzód.", "Assault! Ladders and the gate: everyone forward."), "warn"); }
-  banner(enc.enemy.name, L("F1 ruch · F2 formacja · F3 rezerwa · F4 ogień · 1–9 grupy · X okrzyk", "F1 move · F2 formation · F3 reserve · F4 fire · 1–9 groups · X war cry"));
+  banner(enc.enemy.name, L("Do boju!", "To battle!"));
   tryLock();
 }
 /** Mouse → point on the battlefield ground (deployment). */
