@@ -9,16 +9,16 @@ import { frame, makeTrack, sampleTrack, trackLength, guardKey, Track, WK, Attack
 import { Armour, DmgType, Dir, DIR } from "./combat.ts";
 
 /** Combat stats per weapon (the animation only depends on the class). */
-export interface WStats { reach: number; speed: number; swing: { dmg: number; type: DmgType } | null; thrust: { dmg: number; type: DmgType } | null }
+export interface WStats { reach: number; speed: number; mass: number; swing: { dmg: number; type: DmgType } | null; thrust: { dmg: number; type: DmgType } | null }
 export const WSTATS: Record<WeaponId, WStats> = {
-  sword: { reach: 1.05, speed: 1.0, swing: { dmg: 31, type: "cut" }, thrust: { dmg: 25, type: "pierce" } },
-  kord: { reach: 0.85, speed: 1.08, swing: { dmg: 29, type: "cut" }, thrust: { dmg: 23, type: "pierce" } },
-  hatchet: { reach: 0.8, speed: 1.06, swing: { dmg: 30, type: "cut" }, thrust: null },
-  mace: { reach: 0.85, speed: 1.02, swing: { dmg: 28, type: "blunt" }, thrust: null },
-  longsword: { reach: 1.3, speed: 0.9, swing: { dmg: 38, type: "cut" }, thrust: { dmg: 30, type: "pierce" } },
-  greataxe: { reach: 1.1, speed: 0.8, swing: { dmg: 46, type: "cut" }, thrust: null },
-  spear: { reach: 1.85, speed: 0.95, swing: { dmg: 16, type: "blunt" }, thrust: { dmg: 36, type: "pierce" } },
-  glaive: { reach: 1.95, speed: 0.88, swing: { dmg: 36, type: "cut" }, thrust: { dmg: 28, type: "pierce" } },
+  sword: { mass: 1.0, reach: 1.05, speed: 1.0, swing: { dmg: 31, type: "cut" }, thrust: { dmg: 25, type: "pierce" } },
+  kord: { mass: 0.9, reach: 0.85, speed: 1.08, swing: { dmg: 29, type: "cut" }, thrust: { dmg: 23, type: "pierce" } },
+  hatchet: { mass: 1.0, reach: 0.8, speed: 1.06, swing: { dmg: 30, type: "cut" }, thrust: null },
+  mace: { mass: 1.15, reach: 0.85, speed: 1.02, swing: { dmg: 28, type: "blunt" }, thrust: null },
+  longsword: { mass: 1.3, reach: 1.3, speed: 0.9, swing: { dmg: 38, type: "cut" }, thrust: { dmg: 30, type: "pierce" } },
+  greataxe: { mass: 1.6, reach: 1.1, speed: 0.8, swing: { dmg: 46, type: "cut" }, thrust: null },
+  spear: { mass: 1.15, reach: 1.85, speed: 0.95, swing: { dmg: 16, type: "blunt" }, thrust: { dmg: 36, type: "pierce" } },
+  glaive: { mass: 1.45, reach: 1.95, speed: 0.88, swing: { dmg: 36, type: "cut" }, thrust: { dmg: 28, type: "pierce" } },
 };
 
 export interface Kit {
@@ -92,6 +92,12 @@ export class Warrior {
   aim = 0; lean = 0;
   /** Attack lockout after being parried / blocked / hit; riposte window after a successful block. */
   cd = 0; riposte = 0; boost = 1;
+  /** Hit-stop (both fighters freeze for a few frames when steel meets flesh or steel). */
+  freeze = 0;
+  /** Body reaction to a blow: torso pitch / yaw / roll, springs back. */
+  react: [number, number, number] = [0, 0, 0]; reactV: [number, number, number] = [0, 0, 0];
+  /** Knock-back / lunge velocity on top of walking. */
+  kx = 0; kz = 0;
 
   constructor(R: PSX, kit: Kit, x: number, z: number, team: number) {
     this.kit = kit; this.x = x; this.z = z; this.team = team;
@@ -119,7 +125,7 @@ export class Warrior {
     if (tr) { this.track = tr; this.trackT = 0; }
   }
   private tr(kind: Parameters<typeof makeTrack>[2], dir?: AttackDir | BlockDir) {
-    return makeTrack(this.kit.weapon, this.cur, kind, dir, this.speed);
+    return makeTrack(this.kit.weapon, this.cur, kind, dir, this.speed, this.weapon.mass);
   }
 
   effectiveDir(d: Dir): Dir { return d === DIR.THRUST && !this.weapon.thrust ? DIR.OVER : d; }
@@ -138,7 +144,19 @@ export class Warrior {
   /** Cancel a wind-up into a block (Warband feint). */
   feint(d: Dir) { if (this.state === "windup" || this.state === "hold") this.blockNow(d); }
   release() { if (this.state === "hold" || this.state === "windup") this.startRelease(); }
-  private startRelease() { this.hitDone = false; this.go("release", this.tr("release", ANIM_DIR[this.dir])); }
+  private startRelease() {
+    this.hitDone = false; this.go("release", this.tr("release", ANIM_DIR[this.dir]));
+    // the body goes with the blow: a short step into it, heavier weapons drag you further
+    const f = this.dir === DIR.THRUST ? 1.25 : 0.9, m = 0.7 + this.weapon.mass * 0.35;
+    this.kx += Math.sin(this.yaw) * f * m; this.kz += Math.cos(this.yaw) * f * m;
+  }
+  /** Take the force of a blow: knock-back along (dx,dz), torso snaps away from the side it came from. */
+  impact(dx: number, dz: number, force: number, side: number, high: number) {
+    this.kx += dx * force * 1.6; this.kz += dz * force * 1.6;
+    this.reactV[0] -= force * (4 + high * 3);       // thrown back
+    this.reactV[1] += side * force * 5;            // twisted away
+    this.reactV[2] += side * force * 3;
+  }
   block(d: Dir) {
     if (this.state === "idle" || this.state === "recover" && this.trackT > this.track.impact + 0.1) this.blockNow(d);
     else if (this.state === "block" && d !== this.dir) this.blockNow(d);
@@ -161,6 +179,12 @@ export class Warrior {
   get impactNow() { return this.state === "release" && !this.hitDone && this.trackT >= this.track.impact; }
 
   update(dt: number, holdAttack: boolean) {
+    // body reaction spring (stiff, well damped: snaps out and comes back)
+    for (let i = 0; i < 3; i++) {
+      this.reactV[i] += (-this.react[i] * 140 - this.reactV[i] * 16) * dt;
+      this.react[i] += this.reactV[i] * dt;
+    }
+    if (this.freeze > 0) { this.freeze -= dt; return; }
     this.t += dt; this.trackT += dt;
     const len = trackLength(this.track);
     switch (this.state) {
@@ -194,7 +218,10 @@ export class Warrior {
     if (!this.alive) sp = 0;
     const k = clamp(dt * (fwd < 0 ? 7 : 9), 0, 1);
     this.vx = lerp(this.vx, this.wish.x * sp, k); this.vz = lerp(this.vz, this.wish.z * sp, k);
-    this.x += this.vx * dt; this.z += this.vz * dt;
+    const kd = Math.exp(-dt * 7);
+    this.kx *= kd; this.kz *= kd;
+    const fr = this.freeze > 0 ? 0.15 : 1;
+    this.x += (this.vx + this.kx) * dt * fr; this.z += (this.vz + this.kz) * dt * fr;
     this.y = ground(this.x, this.z);
     const speed = Math.hypot(this.vx, this.vz);
     this.walkT += dt * Math.min(1.7, speed / 2.1);
@@ -221,7 +248,7 @@ export class Warrior {
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), sp = Math.hypot(this.vx, this.vz);
     const loco = { fwd: (this.vx * fx + this.vz * fz) / (sp || 1), side: (this.vx * fz - this.vz * fx) / (sp || 1), speed: sp };
     const F = frame(root, kind, kind === "walkcombat" ? this.walkT : this.t + this.id, {
-      weapon: this.kit.weapon, shield: sh, loco, aim: this.alive ? this.lean : 0,
+      weapon: this.kit.weapon, shield: sh, loco, aim: this.alive ? this.lean : 0, react: this.react,
       drive: this.alive ? { key: s.k, lead: lead.k, block, label } : undefined,
     });
     this.lastJ = F.J;

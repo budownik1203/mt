@@ -14,7 +14,7 @@ import { GRIP, WeaponId, WEAPONS, WClass } from "./weapons.ts";
 
 export type Anim = "idle" | "walk" | "t" | "combat" | "walkcombat";
 export type Move = "all" | "over" | "right" | "left" | "thrust" | "blocks" | "parried";
-export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number }; aim?: number }
+export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number }; aim?: number; react?: [number, number, number] }
 /** Runtime-driven upper body (the game supplies the weapon key instead of the demo timeline). */
 export interface Drive { key: WK; lead: WK; block: string | null; label: string }
 
@@ -529,6 +529,7 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     key = { ...key, ty: key.ty * 0.35 + lead.ty * 0.65, tp: key.tp * 0.5 + lead.tp * 0.5 };
     // vertical aim (Warband): looking down bends the body into the blow, looking up rears back
     const aim = Math.max(-0.9, Math.min(0.7, eq.aim ?? 0));
+    const rc = eq.react ?? [0, 0, 0];
     const down = Math.max(0, -aim);
     key = { ...key, tp: key.tp - aim * 0.55 };
     // guard is never perfectly still: slow breathing and a little drift of the weapon
@@ -558,7 +559,7 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
     }
     const sb = shieldArm && blocking;
     pose.r = {
-      pelvis: add3(walkPelvis, [down * 0.22, key.ty * 0.3, 0]) as V3, torso: add3(walkTorso, [key.tp, key.ty * 0.62, 0]) as V3, head: [-key.tp * 0.7, -key.ty * 0.82, 0],
+      pelvis: add3(walkPelvis, [down * 0.22 + rc[0] * 0.3, key.ty * 0.3 + rc[1] * 0.3, rc[2] * 0.3]) as V3, torso: add3(walkTorso, [key.tp + rc[0], key.ty * 0.62 + rc[1], rc[2]]) as V3, head: [-key.tp * 0.7 + rc[0] * 0.8, -key.ty * 0.82 + rc[1] * 0.5, rc[2] * 0.6],
       uarmL: shieldArm ? (sb ? (shieldDir === "up" ? [-1.75, 0.3, 0.25] : [-1.2, 0.35, 0.2]) : [-0.75, 0.25, 0.12]) : [0.06, 0, 0.18],
       farmL: shieldArm ? [sb ? (shieldDir === "up" ? -0.9 : -1.25) : -1.15, 0, 0] : [-0.3, 0, 0], handL: [0, 0, 0.05],
     };
@@ -647,8 +648,10 @@ function withOh(k: WK, w: WeaponId): WK { return k.oh === undefined ? { ...k, oh
 export function guardKey(w: WeaponId): WK { return withOh(classFor(w).guard, w); }
 
 /** Builds a track that starts from the current pose. speed > 1 makes everything faster. */
-export function makeTrack(w: WeaponId, cur: WK, kind: "guard" | "ready" | "release" | "parried" | "blocked" | "block" | "stagger", dir: AttackDir | BlockDir = "over", speed = 1): Track {
+export function makeTrack(w: WeaponId, cur: WK, kind: "guard" | "ready" | "release" | "parried" | "blocked" | "block" | "stagger", dir: AttackDir | BlockDir = "over", speed = 1, mass = 1): Track {
   const A = classFor(w), Tm = TIMING, sp = 1 / speed;
+  // weight: a heavy weapon is slow to get moving and slow to stop (the arm carries it)
+  const heavy = 0.85 + mass * 0.15;
   const segs: Seg[] = [{ t: 0, k: withOh(cur, w), ease: "smooth", label: "start" }];
   let t = 0, impact = -1;
   const push = (dt: number, k: WK, ease: Ease, label: string, block?: string) => { t += Math.max(0.01, dt); segs.push({ t, k: withOh(k, w), ease, block, label }); };
@@ -661,18 +664,26 @@ export function makeTrack(w: WeaponId, cur: WK, kind: "guard" | "ready" | "relea
   } else {
     const arc = A.arcs[dir as AttackDir];
     if (kind === "ready") {
-      if (arc.wind) { push(Tm.ready * 0.45 * sp, arc.wind, "smooth", "zamach"); push(Tm.ready * 0.55 * sp, arc.keys[0], "out", "zamach"); }
-      else push(Tm.ready * sp, arc.keys[0], "out", "zamach");
+      // anticipation: the body loads past the ready pose and settles back into it
+      const k0 = arc.keys[0], load: WK = { ...k0, ty: k0.ty * (1.12 + 0.08 * mass), tp: k0.tp - 0.04 * mass };
+      if (arc.wind) { push(Tm.ready * 0.42 * sp * heavy, arc.wind, "smooth", "zamach"); push(Tm.ready * 0.43 * sp * heavy, load, "out", "zamach"); push(Tm.ready * 0.15 * sp, k0, "smooth", "zamach"); }
+      else { push(Tm.ready * 0.82 * sp * heavy, load, "out", "zamach"); push(Tm.ready * 0.18 * sp, k0, "smooth", "zamach"); }
     } else if (kind === "release") {
       const n = arc.impact;
-      for (let i = 1; i <= n; i++) push((Tm.release / n) * sp, arc.keys[i], i === 1 ? "in" : "lin", "cios");
+      // slow to start, fast through the target: the first stretch accelerates
+      for (let i = 1; i <= n; i++) push((Tm.release / n) * sp * (i === 1 ? 1.25 : 0.85) * (0.92 + mass * 0.08), arc.keys[i], i === 1 ? "in" : "lin", "cios");
       impact = t;
-      for (let i = n + 1; i < arc.keys.length; i++) push((Tm.cont / (arc.keys.length - 1 - n)) * sp, arc.keys[i], i === arc.keys.length - 1 ? "out" : "lin", "dokończenie");
-      push(Tm.recover * sp, G, "smooth", "powrót");
+      // follow-through: momentum carries the body past the last key before it is reined in
+      const m = arc.keys.length - 1 - n;
+      for (let i = n + 1; i < arc.keys.length; i++) {
+        const last = i === arc.keys.length - 1, k = arc.keys[i];
+        push((Tm.cont / m) * sp * heavy, last ? { ...k, ty: k.ty * (1.15 + 0.1 * mass), tp: k.tp + 0.06 * mass } : k, last ? "out" : "lin", "dokończenie");
+      }
+      push(Tm.recover * sp * heavy * 1.1, G, "smooth", "powrót");
     } else {
       // parried_ / blocked_: bounce back along the arc toward the ready pose, then home
       const n = arc.impact, k = kind === "parried" ? 1 : 0.7;
-      push(Tm.parried * 0.5 * k, arc.keys[Math.max(0, n - 2)], "out", "odbity");
+      push(Tm.parried * 0.42 * k, arc.keys[Math.max(0, n - 2)], "out", "odbity");
       push(Tm.parried * 0.5 * k, arc.keys[Math.max(0, n - 3)], "smooth", "odbity");
       push(Tm.recover * sp, G, "smooth", "powrót");
     }

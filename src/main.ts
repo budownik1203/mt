@@ -90,7 +90,8 @@ let noAI = false, botRun = false;   // test hook   // test hook: drive the playe
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; life: number; s: number; spark: boolean }
 const parts: Particle[] = [];
 const decals: { x: number; y: number; z: number; r: number; s: number; s1: number }[] = [];
-let hurt = 0;
+let hurt = 0, shake = 0;
+let camOverride: [V3, V3] | null = null;   // test hook
 
 function reset() {
   fighters = []; brains.clear(); tokens.used = 0; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0;
@@ -231,6 +232,10 @@ function resolve(att: Warrior) {
     const shield = o.hasShield && shieldCovers(facing);
     if (shield || blockMatches(dir, o.dir)) {
       att.bounce(shield); o.blocked();
+      // steel on steel: both jar to a stop, the attacker's arm is thrown back
+      att.freeze = o.freeze = 0.07 + att.weapon.mass * 0.03;
+      att.impact(-dx, -dz, 0.35 * att.weapon.mass, 0, 0.5); o.impact(dx, dz, 0.22 * att.weapon.mass, 0, 0.2);
+      if (near) shake = Math.max(shake, 0.18 + att.weapon.mass * 0.08);
       if (shield) audio.shieldThud(vol); else audio.clang(vol);
       sparks(att.tip(), shield ? 4 : 14);
       if (o === player) pushLog(shield ? t("shieldBlock") : t("youBlocked"), "good");
@@ -253,6 +258,14 @@ function resolve(att: Warrior) {
   let dmg = Math.round(damage(raw * zoneMult, atk.type, o.kit.armour[part], part, closing) * tooClose);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
   o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id;
+  // weight of the blow: hit-stop on both, the victim is shoved and twisted by it
+  const mass = att.weapon.mass, force = Math.min(1.4, (0.35 + dmg / 45) * (0.7 + mass * 0.3));
+  att.freeze = Math.max(att.freeze, 0.05 + mass * 0.035 + Math.min(0.06, dmg / 700));
+  o.freeze = Math.max(o.freeze, att.freeze * 0.8);
+  const side = dir === DIR.RIGHT ? 1 : dir === DIR.LEFT ? -1 : 0;
+  o.impact(dx, dz, force * (dir === DIR.THRUST ? 1.2 : 1), side, zone === "head" ? 1 : zone === "legs" ? -0.6 : 0);
+  if (att === player) shake = Math.max(shake, 0.12 + force * 0.18);
+  if (o === player) shake = Math.max(shake, 0.25 + force * 0.3);
   audio.hit(atk.type === "blunt", vol);
   if (Math.random() < 0.6) audio.grunt(vol * 0.8);
   bleed(hp, dx, dz, 16 + Math.min(40, dmg));
@@ -395,6 +408,7 @@ function step(dt: number) {
     }
   }
   hurt = Math.max(0, hurt - dt * 0.9);
+  shake = Math.max(0, shake - dt * 2.2);
   for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0) parts.splice(i, 1);
 
   const alive = fighters.filter((f) => f.team === 1 && f.alive).length;
@@ -452,6 +466,12 @@ function render(now: number) {
     eye = [piv[0] - fx * dist, piv[1] - fy * dist, piv[2] - fz * dist];
     eye[1] = Math.max(eye[1], ground(eye[0], eye[2]) + 0.35);
     target = [piv[0] + fx, piv[1] + fy, piv[2] + fz];
+  }
+  if (camOverride) { eye = camOverride[0]; target = camOverride[1]; }
+  if (shake > 0) {
+    const k = shake * shake * 0.09, ph = now * 0.06;
+    const o: V3 = [Math.sin(ph * 1.3) * k, Math.sin(ph * 1.9 + 1) * k, Math.cos(ph * 1.7) * k];
+    eye = [eye[0] + o[0], eye[1] + o[1], eye[2] + o[2]]; target = [target[0] + o[0] * 0.4, target[1] + o[1] * 0.4, target[2] + o[2] * 0.4];
   }
   const near = firstPerson ? 0.05 : 0.1, far = 260;
   perspective(proj, (firstPerson ? 74 : 66) * Math.PI / 180, aspect, near, far);
@@ -554,6 +574,6 @@ function loop(now: number) {
   start() { $("title").click(); }, setHour(h: number) { hour = h; }, pause(v: boolean) { paused = v; },
   look(yaw: number, pitch: number) { camYaw = yaw; camPitch = pitch; },
   attack(d: Dir) { player.attack(d); }, block(d: Dir) { player.block(d); }, unblock() { player.unblock(); }, spawn() { spawnWave(); },
-  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) { step(1 / 60); for (const f of fighters) f.draw([]); } }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, dbg: () => JSON.stringify({ tokens, b: [...brains.values()].map((b) => ({ cd: b.cooldown, tok: b.me.aiToken, st: b.me.state, mcd: b.me.cd })) }), bot(x: number, z: number, run = false) { botWish = x || z ? [x, z] : null; botRun = run; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
+  setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) { step(1 / 60); for (const f of fighters) f.draw([]); } }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, cam(e: V3 | null, t?: V3) { camOverride = e && t ? [e, t] : null; }, dbg: () => JSON.stringify({ tokens, b: [...brains.values()].map((b) => ({ cd: b.cooldown, tok: b.me.aiToken, st: b.me.state, mcd: b.me.cd })) }), bot(x: number, z: number, run = false) { botWish = x || z ? [x, z] : null; botRun = run; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },
 };
 requestAnimationFrame(loop);
