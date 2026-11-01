@@ -9,7 +9,7 @@ import { LEVELS } from "./char/human.ts";
 import { TMesh } from "./char/tmesh.ts";
 import { WeaponId, WEAPONS } from "./char/weapons.ts";
 import { MeshBuilder, T, hex } from "./gfx/meshbuilder.ts";
-import { buildTerrain, height, WORLD, setBattlefield, setClassicField, BattleBiome } from "./world/terrain.ts";
+import { buildTerrain, height, WORLD, setBattlefield, setClassicField, BattleBiome, siegeLift, WALL, BF } from "./world/terrain.ts";
 import { Campaign, Party } from "./map/campaign.ts";
 import { MapUI } from "./map/ui.ts";
 import { buildMapTerrain, buildMapFeatures, settlementModel, partyFigure } from "./map/mapmesh.ts";
@@ -69,7 +69,50 @@ function rebuildField() {
   sceneryG = R.upload(fromBuilder(scen.mesh), 3, false);
   colliders = scen.colliders;
 }
-const ground = (x: number, z: number) => height(x, z);
+const ground = (x: number, z: number) => height(x, z) + siegeLift(x, z);
+// ---------- siege (build 14): the gate is a collider with hit points until it breaks ----------
+let gateHp = 0, gateMax = 0;
+const gateCols: Collider[] = [];
+const gateG = (() => { const b = new MeshBuilder(); b.jitter = 0.03; b.box(T(0, 1.55, 0), WALL.gate * 2, 3.1, 0.25, hex(0x3a2c20)); for (const y of [0.6, 1.6, 2.6]) b.box(T(0, y, 0.15), WALL.gate * 2, 0.16, 0.08, hex(0x2a2826)); for (let i = -2; i <= 2; i++) b.box(T(i * 0.9, 1.55, 0.15), 0.06, 3.0, 0.06, hex(0x2a2826)); return R.upload(fromBuilder(b), 3, false); })();
+function gateUp() { return BF.siege && gateHp > 0; }
+function hitGate(att: Warrior, dmg: number) {
+  gateHp -= dmg; audio.shieldThud(Math.hypot(att.x - player.x, att.z - player.z) < 20 ? 1 : 0.4); sparks([att.tip()[0], att.tip()[1], att.tip()[2]], 3);
+  if (att === player) pushLog(L(`Brama: ${Math.max(0, Math.round(gateHp))}/${gateMax}`, `Gate: ${Math.max(0, Math.round(gateHp))}/${gateMax}`), "warn");
+  if (gateHp <= 0) { colliders = colliders.filter((c) => !gateCols.includes(c)); pushLog(L("Brama pęka! Droga wolna!", "The gate breaks! The way is open!"), "good"); shake = Math.max(shake, 0.3); moraleShock(0, WALL.z - 4, 1, 14, 30); }
+}
+/** Where an attacker outside the wall should go: the nearest ladder foot, or the gate. */
+function siegeSteer() {
+  if (!BF.siege || !enc) return;
+  const front = WALL.z + WALL.front;
+  for (const f of fighters) {
+    if (!f.alive || f.fleeing || f === player) continue;
+    const tg = targets.get(f.id); if (!tg) continue;
+    const outside = f.z > front + 0.3, tgInside = tg.z < front + 0.6;
+    // on a ladder: keep climbing, whatever the target
+    const onLadder = f.team === 0 && outside && f.z < front + 4.8 && WALL.ladders.some((lx) => Math.abs(f.x - lx) < 0.9);
+    if (onLadder) { const lx = WALL.ladders.find((q) => Math.abs(f.x - q) < 0.9)!; f.wish.x = (lx - f.x) * 1.5; f.wish.z = -1; f.wish.run = false; if (f.state === "block") f.unblock(); continue; }
+    if (f.team === 0 && outside && tgInside) {
+      // pick the closest way in: ladders always, the gate (to break or pass)
+      const ways: [number, number, boolean][] = WALL.ladders.map((lx) => [lx, front + 4.6, false] as [number, number, boolean]);
+      ways.push([0, front + 1.2, true]);
+      let best = ways[0], bd = 1e9;
+      for (const w of ways) { const d = Math.hypot(w[0] - f.x, w[1] - f.z) + (w[2] && gateUp() ? 6 : 0); if (d < bd) { bd = d; best = w; } }
+      let tx = best[0], tz = best[1];
+      if (!best[2] && Math.abs(f.x - tx) < 0.8 && f.z < front + 5.2) tz = front - 0.6;            // up the ladder
+      if (best[2] && !gateUp()) tz = WALL.z - 4;                                                 // through the broken gate
+      const dx = tx - f.x, dz = tz - f.z, l = Math.hypot(dx, dz) || 1;
+      f.wish.x = dx / l; f.wish.z = dz / l; f.wish.run = l > 5;
+      if (best[2] && gateUp() && l < 2.4) {
+        f.wish.x = f.wish.z = 0; f.faceTo(Math.PI, 1 / 60, 8);
+        if (f.state === "idle" && !f.ranged && Math.random() < 0.02) f.attack(DIR.OVER);
+      }
+    }
+    // defenders on the wall walk stay on it while the enemy is below
+    if (f.team === 1 && f.y - height(f.x, f.z) > 2.5 && tg.z > front + 0.6 && !f.ranged) {
+      const dx = clamp(tg.x - f.x, -1, 1); f.wish.x = Math.abs(tg.x - f.x) > 1.2 ? dx : 0; f.wish.z = (WALL.z - f.z) * 0.5;
+    }
+  }
+}
 const flameG = (() => { const b = new MeshBuilder(); b.jitter = 0.15; b.cyl(T(0, 0, 0), 0.3, 0, 0.85, 5, hex(0xe0782a), false); b.cyl(T(0.1, 0, 0.05, 1), 0.17, 0, 0.55, 4, hex(0xf2c24a), false); return R.upload(fromBuilder(b, 3), 3, false); })();
 const bloodG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 1, 1, hex(0x6a0c08)); return R.upload(fromBuilder(b), 3, false); })();
 const sparkG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 1, 1, hex(0xffd27a)); return R.upload(fromBuilder(b, 3), 3, false); })();
@@ -391,7 +434,7 @@ function resolve(att: Warrior) {
     if ((dx * fx + dz * fz) / d < cone) continue;
     if (d < bd) { bd = d; best = o; }
   }
-  if (!best) return;
+  if (!best) { if (gateUp() && Math.abs(att.x) < WALL.gate + 1 && att.z > WALL.z && att.z - (WALL.z + WALL.front) < ws.reach + 1.2 && fz < -0.3) hitGate(att, Math.round(raw * (atk.type === "blunt" ? 1.2 : 0.7))); return; }
   const o = best;
   const dx = (o.x - att.x) / bd, dz = (o.z - att.z) / bd;
   const facing = -(Math.sin(o.yaw) * dx + Math.cos(o.yaw) * dz);
@@ -626,7 +669,7 @@ function step(dt: number) {
       b.update(dt, tg, fighters, tg === player ? tokens : freeTok);
     } else if (b && !tg && f !== player) { f.wish.x = f.wish.z = 0; }
   }
-  if (enc) { commandStep(dt); moraleStep(dt); }
+  if (enc) { commandStep(dt); moraleStep(dt); siegeSteer(); }
   for (const f of fighters) {
     let hold: boolean;
     if (f === player) hold = lmb;
@@ -743,6 +786,7 @@ function render(now: number) {
   lookAt(view, eye, target); mul(vp, proj, view);
   const L = lightAt(hour, [player.x, player.y, player.z]);
   const items: { mesh: GMesh; model: Float32Array }[] = [{ mesh: terrainG, model: m4() }, { mesh: sceneryG, model: m4() }];
+  if (gateUp()) items.push({ mesh: gateG, model: trs(m4(), 0, height(0, WALL.z), WALL.z + WALL.front - 0.1) });
   scen.fires.forEach((f, i) => {
     const fl = 0.85 + Math.sin(now * 0.011 + i * 3) * 0.1 + Math.sin(now * 0.037 + i) * 0.08;
     items.push({ mesh: flameG, model: trs(m4(), f[0], f[1] - 0.45, f[2], now * 0.003 + i, 0, 0, 0.85, 0.75 + fl * 0.35, 0.85) });
@@ -1080,8 +1124,15 @@ function startEncounter(p: Party) {
   const mb = biomeAt(c.w, me.x, me.z);
   const biome: BattleBiome = mb === "edge" ? "hills" : mb;
   const [i, j] = cellOf(me.x, me.z);
-  setBattlefield(biome, p.id + c.day * 7, c.winter, !!c.w.road[cellIndex(i, j)]);
+  const siege = p.kind === "garrison";
+  setBattlefield(siege ? "fields" : biome, p.id + c.day * 7, c.winter, siege ? false : !!c.w.road[cellIndex(i, j)], siege);
   rebuildField();
+  gateCols.length = 0; gateHp = gateMax = 0;
+  if (siege) {
+    gateHp = gateMax = 420;
+    for (let x = -WALL.gate; x <= WALL.gate; x += 0.8) gateCols.push({ x, z: WALL.z + WALL.front, r: 0.5 });
+    colliders = [...colliders, ...gateCols];
+  }
   const allyQ: Q[] = [], enemyQ: Q[] = [];
   for (const s of me.troops) for (let k = 0; k < s.n - s.wounded; k++) allyQ.push({ t: s.t, g: groupOfTroop(s.t) });
   for (const s of p.troops) for (let k = 0; k < s.n - s.wounded; k++) enemyQ.push({ t: s.t, g: 1 });
@@ -1139,9 +1190,16 @@ function reinforce(team: 0 | 1, first = false) {
   const z0 = team === 0 ? 15 : -16, dir = team === 0 ? 1 : -1;
   take.forEach((it, k) => {
     const row = Math.floor(k / 7), col = (k % 7) - 3;
-    const x = col * 1.6 + (Math.random() - 0.5) * 0.4, z = z0 + dir * row * 1.6 + (first ? 0 : dir * 10);
+    let x = col * 1.6 + (Math.random() - 0.5) * 0.4, z = z0 + dir * row * 1.6 + (first ? 0 : dir * 10);
+    if (BF.siege && team === 1) {
+      // defenders: shooters along the wall walk, the rest split between the ladders and the gate yard
+      const sh = !!WEAPONS[TROOPS[it.t].kit.weapon].ranged, slot = k % 3;
+      if (sh) { x = (k % 2 ? 1 : -1) * (4 + Math.floor(k / 2) * 1.6); z = WALL.z - 0.3; }
+      else if (slot < 2) { x = WALL.ladders[slot] + (Math.random() - 0.5) * 3; z = WALL.z - 0.3; }
+      else { x = (Math.random() - 0.5) * 5; z = WALL.z - 5 - Math.random() * 3; }
+    }
     const f = new Warrior(R, kitOf(it.t), x, z, team);
-    f.yaw = team === 0 ? Math.PI : 0; f.group = it.g;
+    f.yaw = team === 0 ? Math.PI : 0; f.group = it.g; f.y = ground(f.x, f.z);
     f.noMorale = !!TROOPS[it.t].undead || !!TROOPS[it.t].beast;
     if (team === 1 && TROOPS[it.t].beast && enc!.weak) { f.maxHp = Math.round(f.maxHp * 0.75); f.hp = f.maxHp; }
     f.morale = f.baseMorale = moraleBase(team, it.t);
@@ -1361,6 +1419,7 @@ function battleKey(e: KeyboardEvent) {
 function startFight() {
   if (!enc) return;
   enc.deploy = false; camOverride = null;
+  if (BF.siege) { for (const G of enc.groups) if (!G.reserve) G.order = "charge"; pushLog(L("Szturm! Drabiny i brama: wszyscy naprzód.", "Assault! Ladders and the gate: everyone forward."), "warn"); }
   banner(enc.enemy.name, L("F1 ruch · F2 formacja · F3 rezerwa · F4 ogień · 1–9 grupy · X okrzyk", "F1 move · F2 formation · F3 reserve · F4 fire · 1–9 groups · X war cry"));
   tryLock();
 }
@@ -1487,7 +1546,7 @@ function loop(now: number) {
 // hooks for automated tests
 (window as unknown as { mb2: unknown }).mb2 = {
   get player() { return player; }, get fighters() { return fighters; },
-  collapse(team: number) { collapseUndead(team); }, hitHorse(a: Warrior, o: Warrior) { hitHorse(a, o, 200, "cut", 0, 1); }, mountPlayer(id: string | null) { practiceHorse = !!id; player.setMount(R, (id ?? undefined) as never); if (player.mount) player.mount.yaw = player.yaw; }, events: EVENTS, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
+  collapse(team: number) { collapseUndead(team); }, targetOf: (f: Warrior) => targets.get(f.id), breakGate() { hitGate(player, 9999); return colliders.some((c) => gateCols.includes(c)); }, gate: () => `${Math.max(0, Math.round(gateHp))}/${gateMax}`, height: (x: number, z: number) => height(x, z), hitHorse(a: Warrior, o: Warrior) { hitHorse(a, o, 200, "cut", 0, 1); }, mountPlayer(id: string | null) { practiceHorse = !!id; player.setMount(R, (id ?? undefined) as never); if (player.mount) player.mount.yaw = player.yaw; }, events: EVENTS, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
   get camp() { return camp; }, get ui() { return ui; }, get mode() { return mode; }, get enc() { return enc; },
   campaign() { startCampaign(); }, waves() { startWaves(); },
   mapTick(sec: number) { for (let i = 0; i < sec * 30; i++) mapStep(1 / 30); },

@@ -11,11 +11,24 @@ const GRASS = hex(0x2c3320), GRASS_DRY = hex(0x4b4632), MUD = hex(0x2d241b), ROA
 
 /** Battlefield setup: the classic killing field, or a scene matching a campaign map spot. */
 export type BattleBiome = "fields" | "forest" | "swamp" | "hills" | "cursed";
-export const BF = { classic: true, biome: "fields" as BattleBiome, seed: 0, winter: false, road: true };
-export function setBattlefield(biome: BattleBiome, seed: number, winter: boolean, road: boolean) {
-  BF.classic = false; BF.biome = biome; BF.seed = seed; BF.winter = winter; BF.road = road;
+export const BF = { classic: true, biome: "fields" as BattleBiome, seed: 0, winter: false, road: true, siege: false };
+
+// ---------- siege walls (build 14): a curtain wall across the field with a gate, two ladders and inner stairs ----------
+export const WALL = { z: -10, top: 3.4, half: 95, gate: 2.3, ladders: [-13, 13], stairs: [-24, 24], front: 1.2, back: -1.5 };
+/** Extra height where people stand on the wall walk, the ladders and the stairs (the terrain mesh stays plain). */
+export function siegeLift(x: number, z: number): number {
+  if (!BF.siege || Math.abs(x) > WALL.half) return 0;
+  const d = z - WALL.z;
+  if (Math.abs(x) < WALL.gate) return 0;
+  if (d >= WALL.back && d <= WALL.front) return WALL.top;
+  for (const lx of WALL.ladders) if (Math.abs(x - lx) < 1.0 && d > WALL.front && d < WALL.front + 4.4) return WALL.top * (1 - (d - WALL.front) / 4.4);
+  for (const sx of WALL.stairs) if (Math.abs(x - sx) < 1.3 && d < WALL.back && d > WALL.back - 5) return WALL.top * (1 - (WALL.back - d) / 5);
+  return 0;
 }
-export function setClassicField() { BF.classic = true; BF.biome = "fields"; BF.seed = 0; BF.winter = false; BF.road = true; }
+export function setBattlefield(biome: BattleBiome, seed: number, winter: boolean, road: boolean, siege = false) {
+  BF.siege = siege; BF.classic = false; BF.biome = biome; BF.seed = seed; BF.winter = winter; BF.road = road;
+}
+export function setClassicField() { BF.siege = false; BF.classic = true; BF.biome = "fields"; BF.seed = 0; BF.winter = false; BF.road = true; }
 
 export function roadDist(x: number, z: number) {
   if (!BF.road) return 999;
@@ -33,6 +46,7 @@ export function height(x: number, z: number): number {
   h = lerp(local, h, field);                                       // the fighting ground
   const rd = roadDist(x, z);
   if (rd < 5) h -= (1 - rd / 5) * 0.35;
+  if (BF.siege) { const w = smooth(clamp(1 - Math.abs(z - WALL.z) / 14, 0, 1)); h = lerp(h, fbm(x * 0.01, 3.3, 2, 5) * 0.8, w); }
   return h;
 }
 

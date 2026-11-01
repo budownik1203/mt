@@ -2,7 +2,7 @@
 // chapel, gallows with a crow cage, a bandit camp with a fire.
 import { rng, clamp } from "../core/math.ts";
 import { MeshBuilder, T, hex } from "../gfx/meshbuilder.ts";
-import { height, roadDist, slope, WORLD, BF } from "./terrain.ts";
+import { height, roadDist, slope, WORLD, BF, WALL } from "./terrain.ts";
 
 export interface Collider { x: number; z: number; r: number }
 export interface Scenery { mesh: MeshBuilder; colliders: Collider[]; fires: [number, number, number][] }
@@ -267,6 +267,40 @@ export function brazier(b: MeshBuilder, x: number, z: number, cols: Collider[], 
   cols.push({ x, z, r: 0.45 });
 }
 
+/** The curtain wall with a walkway, merlons, towers, a gate, two siege ladders and inner stairs. */
+function siegeWorks(b: MeshBuilder, cols: Collider[], fires: [number, number, number][], r: () => number) {
+  const Z = WALL.z, T0 = WALL.top, wz = (WALL.front + WALL.back) / 2 + Z, depth = WALL.front - WALL.back;
+  const WOOD = hex(0x3a2c20), WOOD_D = hex(0x2a2018);
+  for (let x = -WALL.half; x < WALL.half; x += 4) {
+    const cx = x + 2;
+    if (Math.abs(cx) < WALL.gate + 2) continue;
+    const y = height(cx, Z);
+    b.box(T(cx, y + T0 / 2 - 0.6, wz), 4.05, T0 + 1.2, depth + 0.2, r() < 0.5 ? STONE : STONE_D);
+    for (const m of [-1.2, 1.2]) b.box(T(cx + m, y + T0 + 0.45, Z + WALL.front - 0.15), 0.9, 0.9, 0.35, STONE_D);   // merlons
+    // the wall face blocks: no climbing except at the ladders (and nobody walks through the masonry)
+    for (const dx of [-1.5, -0.5, 0.5, 1.5]) { const px = cx + dx; if (WALL.ladders.some((lx) => Math.abs(px - lx) < 1.1)) continue; cols.push({ x: px, z: Z + WALL.front + 0.25, r: 0.55 }); }
+  }
+  // gate towers and the gatehouse arch
+  for (const sx of [-1, 1]) {
+    const x = sx * (WALL.gate + 1.6), y = height(x, Z);
+    b.box(T(x, y + T0 / 2 + 0.6, wz), 3.2, T0 + 3.6, depth + 1.4, STONE_D);
+    b.cyl(T(x, y + T0 + 2.4, wz), 2.2, 0, 1.8, 4, hex(0x1a1716), false);
+    for (let i = -1; i <= 1; i++) cols.push({ x: x + i * 1.0, z: Z + WALL.front + 0.6, r: 0.8 });
+    fires.push([x, y + T0 + 1.5, Z + WALL.front + 1]);
+  }
+  b.box(T(0, height(0, Z) + T0 + 1.3, wz), WALL.gate * 2 + 0.2, 1.6, depth + 1.4, STONE);
+  // towers at the ends
+  for (const sx of [-1, 1]) { const x = sx * WALL.half, y = height(x, Z); b.box(T(x, y + T0, wz), 5, T0 * 2 + 1, 5, STONE_D); }
+  // ladders leaning on the wall (outer side)
+  for (const lx of WALL.ladders) {
+    const y = height(lx, Z + WALL.front + 4.4), len = Math.hypot(4.4, T0 + 0.6), ang = Math.atan2(4.4, T0 + 0.6);
+    for (const s of [-0.45, 0.45]) b.box(T(lx + s, y + (T0 + 0.6) / 2, Z + WALL.front + 2.2, 0, -ang, 0), 0.08, len, 0.08, WOOD);
+    for (let k = 0; k < 9; k++) { const t = (k + 0.5) / 9; b.box(T(lx, y + t * (T0 + 0.6), Z + WALL.front + 4.4 * (1 - t)), 0.9, 0.05, 0.06, WOOD_D); }
+  }
+  // inner stairs (wooden steps)
+  for (const sx of WALL.stairs) for (let k = 0; k < 7; k++) { const t = (k + 0.5) / 7, y = height(sx, Z + WALL.back - 5 * (1 - t)); b.box(T(sx, y + T0 * t - 0.15, Z + WALL.back - 5 * (1 - t)), 2.6, 0.3, 0.75, WOOD); }
+}
+
 /** A battlefield matching a spot on the campaign map: trees, rocks and water by biome, no old dead. */
 function buildFieldFor(): Scenery {
   const b = new MeshBuilder();
@@ -301,5 +335,6 @@ function buildFieldFor(): Scenery {
   }
   if (B === "cursed") for (let i = 0; i < 18; i++) { const a = r() * 6.28, d = 8 + r() * 35; corpse(b, Math.cos(a) * d, Math.sin(a) * d, r, cols); }
   if (B === "cursed" || r() < 0.3) for (let i = 0; i < 3; i++) { const a = r() * 6.28, d = 16 + r() * 20; pike(b, Math.cos(a) * d, Math.sin(a) * d, r, cols); }
+  if (BF.siege) siegeWorks(b, cols, fires, r);
   return { mesh: b, colliders: cols, fires };
 }
