@@ -50,6 +50,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b11.mjs` strzał gracza z łuku, kuszy i arkebuzu (obrażenia), dym, pozy celowania, bitwa strzelców z salwami.
 - `b10.mjs` legowiska, nocne napady, kontrakt, śledztwo, osłabiona bestia, nagroda, modele bestii.
 - `b9.mjs` symulacja 120 dni świata, okno Frakcje, lord: kontrakt i hołd, grabież wsi, szturm miasta, pojmanie i okup lorda.
 - `b8.mjs` nekromancja od księgi po spowiedź, wskrzeszanie (N), rozsypanie armii nekromanty; `b8show.mjs` zbliżenia modeli.

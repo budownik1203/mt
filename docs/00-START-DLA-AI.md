@@ -17,7 +17,7 @@ Grimdarkowa kopia **Mount & Blade: Warband** w przeglądarce (własny silnik Web
 2. Napisz kod (patrz mapa kodu w `docs/05-technika.md`). Trzymaj się istniejących wzorców: logika kampanii w `src/map/*.ts`, menu w `src/map/ui.ts`, bitwa w `src/main.ts`, modele w `src/char/*.ts`.
 3. `npx tsc -p .` bez błędów.
 4. `node build.mjs game N` → `dist/mb2-build-N.html`.
-5. Nowy test `tools/bN.mjs` (Playwright przez `node tools/shot.mjs dist/mb2-build-N.html tools/bN.mjs`, sterowanie przez `window.mb2`), plus regresja: `g4 g7 b6 b7 b8 b9 b10 m2 m3`. Wszystkie muszą kończyć się `errors 0`.
+5. Nowy test `tools/bN.mjs` (Playwright przez `node tools/shot.mjs dist/mb2-build-N.html tools/bN.mjs`, sterowanie przez `window.mb2`), plus regresja: `g4 g6 g7 b6 b7 b8 b9 b10 b11 m2 m3`. Wszystkie muszą kończyć się `errors 0`.
 6. Obejrzyj zrzuty z `shots/` (czy modele i menu wyglądają dobrze).
 7. Zaktualizuj `docs/06-stan-i-plan.md` (wiersz w historii, braki, plan), `docs/03` (liczby mechanik), `docs/05` (nowe pliki i testy), `docs/02` (nowe polecenia właściciela, dosłownie).
 8. Commit po polsku („mb2 build N: …”), **push na `budownik1203/mt` (gałąź master)**.
@@ -35,9 +35,9 @@ Grimdarkowa kopia **Mount & Blade: Warband** w przeglądarce (własny silnik Web
 - `design/`: pytania i surowe odpowiedzi z rad.
 - `dist/`: gotowe buildy (otwierasz plik HTML w przeglądarce i grasz).
 
-## 5. Stan w chwili przekazania (build 10, 2026-11-01)
-Zrobione: walka wręcz (build 1–4), kampania na mapie (5), dowodzenie oddziałem i morale (6), wygląd i mechaniki Warbanda: postać, umiejętności, ekwipunek, jeńcy (7), nekromancja (8), frakcje i lordowie (9), potwory i kontrakty (10).
-**Następny: build 11, broń dystansowa** (łuki, kusze, arkebuzy z dymem; strzelcy w grupach, salwy, ograniczona amunicja, broń boczna do walki wręcz, tarcze łapią strzały, AI strzelców trzyma dystans). Potem punkt 5 planu.
+## 5. Stan (aktualizuj przy każdym buildzie; ostatnio build 11, 2026-11-01)
+Zrobione: walka wręcz (build 1–4), kampania na mapie (5), dowodzenie oddziałem i morale (6), wygląd i mechaniki Warbanda: postać, umiejętności, ekwipunek, jeńcy (7), nekromancja (8), frakcje i lordowie (9), potwory i kontrakty (10), broń dystansowa (11).
+**Następny: build 12, wiara i obrzędy** (szczegóły w planie `06-stan-i-plan.md`).
 
 ## 6. Pułapki
 - Odpowiedzi właściciela wklejane z Windows mają CRLF.

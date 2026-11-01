@@ -34,3 +34,9 @@ Zasada nadrzędna: **kopia Mount & Blade: Warband**, z ciężarem i gore ponad o
 - **Rozstawienie** przed bitwą: widok z góry, klik ustawia wybrane grupy, F2 formacja, R rezerwa, spacja zaczyna.
 - Morale żołnierza 0–100: przewaga wroga obok obniża, dowódca (gracz, herszt) i sztandar w pobliżu podnoszą, śmierć sąsiada −7, rzeź (odcięcia) −16, upadek sztandaru −14 dla wszystkich. Poniżej 15 ucieka, powyżej 38 wraca do szyku (przy dowódcy szybciej). Nieumarli nie mają morale. Uciekający na skraj pola znikają (przeżywają, nie giną).
 - Do 18 walczących na stronę naraz, reszta jako posiłki.
+
+## Broń dystansowa (build 11)
+- Łuk (46 m/s, 30 obr., 24 strzały, naciąg 0,75 s, ładowanie 0,55 s), kusza (60 m/s, 44 obr., pancerz × 0,75, 16 bełtów, ładowanie 3,2 s), arkebuz (140 m/s, 62 obr., pancerz × 0,45, 12 kul, ładowanie 5,5 s, dym i huk). Czasy skracane umiejętnością.
+- Gracz: LPM trzymany = naciąg/celowanie, puszczenie = strzał (tylko z pełnego naciągu); celownik to promień kamery (do pierwszego ciała lub ziemi) z poprawką na opad; ruch i za długo trzymany łuk (> 2,5 s) zwiększają rozrzut. Podczas celowania ruch × 0,45, przy ładowaniu kuszy/arkebuzu × 0,3.
+- Trafienie wg wysokości: głowa > 1,52 m, nogi < 0,88 m, reszta tułów. Obrażenia kłute przez pancerz strefy × współczynnik broni, × prędkość pocisku. Tarcza zwrócona do pocisku łapie go (zawsze przy bloku, 70% gdy tylko niesiona przodem).
+- Strzelcy AI trzymają dystans (cofają się poniżej 8 m), przy wrogu bliżej 4,5 m lub bez amunicji biorą broń boczną; wracają do strzelania, gdy wróg odejdzie dalej niż 13 m. Rozkaz F4: F1 ognia wedle uznania, F2 wstrzymać ogień, F3 salwami (salwa, gdy 80% grupy gotowe albo po 4 s).
