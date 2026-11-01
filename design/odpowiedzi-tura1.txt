@@ -1,0 +1,319 @@
+## Fundament i ton
+f01 Gdzie dokładnie stawiamy zegar epoki? → Bez sztywnej daty, każda frakcja w innym momencie
+f02 Jak ważna jest broń palna? → Kluczowa dla kilku frakcji (najemnicy, miasta), reszta walczy wręcz
+f03 Ile jest w świecie jawnej magii? → Jak w Vasnarze: rytuały, przyzwania i klątwy dostępne dla każdego, kto zapłaci
+f04 Na ile rzeczywistość ma być zawsze wroga? → Ponuro i brutalnie, ale ludzkie odruchy istnieją i coś znaczą
+f05 Czy gracz może grać „po ciemnej stronie” (nekromanta, kultysta, wampir)? → Tak, jako pełna ścieżka kariery z własnymi frakcjami i zakończeniami
+f06 Główna fantazja gracza w jednym zdaniu? → Ktokolwiek: sandbox, rolę wybierasz grając
+f07 Skala świata na start (build sprzedażowy)? → Jak Calradia (ok. 200 osad)
+f08 Czy jest główny wątek fabularny? → Tak, luźny: kataklizm narasta, można go zignorować
+f09 Czy świat ma „zegar zagłady” (rośnie zaraza, nieumarli, Głód)? → Tak, ale do zatrzymania przez gracza | Tak, da się wyłączyć w opcjach kampani. tak samo jak w modzie do warbanda perisno ma najazd np. inne frakcji tak tutaj losuje się jeden z kilku
+f10 Śmierć gracza? → Jak w Warbandzie: przegrana bitwa = niewola lub ucieczka
+f11 Ile przemocy i gore pokazujemy? → Jeszcze więcej: wnętrzności, egzekucje, tortury w scenach
+f12 Tematy, których świadomie NIE ruszamy? → Nic nie wykluczamy
+f13 Humor w świecie? → Czarny, cyniczny humor żołnierzy i chłopów
+f14 Inspiracje główne (zaznacz w uwagach, co lubisz)? → zdecyduj ty | wszystkie z powyższych, 1 opcja najsilniejszy ton
+f15 Kultura bazowa świata? → Mieszanka: niemieckie miasta, słowiańska prowincja, pogańska północ
+f16 Język nazw własnych? → Każda frakcja ma własny język nazw
+f17 Na czym skupiamy się w pierwszym roku prac? → Mapa świata i pętla sandboksu jak najszybciej, walka równolegle
+f18 Tryb wieloosobowy? → Później: pojedynki i bitwy drużynowe
+f19 Długość gry do „końca”? → 60–100 godzin
+f20 Nazwa gry na Steam? → Coś nowego (wpisz w uwagach) | wymyślimy potem, narazie to nazwa robocza
+## Świat i historia
+s01 Co złamało świat? → Nic konkretnego, świat zawsze taki był | świat zawsze był chujowy, nawarstwiło się wiele rzeczy wszystkie trzy z powyższych. ale nekromancja dalej jest tabu
+s02 Kiedy to się stało? → Pokolenie temu: żyją jeszcze świadkowie
+s03 Czy umarli wstają sami z siebie? → Tylko w przeklętych miejscach i podczas zaćmień
+s04 Pochówek ma znaczenie w mechanice? → Tak: po bitwie trzeba palić lub chować zwłoki, inaczej wracają
+s05 Krajobraz dominujący? → Mieszanka wszystkich biomów
+s06 Pogoda i pory roku? → Pełny cykl pór roku z zimą, która zabija
+s07 Noc w świecie? → Niebezpieczna: potwory wychodzą, podróż nocą ryzykowna
+s08 Wielkie miasta? → Oba: kilka bogatych twierdz i dużo umierających mieścin
+s09 Wsie? → Zależy od regionu i władcy
+s10 Czy w świecie istnieją inne rasy rozumne? → Ludzie i „odmieńcy” (zmutowani, przeklęci ludzie) | Ludzie i „odmieńcy” (zmutowani, przeklęci ludzie) + Stare ludy w ukryciu (np. leśne plemię, ludzie z bagien)
+s11 Elfy, krasnoludy, orki? → Jest coś podobnego, ale zupełnie po swojemu
+s12 Historia ostatnich stu lat w tle? → Obie: cesarstwo upadło w trakcie krucjaty
+s13 Czy jest dawne cesarstwo, którego ruiny widać? → Tak, z wielkimi drogami i opuszczonymi fortami
+s14 Pieniądz? → Jedna waluta (np. srebrne grosze)
+s15 Głód jako zjawisko w świecie? → Mechanika: nieurodzaje, ceny żywności skaczą, wsie się buntują
+s16 Zarazy jako mechanika? → Tak: ogniska choroby na mapie, przenoszą się z oddziałami
+s17 Ile świata jest „nieludzkie” (strefy potworów)? → Około 1/4 mapy: bagna, bory, przeklęte ziemie
+s18 Granica świata? → Mur, mgła lub martwa ziemia, za którą nikt nie wraca
+s19 Czy jest „serce zła” na mapie? → Kilka przeklętych miejsc
+s20 Legendy i mity świata będą… → Częściowo prawdziwe, częściowo kłamstwa
+s21 Ruiny i lochy do zwiedzania? → Tak i z elementami prostego przeszukiwania (dungeony)
+s22 Kalendarz i rok startowy? → Własny: „Rok Popiołu 37”
+s23 Czy świat się zmienia bez gracza? → Tak, mocno: frakcje upadają, miasta płoną, potwory się rozrastają
+s24 Kanibalizm, czarny rynek trupów, wskrzeszeni robotnicy? → Tak, jako część świata (pokazane z dystansem)
+s25 Ton opisów w grze (teksty, menu)? → Prosty i surowy, krótko i dosadnie
+## Frakcje i polityka
+k01 Ile frakcji grywalnych na start? → zdecyduj ty | 16 docelowo
+k02 Proponowane frakcje (zaznacz zestaw, poprawki w uwagach) → Jak wyżej + Najemne Kompanie jako frakcja + Kult Głodu
+k03 Czy frakcje „ciemne” mają normalne miasta i lordów? → Tak, pełnoprawne państwa
+k04 Zależność frakcji ludzkich od magii? → Każda frakcja ma coś: cuda, alchemię, runy pogan
+k05 Dyplomacja? → Średnio: wojna, pokój, sojusz, trybut
+k06 Czy ludzkie frakcje zawierają sojusze z ciemnymi? → Potajemnie, z konsekwencjami (ekskomunika, bunty)
+k07 Krucjaty lub święte wojny jako wydarzenie? → Tak: Kościół ogłasza krucjatę, frakcje dołączają
+k08 Lordowie frakcji? → Ręczni władcy i najważniejsi lordowie, reszta generowana
+k09 Lordowie mogą umierać w bitwach? → Tak, ale rzadko (egzekucje, pojedynki) | ręcznie napisani są niezabjialni
+k10 Czy władca może upaść i frakcja się rozpaść? → Tak, wojna domowa i rozpad
+k11 Rody szlacheckie wewnątrz frakcji? → Tak, z rywalizacją
+k12 Czy wampiry mają własne rody (jak w Vasnarze)? → Tak, 2–3 rody z różnymi cechami
+k13 Nekromanci jako frakcja? → Rozproszeni czarownicy, każdy z własną hordą | Lisze-władcy z własnymi ziemiami + Rozproszeni czarownicy, każdy z własną hordą
+k14 Poganie? → Kilka plemion skłóconych ze sobą
+k15 Wolne Miasta / Liga kupiecka? → Tak: bogate, z najemnikami i prochem
+k16 Inkwizycja? → Zakon w Kościele z własną polityką i wojskiem
+k17 Zakony rycerskie? → 1–2 zakony walczące z nieumarłymi
+k18 Rebelie chłopskie? → Tak, jako mechanika (bunty przy wysokich podatkach i głodzie)
+k19 Ile frakcji „mniejszych” (bez państwa): bandyci, sekty, łowcy, dezerterzy? → Więcej
+k20 Relacja frakcji z graczem? → Reputacja + strach (okrucieństwo) jako druga oś
+k21 Czy gracz może założyć własną frakcję? → Tak, plus własną wiarę lub kult
+k22 Wasalstwo? → Rozbudowane: obowiązki, wezwania na wojnę, podatek
+k23 Kto rządzi Kościołem? → Arcybiskup w stolicy
+k24 Czy frakcje ludzkie walczą też ze sobą (nie tylko z ciemnością)? → Tak, cały czas: ciemność to wspólny wróg, którego ignorują
+k25 Herby i barwy frakcji? → Ręcznie zaprojektowane, ponure
+## Wiara, Kościół i kulty
+w01 Główna religia ludzi? → Monoteistyczny Kościół wzorowany na katolickim
+w02 Czy bóg Kościoła istnieje i działa? → Nie wiadomo, gra tego nie rozstrzyga
+w03 Pogańscy bogowie? → Własny panteon wzorowany na słowiańskim i bałtyckim
+w04 Czy pogańscy bogowie istnieją? → Tak, i są głodni
+w05 Ofiary w kultach? → Ludzie (jeńcy) w niektórych kultach
+w06 Czy gracz może wyznawać wiarę i to coś daje? → Tak: plus czynne obrzędy i cuda | Tak: plus czynne obrzędy i cuda + 
+Tak: pasywne premie i dostęp do jednostek
+w07 Herezje w Kościele? → Tak, 2–3 (np. biczownicy, ruch Ubóstwa, czciciele Męczennika)
+w08 Kult Głodu / Kult Pożeracza? → Tak, jeden z kilku
+w09 Kult Gwiazd lub z głębin (lovecraft)? → zdecyduj ty | kult głębin
+w10 Biczownicy i fanatycy jako jednostki? → Tak
+w11 Relikwie? → Oba
+w12 Święte miejsca na mapie? → Oba
+w13 Ekskomunika gracza? → Tak: zamyka miasta Kościoła, nasyła łowców
+w14 Spowiedź i odkupienie? → Tak: zmywa grzechy za opłatą lub zadaniem
+w15 Wiara żołnierzy? → Morale zależy od zgodności wiary dowódcy i oddziału
+w16 Czy można nawracać osady? → Tak (Kościół, poganie, kult)
+w17 Stosy i palenie czarownic jako wydarzenie? → Tak, gracz może przerwać lub pomóc
+w18 Wróżby i przepowiednie? → Tak, jako zapowiedź wydarzeń (czasem kłamliwe)
+w19 Pogańskie obrzędy pór roku (Kupała, Dziady)? → Tak, z efektami na mapie
+w20 Dziady: duchy przodków wracają raz w roku? → Tak, jako wydarzenie z walką lub nagrodą
+w21 Kapłani w oddziale? → Tak: leczą, podnoszą morale, odpędzają nieumarłych
+w22 Czy wiara to po prostu frakcja, czy osobna oś? → Osobna oś niezależna od państw
+w23 Symbole religijne w oprawie? → Własne, nie krzyż (unikamy wprost chrześcijańskich)
+w24 Święci jako postacie w świecie? → Żywi święci z mocą (czasem fałszywi)
+w25 Czy Kościół sam używa nekromancji w ukryciu? → Nie
+## Nekromancja i magia
+m01 Kto może używać magii? → Każdy, ale za cenę zdrowia i zdrowia psychicznego
+m02 Szkoły magii? → Nekromancja, demonologia, czary ludowe, cuda | inne jeszcze
+m03 Kiedy rzuca się czary? → Oba równo
+m04 Rytuały w obozie (jak w Vasnarze)? → Tak: przywołanie oddziałów nieumarłych, klątwy, wróżby
+m05 Składniki rytuałów? → Oba
+m06 Przywołani nieumarli są… → Trwali (zostają w oddziale)
+m07 Rodzaje nieumarłych do przywołania? → Bardzo dużo, każdy z drzewkiem awansu
+m08 Czy nieumarli awansują jak żołnierze? → Tak, przez rytuały (nie przez doświadczenie)
+m09 Koszt nekromancji dla gracza? → Wszystko powyżej
+m10 Zepsucie gracza ma skutki? → Tak: wygląd (blada skóra, oczy), niektóre frakcje odmawiają rozmowy, przy maksimum stajesz się liczem | na licza potrzebny rytuał
+m11 Licz jako koniec drogi nekromanty? → Tak, przez zadanie (jak w Vasnarze)
+m12 Demony? → Tak: silniejsze od nieumarłych, ale mogą się zbuntować
+m13 Klątwy jako trucizna (jak w Vasnarze)? → Tak, z lekarstwem do zdobycia
+m14 Czary ludowe (wiedźmy, szeptuchy)? → Leczenie, wróżby, uroki na wrogów
+m15 Cuda Kościoła? → Odpędzanie nieumarłych, leczenie, morale
+m16 Alchemia? → Granaty, trucizny na ostrza, mikstury
+m17 Zaklęcia bitewne gracza? → Kilka mocnych, rzadkich (np. fala strachu, wskrzeszenie poległych na polu)
+m18 Wskrzeszanie poległych w trakcie bitwy? → Tak, kluczowa moc nekromanty
+m19 Wampiryzm gracza? → Tak: zarażenie, głód krwi, moce i słabości
+m20 Wampir a słońce? → Bez znaczenia
+m21 Wilkołactwo? → Tak, jako klątwa dla gracza
+m22 Księgi zakazane? → Przedmioty unikalne z zadaniami
+m23 Czarownicy wrogów w bitwach? → Tak: AI też rzuca czary (nekromanci wskrzeszają, kapłani odpędzają)
+m24 Zabicie nekromanty w bitwie? → Rozsypuje jego przywołańców
+m25 Efekty wizualne magii? → Efektowne, fantasy
+m26 Czy magia jest „naukowa” (zasady) czy tajemnicza? → Tajemnicza, zasady poznaje się przez doświadczenie
+m27 Ile czasu i kar kosztuje rytuał? → Godziny w obozie, ryzyko przerwania przez straż lub chłopów (jak w Vasnarze)
+m28 Cmentarze jako źródło? → Tak, z ryzykiem (strażnicy, klątwa)
+m29 Jeńców można przerabiać na nieumarłych (jak Hollowed w Vasnarze)? → Tak
+m30 Magia a ekonomia? → Rzadkie składniki są cennym towarem
+## Potwory i bestiariusz
+p01 Skąd biorą się potwory? → Przekleństwo, zaraza, zepsute miejsca | Przekleństwo, zaraza, zepsute miejsca
+propozycja
+
+Zawsze tam były
+
+Tworzone przez ludzi (nekromanci, szaleni uczeni)
+wszystkie z powyższych
+p02 Jaki charakter potworów? → Mieszanka wszystkich
+p03 Ile gatunków na start? → Więcej
+p04 Rozmiar potworów? → Też ogromne (bossy wielkości domu)
+p05 Potwory na mapie świata? → Oba
+p06 Bossy? → Unikalne potwory z imieniem i historią
+p07 Walka z dużym potworem? → Specjalne zasady: słabe punkty, odcinanie kończyn, strach koni
+p08 Strach w bitwie? → Potwory obniżają morale, oddziały mogą uciec
+p09 Broń na potwory? → Srebro, ogień, poświęcona broń, każde na coś innego
+p10 Czy potwory są zwierzętami, czy kimś? → Rozumne potrafią negocjować
+p11 Kontrakty na potwory (jak wiedźmin)? → Tak, ze wsi i miast
+p12 Trofea z potworów? → Tak: sprzedaż, składniki rytuałów, ozdoby z premiami
+p13 Zwierzęta zwykłe (wilki, niedźwiedzie, dziki)? → Tak
+p14 Kruki jako znak śmierci (krążą nad pobojowiskiem)? → Tak, też w rozgrywce (zwiastują bitwę lub zwłoki)
+p15 Utopce i bagienne potwory? → Tak
+p16 Strzygi? → Tak
+p17 Wilkołaki? → Tak
+p18 Zszywańce i dzieła szalonych uczonych? → Tak
+p19 Gargulce, nietoperze, latające? → Nie, latanie komplikuje walkę
+p20 Olbrzymy, trolle? → Tak, jako zdeformowani ludzie-giganci
+p21 Smoki? → Jeden, legendarny (może martwy)
+p22 Upiory i duchy (niematerialne)? → Tak, z wymogiem srebra lub cudu
+p23 Potwory dołączające do armii gracza? → Tak, przez magię lub tresurę
+p24 Rój i plagi (szczury, owady)? → Tak, jako zjawisko na mapie
+p25 Wygląd potworów w stylu gry? → Fasetowe low-poly jak ludzie, groteskowe proporcje
+## Postać gracza i rozwój
+c01 Tworzenie postaci? → Oba
+c02 Płeć postaci? → Tylko mężczyzna
+c03 Wygląd twarzy? → Prosty edytor
+c04 Atrybuty? → Własne (np. ciało, refleks, wola, wiedza, posłuch)
+c05 Umiejętności? → Mieszanka
+c06 Biegłości bronią? → Rosną tylko od walki tą bronią
+c07 Cechy i wady (blizny, nałogi, obsesje)? → Tak, zdobywane w grze
+c08 Rany trwałe (utrata oka, palców, ręki)? → Tak, z karami
+c09 Szaleństwo lub stres? → Tylko dla towarzyszy
+c10 Starzenie się? → Nie
+c11 Rodzina i małżeństwo? → Tylko małżeństwo
+c12 Towarzysze (bohaterowie)? → Jak w Warbandzie: 15–20 z konfliktami
+c13 Towarzysze mogą umrzeć? → Tylko ciężko ranni
+c14 Moralność? → Kilka osi (miłosierdzie, wiara, zepsucie)
+c15 Ekwipunek gracza? → Z wagą, zmęczeniem i zużyciem | sloty
+c16 Zużycie broni i zbroi? → Tak, z naprawą u kowala
+c17 Kowalstwo i ulepszanie? → Tak: zamówienia u kowala z wyborem części
+c18 Zmęczenie w walce? → Tak: wytrzymałość na ciosy i bieg
+c19 Leczenie po bitwie? → Też ryzyko zakażenia i śmierci z ran
+c20 Choroby gracza? → Tak
+c21 Tytuły i sława? → Tak, przydomki nadawane przez świat (Rzeźnik z Gniłowa)
+c22 Poziom maksymalny? → Brak
+c23 Klasy? → Ścieżki kariery (łowca, nekromanta, kapłan, najemnik) | drzewka umiejętności / rozwoju się wykluczają
+c24 Głos postaci? → Okrzyki bojowe i odgłosy
+c25 Pochodzenie wpływa na start? → Tak: inny ekwipunek, relacje, miejsce startu
+## Walka i bitwy
+b01 Walka konna? → Tak, ale później
+b02 Łuki, kusze, broń palna? → Wszystkie trzy
+b03 Celowanie bronią palną? → Rozrzut, długie przeładowanie, dym
+b04 Kopnięcia? → Tak, jak w Warbandzie
+b05 Chwyty i zapasy (półmiecz, mordschlag)? → Nie
+b06 Rozmiar bitew? → 100–200
+b07 Rozkazy dla oddziału? → Rozbudowane: formacje, flanki, rezerwa
+b08 Formacje (mur tarcz, jeż pikinierów)? → Tak
+b09 Morale w bitwie? → Ucieczki oddziałów, panika od potworów i rzezi
+b10 Zmęczenie w bitwie? → Tak
+b11 Oblężenia? → Oblężenia później
+b12 Pole bitwy po walce? → Zwłoki zostają, można je zbierać (rytuały, grabież)
+b13 Łupienie ciał po bitwie? → Tak, z wyborem przedmiotów
+b14 Jeńcy? → Plus egzekucje, okup, przerabianie, ofiary
+b15 Egzekucja jeńców? → Tak, ze skutkami (strach, reputacja)
+b16 Pojedynki? → Tak: wyzwania lordów, sądy Boże
+b17 Turnieje? → Tak (w miastach ludzkich)
+b18 Areny i walki na śmierć? → Tak, w zepsutych miastach
+b19 Walka w nocy? → Tak, z widocznością ograniczoną do pochodni
+b20 Odcinanie kończyn dla gracza? → Gracz nie
+b21 Konie mogą ginąć i panikować? → Tak
+b22 Kamera? → 3. i 1. osoba jak teraz
+b23 Trudność walki? → Brutalniejsza: kilka ciosów zabija, zbroja ważna
+b24 Bloki automatyczne dla początkujących? → Tak, w opcjach (jak teraz klawisz B)
+b25 Walka drużynowa z towarzyszami (taktyka bez pauzy)? → Nie
+## Mapa świata i podróż
+d01 Mapa świata? → Jak w Warbandzie: oddziały na mapie 3D
+d02 Mgła wojny? → Nie
+d03 Pory dnia na mapie? → Tak, z nocą niebezpieczną
+d04 Zapasy i jedzenie? → Bardziej surowo: głód zabija ludzi
+d05 Obozowanie? → Menu obozu z rytuałami, leczeniem, morale
+d06 Wydarzenia w podróży? → Tak, tekstowe z wyborami (jak w Darkest Dungeon czy Battle Brothers)
+d07 Wejście do osad? → Menu
+d08 Lochy i ruiny? → Sceny z walką
+d09 Podróż morska lub rzeczna? → Tak, później
+d10 Drogi przyspieszają ruch? → Tak
+d11 Teren wpływa na bitwę (bagno spowalnia)? → Tak
+d12 Granice frakcji widoczne? → Tak, kolorami
+d13 Strefy przeklęte na mapie? → Tak: rośnie zepsucie, potwory, brak jedzenia
+d14 Osady mogą zostać zniszczone na stałe? → Tak (i odbudowane przez gracza)
+d15 Własna siedziba gracza? → Tak, od obozu do zamku
+d16 Rozbudowa osad? → Tak (warsztaty, mury, kaplice, cmentarze)
+d17 Karawany i szlaki? → Tak, do ochrony i napadania
+d18 Bandyci na mapie? → Tak, plus dezerterzy i sekty
+d19 Kryjówki do zniszczenia? → Tak
+d20 Szybka podróż? → Nie
+d21 Rozmiar mapy w czasie podróży? → Ok. 20 dni
+d22 Szpiedzy i wywiad? → Tak (zwiadowcy, plotki w karczmie)
+d23 Karczmy? → Tak: najemnicy, plotki, towarzysze, kości
+d24 Gry w karczmie (kości, karty)? → Tak
+d25 Mapa w stylu graficznym? → Ten sam styl fasetowy co bitwy
+## Oddział, armia i gospodarka
+a01 Rekrutacja? → Jak wyżej + pobór przymusowy
+a02 Drzewka jednostek? → Plus drzewka kultów i nieumarłych
+a03 Liczba jednostek na frakcję? → 15–20
+a04 Wynagrodzenie? → Żołd + udział w łupach
+a05 Bunt oddziału przy braku żołdu? → Tak, dezercje i bunt
+a06 Morale oddziału? → Rozbudowane: jedzenie, wiara, okrucieństwo dowódcy, zwycięstwa
+a07 Mieszanie żywych z nieumarłymi? → Możliwe, ale żywi tracą morale
+a08 Weterani z imieniem? → Tak, najlepsi żołnierze dostają imiona i historię
+a09 Wielkość oddziału? → Jak w Warbandzie (zależna od charyzmy i sławy)
+a10 Handel? → Rozbudowany: ceny zależne od wojen, zarazy, głodu
+a11 Warsztaty i przedsiębiorstwa? → Tak
+a12 Czarny rynek? → Tak: zwłoki, księgi, relikwie, trucizny
+a13 Podatki i rządzenie osadami? → Rozbudowane: podatki, porządek, bunty, plagi
+a14 Lenna? → Tak
+a15 Najemne kompanie do wynajęcia w całości? → Tak (np. Czarni Rajtarzy, landsknechci)
+a16 Inżynierowie, lekarze, kapłani w oddziale? → Jako jednostki z umiejętnościami
+a17 Tabor (wozy, zapasy, ofiary)? → Tak, widoczny na mapie i w bitwie
+a18 Kobiety w armiach? → Tak, w kilku frakcjach
+a19 Ekwipunek jednostek? → Losowy z puli, każdy żołnierz wygląda inaczej
+a20 Lordowie wrogich frakcji jako najemnicy? → Nie
+a21 Garnizony? → Tak
+a22 Plądrowanie wsi? → Tak, ze skutkami
+a23 Danina od wsi (ochrona)? → Tak
+a24 Ekonomia ciemnych frakcji? → Inna: żyją z grabieży i zwłok
+a25 Inflacja i kryzysy? → Nie
+## Fabuła, zadania i wydarzenia
+q01 Główny wątek dotyczy… → Wszystkiego naraz, odkrywanego warstwami
+q02 Zakończenia? → Kilka zależnych od frakcji i wyborów
+q03 Prolog? → Krótki samouczek walki w scenie (np. wieś, która płonie)
+q04 Zadania od lordów i wsi? → Bardziej opowieściowe z wyborami
+q05 Wątki frakcyjne (jak questline w Vasnarze)? → Tak, dla każdej frakcji
+q06 Wybory moralne bez dobrej opcji? → Tak, często
+q07 Wydarzenia losowe (jak w Battle Brothers)? → Tak, dużo
+q08 Śledztwa (inkwizycja, czarownice)? → Tak, z możliwością pomyłki
+q09 Tajemnice do odkrycia w świecie (notatki, ruiny)? → Tak
+q10 Postacie fabularne z dialogami? → Tak, kilkanaście kluczowych
+q11 Głos lektora? → Brak
+q12 Czy gracz może zostać „złym” zakończeniem? → Tak (np. Licz-Cesarz)
+q13 Kryzysy świata (zaćmienie, Długa Noc, inwazja)? → Tak, zaplanowane wydarzenia
+q14 Zadania z potworami? → Tak, kontrakty ze śledztwem
+q15 Lojalność towarzyszy wobec decyzji? → Tak, mogą odejść lub zdradzić
+q16 Zdrady lordów? → Rzadko
+q17 Pisane przez Claude'a dialogi? → Szkice, które poprawiasz
+q18 Długość tekstów w zadaniach? → Krótkie, dosadne
+q19 Kodeks / encyklopedia świata w grze? → Tak
+q20 Notatki i listy znalezione na zwłokach? → Tak
+q21 Przepowiednia lub Wybraniec? → Nie, gracz jest nikim szczególnym
+q22 Zadania czasowe? → Tak, świat nie czeka
+q23 Prześladowcy gracza (łowcy, rywale)? → Tak: nemezis, który rośnie razem z graczem
+q24 Ślady po wcześniejszych decyzjach w świecie (spalona wieś zostaje spalona)? → Tak
+q25 Język dialogów? → Współczesny polski z naleciałościami
+## Oprawa, dźwięk, interfejs i technika
+o01 Styl graficzny zostaje (hybryda fasetowa, grimdark)? → Tak
+o02 Muzyka? → Obie
+o03 Dźwięki walki? → Mięsiste, ciężkie
+o04 Głosy postaci? → Okrzyki i odgłosy
+o05 Interfejs? → Bogaty, pergamin i żelazo
+o06 Język interfejsu? → Więcej języków później
+o07 Silnik? → Zostajemy przy własnym (WebGL, przeglądarka, potem Steam przez Electron lub Tauri)
+o08 Zapis gry? → Autozapis + tryb żelazny
+o09 Modowanie? → Tak, dane w plikach JSON od początku
+o10 Wymagania sprzętowe? → Też słabe laptopy
+o11 Grafika postaci: więcej szczegółów czy więcej postaci w bitwie? → Więcej postaci
+o12 Ekrany ładowania? → Ryciny i cytaty z kronik
+o13 Mapa w menu? → Ręcznie rysowana
+o14 Kamera w scenach osad? → Pierwsza i trzecia osoba
+o15 Animacje twarzy? → Proste mrugnięcia i usta
+o16 Pogoda? → Deszcz, mgła, śnieg, burze
+o17 Kolor krwi i jej ilość? → Więcej i ciemniejsza
+o18 Napisy i liczby obrażeń w walce? → Tylko log jak teraz
+o19 Kursor kierunków jak teraz (strzałki)? → Tak
+o20 Wersje na konsole? → Nie
+o21 Wsparcie pada? → Nie
+o22 Wersja przeglądarkowa demo? → Tak, cały czas (jak teraz)
+o23 Ilość trójkątów na postać? → Jak teraz (fasetowy styl)
+o24 Animacje (mocap czy ręczne)? → Ręczne i proceduralne jak teraz
+o25 Kolejność budowy (następne 3 buildy)? → Mapa świata + bitwa jako zdarzenie, potem nekromancja

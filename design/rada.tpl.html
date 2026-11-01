@@ -39,6 +39,8 @@ nav{display:flex;flex-direction:column;gap:2px;position:sticky;top:calc(env(safe
 .area{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:baseline;text-align:left;background:none;border:0;border-left:2px solid transparent;padding:8px 10px;color:var(--dim)}
 .area:hover{color:var(--bone)}
 .area[aria-current="true"]{color:var(--bone);border-left-color:var(--blood);background:var(--iron)}
+.round{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ember);padding:14px 10px 6px}
+.round:first-child{padding-top:0}
 .area .n{font-size:13px;font-variant-numeric:tabular-nums;color:var(--faint)}
 .area.done .n{color:var(--ember)}
 main{min-width:0}
@@ -71,6 +73,7 @@ textarea::placeholder{color:var(--faint)}
   header{position:static}
   .cols{grid-template-columns:minmax(0,1fr);gap:16px}
   nav{position:static;flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:6px}
+  .round{white-space:nowrap;padding:8px 6px 0}
   .area{white-space:nowrap;border-left:0;border-bottom:2px solid transparent;grid-template-columns:auto auto}
   .area[aria-current="true"]{border-bottom-color:var(--blood)}
   .q{grid-template-columns:minmax(0,1fr)}
@@ -81,11 +84,11 @@ textarea::placeholder{color:var(--faint)}
   <header>
     <div class="top">
       <div><div class="eyebrow">Montablate 2.0 · gotyk późnego średniowiecza</div><h1>Rada Projektowa</h1></div>
-      <div class="tally"><span><b id="cnt">0</b> <span class="of">/ <span id="tot">300</span> rozstrzygnięte</span></span><span class="save" id="save" aria-live="polite">Wczytuję…</span><button class="btn" id="copy" type="button">Kopiuj wszystkie odpowiedzi</button></div>
+      <div class="tally"><span><b id="cnt">0</b> <span class="of">/ <span id="tot">500</span> rozstrzygnięte</span></span><span class="save" id="save" aria-live="polite">Wczytuję…</span><button class="btn" id="copy" type="button">Kopiuj wszystkie odpowiedzi</button></div>
     </div>
     <div class="bar"><i id="bar"></i></div>
   </header>
-  <div class="note" id="intro">Zaznacz wariant albo „Zdecyduj ty”, jeśli zostawiasz to mnie. W polu pod pytaniem możesz wpisać własną odpowiedź lub uwagi, zastępują albo uzupełniają wybór. Wszystko zapisuje się samo, a ja czytam odpowiedzi stąd. Nie trzeba odpowiadać na wszystko naraz: rób obszar po obszarze i daj znać na czacie, który skończyłeś.</div>
+  <div class="note" id="intro">Zaznacz wariant albo „Zdecyduj ty”, jeśli zostawiasz to mnie. W polu pod pytaniem możesz wpisać własną odpowiedź lub uwagi, zastępują albo uzupełniają wybór. Wszystko zapisuje się samo, a ja czytam odpowiedzi stąd. Tura 1 jest już rozstrzygnięta (Twoje odpowiedzi trafiły do dokumentu projektu). Teraz Tura 2: 200 pytań o szczegóły mechanik, z liczbami do wyboru. Rób obszar po obszarze; przycisk „Kopiuj wszystkie odpowiedzi” zbiera wszystko do wklejenia na czacie.</div>
   <div class="note warn" id="local" hidden>Zapis wspólny jest niedostępny w tym widoku, więc odpowiedzi zostają tylko w tej przeglądarce i nie dotrą do mnie same. Otwórz stronę zalogowany na claude.ai albo użyj przycisku „Kopiuj wszystkie odpowiedzi” i wklej je na czacie.</div>
   <div class="cols">
     <nav id="nav" aria-label="Obszary"></nav>
@@ -93,11 +96,12 @@ textarea::placeholder{color:var(--faint)}
   </div>
 </div>
 <script>/*QUESTIONS*/</script>
+<script>/*QUESTIONS2*/</script>
 <script>
 const $ = (id) => document.getElementById(id);
 const ALL = AREAS.flatMap((a) => a.qs.map((q) => ({ area: a, id: q[0], q: q[1], o: q[2], r: q[3], why: q[4] })));
 const BY = Object.fromEntries(ALL.map((x) => [x.id, x]));
-const ans = {};               // id -> {c: number|-1|null, t: string}
+const ans = /*R1*/{};   // id -> {c, t}; tura 1 wpisana z odpowiedzi z czatu
 let db = null, mode = "loading";
 let cur = AREAS[0].id;
 
@@ -106,7 +110,13 @@ function areaCount(A) { return A.qs.filter((q) => decided(ans[q[0]])).length; }
 
 function renderNav() {
   const nav = $("nav"); nav.textContent = "";
+  let lastRound = 0;
   for (const A of AREAS) {
+    if (A.round !== lastRound) {
+      lastRound = A.round;
+      const h = document.createElement("div"); h.className = "round"; h.textContent = A.round === 1 ? "Tura 1 · fundament" : "Tura 2 · mechaniki";
+      nav.append(h);
+    }
     const b = document.createElement("button");
     b.type = "button"; b.className = "area"; const n = areaCount(A);
     if (n === A.qs.length) b.classList.add("done");
@@ -203,7 +213,7 @@ function applyRemote(id, d) {
 
 function route() {
   const h = location.hash.slice(1);
-  cur = AREAS.some((a) => a.id === h) ? h : AREAS[0].id;
+  cur = AREAS.some((a) => a.id === h) ? h : (AREAS.find((a) => a.round === 2) || AREAS[0]).id;
   renderNav(); renderMain();
 }
 window.addEventListener("hashchange", route);
