@@ -9,6 +9,7 @@ Czytaj to pierwsze. Ten plik i folder `docs/` to **jedyne źródło prawdy** o p
 - Pytania projektowe zadawaj **rundami na osobnej stronie** (rada projektowa, `design/rada.html`), po 15–30 pytań na obszar, z Twoją propozycją oznaczoną i opcją „Zdecyduj ty”. Odpowiedzi właściciel wkleja jako tekst; zapisz je w `design/odpowiedzi-turaN.txt` i przenieś do `docs/03-dokument-projektu.md`.
 
 ## Zanim cokolwiek zmienisz
+0. **`docs/00-START-DLA-AI.md`**: przekazanie projektu, jak pracować z właścicielem, rytuał każdego buildu, stan i następny krok.
 1. Przeczytaj `docs/README.md` (spis), potem `docs/06-stan-i-plan.md` (co jest zrobione, co dalej, znane braki).
 2. Styl i klimat: `docs/01-wizja-i-styl.md`. Polecenia właściciela, dosłownie i po kolei: `docs/02-polecenia-uzytkownika.md`.
 3. Ustalenia z 500 pytań i liczby mechanik: `docs/03-dokument-projektu.md`.
@@ -29,7 +30,7 @@ Czytaj to pierwsze. Ten plik i folder `docs/` to **jedyne źródło prawdy** o p
 ## Po każdej pracy
 - Zaktualizuj `docs/06-stan-i-plan.md` (historia buildów, co dalej, braki) i inne pliki `docs/`, jeśli zmieniły się ustalenia.
 - Dopisz nowe polecenia właściciela do `docs/02-polecenia-uzytkownika.md`.
-- Commit z opisem po polsku. Repo: `budownik1203/mt` na GitHubie (jeśli dostęp nie działa, zostaw commity lokalnie i daj właścicielowi paczkę `git bundle`).
+- Commit z opisem po polsku. Repo: `budownik1203/mt` na GitHubie, gałąź `master`; **po każdym buildzie push** (jeśli dostęp nie działa, zostaw commity lokalnie i daj właścicielowi paczkę `git bundle`).
 
 ## Budowanie (skrót, szczegóły w docs/05-technika.md)
 ```

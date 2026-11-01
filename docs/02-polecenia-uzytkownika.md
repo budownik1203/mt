@@ -34,3 +34,5 @@ Wszystkie ważne polecenia, po kolei, możliwie dosłownie (pisane głosem, stą
 25. „No i **mechaniki**: **podstawowe mechaniki z Warbanda**.” (postać z atrybutami i umiejętnościami, poziomy, biegłości, ekwipunek, kowal, jeńcy, okupy, sława, limit kompanii, tworzenie postaci).
 26. „Generalnie **nie czekaj na mnie** i na moje odpowiedzi, po prostu leć z kolejnymi buildami. Pamiętaj, żeby **aktualizować repo**.”
 27. „Przede wszystkim **jakość i czytelność mechanik jak w Warbandzie**.” (priorytet: każda mechanika ma być czytelna w interfejsie: liczby, limity, przyczyny zablokowania przycisków, jak w menu Warbanda.)
+28. „Połącz się z GitHubem i **przenieś tam wszystko** co do projektu, żebym na następnym AI miał wszystko i mógł pracować jak teraz, **bez wprowadzeń**. Możesz zrobić specjalny dokument dla innego AI.” → `docs/00-START-DLA-AI.md`, push na `budownik1203/mt`.
+29. „Jak skończysz, **pracuj dalej**: build 11.”

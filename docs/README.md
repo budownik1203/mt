@@ -2,6 +2,7 @@
 
 | Plik | Co zawiera |
 | --- | --- |
+| [00-START-DLA-AI.md](00-START-DLA-AI.md) | **Czytaj pierwsze**: przekazanie projektu następnemu AI, rytuał buildu, stan, następny krok |
 | [01-wizja-i-styl.md](01-wizja-i-styl.md) | Czym jest gra, klimat, styl graficzny, inspiracje, granice treści |
 | [02-polecenia-uzytkownika.md](02-polecenia-uzytkownika.md) | Polecenia właściciela po kolei, z sesji na sesję |
 | [03-dokument-projektu.md](03-dokument-projektu.md) | Ustalenia projektowe z rad (tura 1: 300 pytań, tura 2: 200 o mechanikach), frakcje, rozstrzygnięte sprzeczności |
