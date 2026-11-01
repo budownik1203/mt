@@ -19,11 +19,11 @@ export const PERSONA: Record<Persona, { pl: string; hint: string }> = {
 export interface FactionDef { id: FactionId; name: string; short: string; color: number; culture: Settlement["culture"]; ruler: string; troops: [TroopId, number][]; title: string }
 export const FACTIONS: Record<FactionId, FactionDef> = {
   cesarstwo: { id: "cesarstwo", name: "Cesarstwo Popielne", short: "Cesarstwo", color: 0x8a2a1c, culture: "german", ruler: "ulrich", title: "margrabia",
-    troops: [["halabardnik", 4], ["zbrojny", 3], ["pacholek", 2], ["kusznik", 2], ["arkebuzer", 1.2], ["plytowy", 1.2], ["rycerz", 0.5]] },
+    troops: [["halabardnik", 4], ["zbrojny", 3], ["pacholek", 2], ["kusznik", 2], ["arkebuzer", 1.2], ["plytowy", 1.2], ["rycerz", 0.5], ["jezdziec", 1], ["rycerz_konny", 0.6]] },
   arcybiskupstwo: { id: "arcybiskupstwo", name: "Arcybiskupstwo Morweńskie", short: "Arcybiskupstwo", color: 0xc9b98a, culture: "church", ruler: "lotar", title: "arcybiskup",
-    troops: [["zbrojny", 4], ["lowca", 1], ["pacholek", 2], ["kusznik", 1.5], ["chlop", 2], ["rycerz", 0.8]] },
+    troops: [["zbrojny", 4], ["lowca", 1], ["pacholek", 2], ["kusznik", 1.5], ["chlop", 2], ["rycerz", 0.8], ["jezdziec", 1]] },
   wronsk: { id: "wronsk", name: "Księstwo Wrońskie", short: "Wrońsk", color: 0x2a4a6a, culture: "slav", ruler: "wsiewolod", title: "kniaź",
-    troops: [["chlop", 4], ["pacholek", 3], ["lucznik", 3], ["zbrojny", 2], ["halabardnik", 1], ["rycerz", 0.8]] },
+    troops: [["chlop", 4], ["pacholek", 3], ["lucznik", 3], ["zbrojny", 2], ["halabardnik", 1], ["rycerz", 0.8], ["jezdziec", 1.5], ["rycerz_konny", 0.3]] },
 };
 export const FIDS = Object.keys(FACTIONS) as FactionId[];
 

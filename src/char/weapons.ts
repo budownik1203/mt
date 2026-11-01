@@ -10,7 +10,7 @@ export const GRIP = (): Mat4 => trs(m4(), 0, -0.07, 0.004);
 
 /** Weapon classes share one set of animations, exactly like Mount & Blade: only the model in the hand changes. */
 export type WClass = "oh" | "th" | "pa";
-export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive" | "claws" | "bow" | "crossbow" | "arquebus";
+export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive" | "claws" | "bow" | "crossbow" | "arquebus" | "lance";
 /** Ranged weapons (build 11): projectile speed (m/s), damage, draw/aim and reload times (s), ammo per battle, base spread (rad). */
 export interface RangedSpec { kind: "bow" | "crossbow" | "arquebus"; speed: number; grav: number; dmg: number; armourK: number; draw: number; reload: number; ammo: number; spread: number; range: number; ammoName: string }
 export interface WeaponSpec {
@@ -30,6 +30,7 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   spear: { id: "spear", name: "Włócznia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.6 },
   glaive: { id: "glaive", name: "Glewia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.75 },
   claws: { id: "claws", name: "Pazury", cls: "oh", thrust: false, offhand: 0, tip: 0.3 },
+  lance: { id: "lance", name: "Kopia", cls: "pa", thrust: true, offhand: 0, tip: 3.1 },
   bow: { id: "bow", name: "Łuk", cls: "pa", thrust: false, offhand: 0.62, tip: 0.7,
     ranged: { kind: "bow", speed: 46, grav: 9.8, dmg: 30, armourK: 1, draw: 0.75, reload: 0.55, ammo: 24, spread: 0.022, range: 55, ammoName: "strzał" } },
   crossbow: { id: "crossbow", name: "Kusza", cls: "pa", thrust: false, offhand: 0.34, tip: 0.6,
@@ -150,6 +151,16 @@ export function buildWeapon(id: WeaponId, smooth: boolean, detail: number): TMes
       // a ghoul's hooked nails, black with old blood
       t.mat = 0;
       for (const [x, a] of [[-0.025, -0.2], [0, 0], [0.025, 0.2]] as [number, number][]) { t.box(trs(m4(), x, -0.01, 0.13, a * 0.3, -0.2, 0), 0.012, 0.012, 0.22, GREG.steelDark); t.box(trs(m4(), x, -0.035, 0.25, a * 0.3, -0.9, 0), 0.01, 0.01, 0.07, GREG.steelDark); }
+      break;
+    }
+    case "lance": {
+      // a war lance: long ash shaft, vamplate over the hand, a pennant under the point
+      t.mat = 0;
+      zl(t, I, [[-0.7, 0.024, 0.024], [0.0, 0.03, 0.03], [2.9, 0.016, 0.016]], rnd, GREG.wood, o);
+      t.mat = 2;
+      zl(t, I, [[0.06, 0.02, 0.02], [0.14, 0.09, 0.09], [0.36, 0.035, 0.035]], 8, GREG.steelDark, { ...o, capBot: true });
+      zl(t, I, [[2.9, 0.018, 0.018], [3.12, 0.002, 0.002]], 4, GREG.blade, { smooth: false });
+      t.mat = 0; t.box(trs(m4(), 0, 0.12, 2.62), 0.004, 0.2, 0.32, GREG.surcoat);
       break;
     }
     case "spear": {

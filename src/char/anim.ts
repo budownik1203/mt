@@ -14,7 +14,7 @@ import { GRIP, WeaponId, WEAPONS, WClass } from "./weapons.ts";
 
 export type Anim = "idle" | "walk" | "t" | "combat" | "walkcombat";
 export type Move = "all" | "over" | "right" | "left" | "thrust" | "blocks" | "parried";
-export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number }; aim?: number; react?: [number, number, number] }
+export interface Equip { weapon: WeaponId | null; shield: "none" | "arm" | "back"; move?: Move; drive?: Drive; loco?: { fwd: number; side: number; speed: number }; aim?: number; react?: [number, number, number]; ride?: boolean }
 /** Runtime-driven upper body (the game supplies the weapon key instead of the demo timeline). */
 export interface Drive { key: WK; lead: WK; block: string | null; label: string }
 
@@ -564,6 +564,12 @@ export function frame(root: Mat4, kind: Anim, t: number, eq: Equip): Frame {
       farmL: shieldArm ? [sb ? (shieldDir === "up" ? -0.9 : -1.25) : -1.15, 0, 0] : [-0.3, 0, 0], handL: [0, 0, 0.05],
     };
   }
+  if (eq.ride) {
+    // in the saddle: thighs forward and apart around the barrel, shins back to the stirrups
+    legs = { thighL: [-1.25, 0.1, 0.42], thighR: [-1.25, -0.1, -0.42], shinL: [1.15, 0, 0], shinR: [1.15, 0, 0], footL: [-0.15, 0, 0], footR: [-0.15, 0, 0] };
+    bob = 0;
+    pose.r = { ...pose.r, pelvis: [0, (pose.r.pelvis?.[1] ?? 0) * 0.4, 0] };
+  }
   pose.r = { ...pose.r, ...legs };
   pose.bob = bob;
 
@@ -698,6 +704,8 @@ export const RANGED_POSE: Record<"bow" | "crossbow" | "arquebus", { aim: WK; rel
   crossbow: { aim: { ...K([-0.1, 0.44, 0.26], [0.06, 0.0, 1], [0, 1, 0], -0.15, 0), oh: 0.34 }, reload: { ...K([-0.12, -0.05, 0.3], [0.05, -0.85, 0.52], [0, 0.52, 0.85], 0, 0.35), oh: 0.34 } },
   arquebus: { aim: { ...K([-0.1, 0.44, 0.24], [0.06, 0.0, 1], [0, 1, 0], -0.15, 0), oh: 0.36 }, reload: { ...K([-0.14, 0.05, 0.22], [0.1, 0.95, 0.28], [0, -0.28, 0.95], 0.1, 0.1), oh: 0.36 } },
 };
+/** Couched lance (build 13): tucked under the right arm, point forward and a little down. */
+export const COUCH_KEY: WK = K([-0.16, 0.22, 0.08], [0.1, -0.03, 0.99], [0, 1, 0], -0.1, 0.1);
 export function poseTrack(w: WeaponId, cur: WK, to: WK, dt: number): Track {
   return { segs: [{ t: 0, k: withOh(cur, w), ease: "smooth", label: "start" }, { t: Math.max(0.01, dt), k: withOh(to, w), ease: "smooth", label: "celowanie" }], impact: -1 };
 }

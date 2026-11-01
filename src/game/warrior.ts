@@ -7,7 +7,8 @@ import { buildGear, Loadout } from "../char/gear.ts";
 import { buildWeapon, buildShield, WeaponId, WEAPONS } from "../char/weapons.ts";
 import { buildUndead } from "../char/undead.ts";
 import { buildMonster, MonsterKind } from "../char/monster.ts";
-import { RANGED_POSE, poseTrack } from "../char/anim.ts";
+import { RANGED_POSE, poseTrack, COUCH_KEY } from "../char/anim.ts";
+import { HorseId, HORSES, buildHorse, legAngles, legMatrix, SADDLE } from "../char/horse.ts";
 import type { RangedSpec } from "../char/weapons.ts";
 import { frame, makeTrack, sampleTrack, trackLength, guardKey, Track, WK, AttackDir, BlockDir } from "../char/anim.ts";
 import { Armour, DmgType, Dir, DIR } from "./combat.ts";
@@ -26,6 +27,7 @@ export const WSTATS: Record<WeaponId, WStats> = {
   // ranged weapons in melee: a clumsy bash with the stave or stock (the sidearm is better)
   bow: { mass: 0.8, reach: 0.9, speed: 0.9, swing: { dmg: 10, type: "blunt" }, thrust: null },
   crossbow: { mass: 1.1, reach: 0.9, speed: 0.85, swing: { dmg: 14, type: "blunt" }, thrust: null },
+  lance: { mass: 1.4, reach: 2.7, speed: 0.8, swing: { dmg: 12, type: "blunt" }, thrust: { dmg: 30, type: "pierce" } },
   arquebus: { mass: 1.2, reach: 1.0, speed: 0.85, swing: { dmg: 16, type: "blunt" }, thrust: null },
   glaive: { mass: 1.45, reach: 1.95, speed: 0.88, swing: { dmg: 36, type: "cut" }, thrust: { dmg: 28, type: "pierce" } },
 };
@@ -36,6 +38,8 @@ export interface Kit {
   armour: Armour; hp: number; skill: number;
   /** Shooters carry a sidearm for the melee (build 11). */
   side?: WeaponId;
+  /** Mounted troops (build 13). */
+  horse?: HorseId;
   /** Undead bodies replace the human mesh (build 8). */
   undead?: "skeleton" | "ghoul" | "zombie" | "necro" | MonsterKind; tier?: number;
 }
@@ -47,6 +51,13 @@ const BLOCK_DIR: BlockDir[] = ["up", "right", "left", "down"];
 // ---------- mesh cache: one set of GPU meshes per (loadout, weapon, shield) ----------
 export interface CharMesh { parts: { joint: Joint; mesh: GMesh }[]; weapon: GMesh; shield: GMesh | null }
 const meshCache = new Map<string, CharMesh>();
+const horseCache = new Map<string, { body: GMesh; legs: GMesh[]; hips: [number, number, number][] }>();
+function horseMesh(R: PSX, id: HorseId) {
+  let h = horseCache.get(id);
+  if (!h) { const p = buildHorse(id); h = { body: R.upload(p.body, 3, false), legs: p.legs.map((l) => R.upload(l, 3, false)), hips: p.hips }; horseCache.set(id, h); }
+  return h;
+}
+export interface Mount { k?: number; id: HorseId; hp: number; maxHp: number; yaw: number; speed: number; phase: number; dead: boolean; deadT: number }
 export function charMesh(R: PSX, kit: Kit): CharMesh {
   const sh = shieldMode(kit);
   const key = `${kit.loadout}|${kit.weapon}|${sh}|${kit.undead ?? ""}${kit.tier ?? ""}`;
@@ -186,6 +197,56 @@ export class Warrior {
     }
   }
 
+  // ---------- horse (build 13) ----------
+  mount: Mount | null = null;
+  get mounted() { return !!this.mount && !this.mount.dead; }
+  couchCD = 0;
+  /** Lance couched: at a gallop, idle, lance in hand. */
+  get couched() { return this.mounted && this.kit.weapon === "lance" && this.mount!.speed > 6.2 && this.state === "idle" && this.couchCD <= 0; }
+  setMount(R: PSX, id: HorseId | undefined) {
+    if (!id) { this.mount = null; this.radius = 0.38; return; }
+    const H = HORSES[id];
+    this.mount = { id, hp: H.hp, maxHp: H.hp, yaw: this.yaw, speed: 0, phase: Math.random() * 6, dead: false, deadT: 0 };
+    this.radius = 0.75; horseMesh(R, id);
+  }
+  /** The horse is killed: the rider is thrown. */
+  horseDies() {
+    const m = this.mount; if (!m || m.dead) return;
+    m.dead = true; m.hp = 0; m.speed = 0; this.radius = 0.38; this.vx = this.vz = 0;
+    this.horseAt = { x: this.x, z: this.z, yaw: m.yaw };
+    if (this.alive) this.stagger();
+  }
+  horseAt: { x: number; z: number; yaw: number } | null = null;
+  private moveMounted(dt: number, ground: (x: number, z: number) => number) {
+    const m = this.mount!, H = HORSES[m.id];
+    const wl = Math.hypot(this.wish.x, this.wish.z);
+    let target = 0;
+    if (wl > 0.05 && this.alive) {
+      const want = Math.atan2(this.wish.x, this.wish.z), dy = wrapAngle(want - m.yaw);
+      const turn = H.turn * (m.k ?? 1) * (1 - 0.4 * Math.min(1, m.speed / H.speed));
+      m.yaw = wrapAngle(m.yaw + clamp(dy, -turn * dt, turn * dt));
+      const align = Math.cos(dy);
+      target = (this.wish.run ? H.speed : H.speed * 0.5) * (m.k ?? 1) * Math.min(1, wl) * (align < -0.2 ? 0.25 : 0.4 + 0.6 * Math.max(0, align));
+    }
+    m.speed += clamp(target - m.speed, -6.5 * dt, 3.2 * dt);
+    this.vx = Math.sin(m.yaw) * m.speed; this.vz = Math.cos(m.yaw) * m.speed;
+    const kd = Math.exp(-dt * 7); this.kx *= kd; this.kz *= kd;
+    const fr = this.freeze > 0 ? 0.3 : 1;
+    this.x += (this.vx + this.kx * 0.3) * dt * fr; this.z += (this.vz + this.kz * 0.3) * dt * fr;
+    this.y = ground(this.x, this.z);
+    m.phase += dt * (2.2 + m.speed * 0.95);
+    this.couchCD = Math.max(0, this.couchCD - dt);
+  }
+  private drawHorse(items: { mesh: GMesh; model: Mat4 }[]) {
+    const m = this.mount!; const hm = horseCache.get(m.id)!;
+    let root: Mat4;
+    if (m.dead) { const a = this.horseAt!; m.deadT += 1 / 60; const e = Math.min(1, m.deadT / 0.6); root = trs(m4(), a.x, this.y - 0.1 * e, a.z, a.yaw, 0, e * 1.45); }
+    else root = mul(m4(), trs(m4(), this.x, this.y + Math.abs(Math.sin(m.phase)) * Math.min(0.08, m.speed * 0.01), this.z, m.yaw), trs(m4(), 0, 0, 0, 0, Math.sin(m.phase * 2) * 0.02 * Math.min(1, m.speed / 6), 0));
+    items.push({ mesh: hm.body, model: root });
+    const ang = m.dead ? [0.5, 0.3, -0.4, -0.2] : legAngles(m.phase, m.speed);
+    hm.hips.forEach((h, i) => items.push({ mesh: hm.legs[i], model: legMatrix(root, h, ang[i]) }));
+  }
+
   private go(s: State, tr?: Track) {
     if (s !== "idle") this.rs = "";
     this.state = s; this.t = 0;
@@ -273,6 +334,7 @@ export class Warrior {
   }
 
   move(dt: number, ground: (x: number, z: number) => number) {
+    if (this.mounted) { this.moveMounted(dt, ground); return; }
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
     const wl = Math.hypot(this.wish.x, this.wish.z);
     const fwd = wl > 0.01 ? (this.wish.x * fx + this.wish.z * fz) / wl : 1;
@@ -305,8 +367,10 @@ export class Warrior {
     this.cur = s.k;
     const label = this.state === "hold" ? "trzymanie" : this.state === "idle" ? "garda" : s.label;
     const block = this.state === "block" ? s.block : null;
-    let root = trs(m4(), this.x, this.y, this.z, this.yaw);
-    let kind: "combat" | "walkcombat" | "idle" = Math.hypot(this.vx, this.vz) > 0.4 ? "walkcombat" : "combat";
+    if (this.mount) this.drawHorse(items);
+    const riding = this.mounted && this.alive;
+    let root = riding ? trs(m4(), this.x, this.y + SADDLE + Math.abs(Math.sin(this.mount!.phase)) * Math.min(0.08, this.mount!.speed * 0.01), this.z, this.mount!.yaw + clamp(wrapAngle(this.yaw - this.mount!.yaw), -1.1, 1.1)) : trs(m4(), this.x, this.y, this.z, this.yaw);
+    let kind: "combat" | "walkcombat" | "idle" = !riding && Math.hypot(this.vx, this.vz) > 0.4 ? "walkcombat" : "combat";
     if (!this.alive) {
       kind = "idle";
       const f = clamp(this.deadT / 0.75, 0, 1), e = f * f;
@@ -317,7 +381,7 @@ export class Warrior {
     const loco = { fwd: (this.vx * fx + this.vz * fz) / (sp || 1), side: (this.vx * fz - this.vz * fx) / (sp || 1), speed: sp };
     const F = frame(root, kind, kind === "walkcombat" ? this.walkT : this.t + this.id, {
       weapon: this.kit.weapon, shield: sh, loco, aim: this.alive ? this.lean : 0, react: this.react,
-      drive: this.alive ? { key: s.k, lead: lead.k, block, label } : undefined,
+      drive: this.alive ? (this.couched ? { key: COUCH_KEY, lead: COUCH_KEY, block: null, label: "kopia" } : { key: s.k, lead: lead.k, block, label }) : undefined, ride: riding,
     });
     this.lastJ = F.J;
     for (const p of this.mesh.parts) {

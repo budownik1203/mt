@@ -1,6 +1,7 @@
 // The player character, Warband-style: attributes, skills (capped by their
 // attribute), weapon proficiencies that grow with use, levels from experience,
 // renown; plus equipment, the item stash and prices.
+import type { HorseId } from "../char/horse.ts";
 import type { WeaponId } from "../char/weapons.ts";
 import type { Loadout } from "../char/gear.ts";
 
@@ -11,7 +12,7 @@ export const ATTRS: Record<Attr, { pl: string; en: string; desc: string }> = {
   wiedza: { pl: "Wiedza", en: "Lore", desc: "medycyna, taktyka, zwiad, więcej punktów umiejętności" },
   posluch: { pl: "Posłuch", en: "Command", desc: "dowodzenie, handel, perswazja, jeńcy" },
 };
-export type Skill = "twarde" | "sila" | "atletyka" | "dowodzenie" | "handel" | "chirurgia" | "leczenie" | "szkolenie" | "taktyka" | "tropienie" | "zwiad" | "lupy" | "jency" | "perswazja" | "nekromancja";
+export type Skill = "twarde" | "sila" | "atletyka" | "dowodzenie" | "handel" | "chirurgia" | "leczenie" | "szkolenie" | "taktyka" | "tropienie" | "zwiad" | "lupy" | "jency" | "perswazja" | "nekromancja" | "jazda";
 export const SKILLS: Record<Skill, { pl: string; attr: Attr; desc: string }> = {
   twarde: { pl: "Twarde ciało", attr: "cialo", desc: "+4 zdrowia na poziom" },
   sila: { pl: "Siła ciosu", attr: "cialo", desc: "+8% obrażeń wręcz na poziom" },
@@ -27,6 +28,7 @@ export const SKILLS: Record<Skill, { pl: string; attr: Attr; desc: string }> = {
   lupy: { pl: "Łupiestwo", attr: "refleks", desc: "+10% łupów na poziom" },
   jency: { pl: "Pilnowanie jeńców", attr: "posluch", desc: "+5 miejsc na jeńców na poziom" },
   perswazja: { pl: "Perswazja", attr: "posluch", desc: "jeńcy łatwiej przechodzą na twoją stronę" },
+  jazda: { pl: "Jazda konna", attr: "refleks", desc: "koń szybszy i zwrotniejszy o 4% na poziom; rumak bojowy wymaga 2" },
   nekromancja: { pl: "Nekromancja", attr: "wiedza", desc: "tylko z księgą: rytuały, +4 nieumarłych na poziom, wskrzeszanie w bitwie" },
 };
 export type Prof = "oh" | "th" | "pa" | "rg";
@@ -41,6 +43,8 @@ export interface Hero {
   armour: Loadout; weapons: WeaponId[]; shield: boolean;
   /** Necromancy (build 8): known from a book or a teacher; corruption 0–100; the lich at the end of the road. */
   necro?: boolean; corruption?: number; lich?: boolean;
+  /** The hero's horse (build 13). */
+  horse?: HorseId;
 }
 export function newHero(): Hero {
   const skills = Object.fromEntries(Object.keys(SKILLS).map((k) => [k, 0])) as Record<Skill, number>;
@@ -77,7 +81,7 @@ export const ORIGINS: Origin[] = [
 
 // ---------- items and prices ----------
 import { WEAPONS } from "../char/weapons.ts";
-export const WEAPON_PRICE: Record<WeaponId, number> = { claws: 0, bow: 60, crossbow: 110, arquebus: 220, kord: 40, hatchet: 35, mace: 60, sword: 110, spear: 45, longsword: 220, greataxe: 160, glaive: 130 };
+export const WEAPON_PRICE: Record<WeaponId, number> = { claws: 0, lance: 90, bow: 60, crossbow: 110, arquebus: 220, kord: 40, hatchet: 35, mace: 60, sword: 110, spear: 45, longsword: 220, greataxe: 160, glaive: 130 };
 export const ARMOUR_PRICE: Record<Loadout, number> = { base: 10, levy: 70, sergeant: 320, knight: 900, plate: 1400 };
 export const ARMOUR_NAME: Record<Loadout, string> = { base: "Łachmany i owijacze", levy: "Przeszywanica i kapalin", sergeant: "Kolczuga, czepiec i szyszak", knight: "Kolczuga, wappenrock i hełm garnczkowy", plate: "Zbroja płytowa" };
 export const itemName = (it: Item) => (it.kind === "weapon" ? WEAPONS[it.id].name : ARMOUR_NAME[it.id]);

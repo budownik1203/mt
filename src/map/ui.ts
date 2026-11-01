@@ -10,6 +10,8 @@ import type { TravelEvent } from "./events.ts";
 import { power } from "./troops.ts";
 import { rites, doRite, placeActs, undeadCount, livingCount, harvest, corrupt, learnNecromancy } from "./necro.ts";
 import { undeadLimit, corruptionWord } from "./hero.ts";
+import { HORSES, HorseId } from "../char/horse.ts";
+import { profOf } from "./hero.ts";
 import { faithOf, faithShares, faithMorale, placeFaithActs, campRites, FAITH_NAME, BOONS } from "./faith.ts";
 import { MONSTERS, monsterDef, monsterParty, offerAt, takeContract, monsterSlain } from "./monsters.ts";
 import { FACTIONS, FIDS, LORDS, PERSONA, FactionId, lordDef, atWar, hostileTo, changeRel, lordRel, relWord, hire, vassal, leaveService, vassalNeeds, transfer, seatOf } from "./factions.ts";
@@ -86,6 +88,7 @@ export class MapUI {
     if (c.fullMoon) flags.push("pełnia");
     if (co.hungerDays) flags.push(`głód ${co.hungerDays} d`);
     if (!c.clockRuns) flags.push("czas stoi");
+    if (c.mountedCompany) flags.push("konno +20%");
     { const ff = faithOf(c); if (ff.boon && ff.boon.until >= c.day) flags.push(BOONS[ff.boon.id].name.toLowerCase()); if (ff.excom) flags.push("ekskomunika"); }
     if (co.hero.necro) flags.push(`zepsucie ${Math.round(co.hero.corruption ?? 0)}`);
     if (undeadCount(c)) flags.push(`nieumarli ${undeadCount(c)}`);
@@ -155,6 +158,7 @@ export class MapUI {
       acts.push({ label: "Plotki", sub: "kto, gdzie, za ile", on: () => this.rumours(s) });
       acts.push({ label: "Zbrojownia: awanse", sub: "doświadczeni ludzie dostają lepszy sprzęt", on: () => this.upgrades(s) });
       acts.push({ label: "Kowal i płatnerz", sub: "broń i zbroje dla ciebie; sprzedaż łupów", on: () => this.smith(s) });
+      acts.push({ label: "Targ koński", sub: c.co.hero.horse ? `twój koń: ${HORSES[c.co.hero.horse].name}` : "nie masz konia: walczysz pieszo", on: () => this.horseMarket(s) });
       if (s.id === "morwen" && (c.co.hero.corruption ?? 0) > 0) {
         const cost = 40 + Math.round(cor * 2);
         acts.push({ label: "Spowiedź u inkwizytora", sub: und ? "najpierw uwolnij nieumarłych (menu obozu)" : `${cost} gr · zepsucie −20 · post i bicz`, off: !!und || c.co.party.gold < cost, on: () => {
@@ -243,7 +247,7 @@ export class MapUI {
   }
   private tavern(s: Settlement) {
     const c = this.c, co = c.co;
-    const offers: [TroopId, number, number][] = [["zbrojny", 60, 3], ["halabardnik", 45, 4], ["kusznik", 70, 3], ...(s.id === "grauburg" ? [["arkebuzer", 120, 2] as [TroopId, number, number]] : []), ["lucznik", 35, 4]];
+    const offers: [TroopId, number, number][] = [["zbrojny", 60, 3], ["halabardnik", 45, 4], ["kusznik", 70, 3], ...(s.id === "grauburg" ? [["arkebuzer", 120, 2] as [TroopId, number, number]] : []), ["lucznik", 35, 4], ["jezdziec", 160, 2]];
     const body = `<p>Dym, kwaśne piwo, ludzie z bliznami. Najemnicy biorą wyższy żołd i są wierni tylko srebru.</p>`;
     const full = c.partySize(co.party) >= partyLimit(co.hero);
     const acts: Act[] = offers.map(([t, cost]) => ({ label: `${tn(t)}`, sub: full ? "kompania pełna" : `${cost} gr zaliczki · ${TROOPS[t].wage} gr żołdu tygodniowo`, off: co.party.gold < cost || full, on: () => { co.party.gold -= cost; c.addTroops(co.party, t, 1); c.note(`${tn(t)} dołącza do kompanii.`, "good"); this.tavern(s); } }));
@@ -479,6 +483,7 @@ export class MapUI {
     let rows = slot("Zbroja", esc(ARMOUR_NAME[h.armour]));
     for (let i = 0; i < 4; i++) { const w = h.weapons[i]; rows += slot(`Broń ${i + 1}`, w ? esc(WEAPONS[w].name) : "—", w && h.weapons.length > 1 ? `<button type="button" class="ib" data-un="${i}">Zdejmij</button>` : ""); }
     rows += slot("Tarcza", h.shield ? "tak (do broni jednoręcznej)" : "nie", `<button type="button" class="ib" data-sh="1">${h.shield ? "Zdejmij" : "Załóż"}</button>`);
+    rows += slot("Koń", h.horse ? `${HORSES[h.horse].name} (zdrowie ${HORSES[h.horse].hp}, ${Math.round(HORSES[h.horse].speed * 3.6)} km/h)` : "brak: kup na targu końskim w mieście", "");
     const items = st.map((it, i) => `<tr><td>${esc(itemName(it))}</td><td>${it.kind === "weapon" ? PROFS[WEAPONS[it.id].cls as keyof typeof PROFS] : "zbroja"}</td><td><button type="button" class="ib" data-eq="${i}">Użyj</button>${town ? ` <button type="button" class="ib" data-sell="${i}">Sprzedaj ${this.sellPrice(it)} gr</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="3">Wóz jest pusty.</td></tr>`;
     const body = `<p class="meta">Kółkiem myszy zmieniasz broń w bitwie (po kolei sloty 1–4). Ciężka zbroja chroni lepiej, ale męczy.${town ? " Jesteś w mieście: łupy można sprzedać." : ""}</p>` +
       `<table class="tbl"><thead><tr><th>Na tobie</th><th></th><th></th></tr></thead><tbody>${rows}</tbody></table>` +
@@ -497,12 +502,24 @@ export class MapUI {
   }
   private buyPrice(it: Item) { return Math.round(itemPrice(it) * (1 - 0.05 * this.c.co.hero.skills.handel)); }
   private sellPrice(it: Item) { return Math.round(itemPrice(it) * (0.35 + 0.05 * this.c.co.hero.skills.handel)); }
+  private horseMarket(s: Settlement) {
+    const c = this.c, h = c.co.hero, me = c.co.party;
+    const sell = h.horse ? Math.round(HORSES[h.horse].price * 0.5) : 0;
+    const acts: Act[] = (Object.keys(HORSES) as HorseId[]).map((id) => {
+      const H = HORSES[id], pr = Math.round(H.price * (1 - 0.05 * h.skills.handel)) - sell, need = id === "rumak" ? 2 : 0;
+      return { label: H.name, sub: `${pr > 0 ? pr + " gr" : "zamiana z dopłatą od kupca " + -pr + " gr"} · zdrowie ${H.hp} · ${Math.round(H.speed * 3.6)} km/h · pancerz ${H.armour}${need ? ` · wymaga Jazdy ${need} (masz ${h.skills.jazda ?? 0})` : ""}`, off: h.horse === id || me.gold < pr || (h.skills.jazda ?? 0) < need,
+        on: () => { me.gold -= pr; h.horse = id; c.note(`Kupujesz konia: ${H.name}.`, "good"); this.horseMarket(s); } };
+    });
+    if (h.horse) acts.push({ label: "Sprzedaj konia", sub: `${sell} gr`, on: () => { me.gold += sell; c.note(`Sprzedajesz konia: ${HORSES[h.horse!].name}.`, ""); h.horse = undefined; this.horseMarket(s); } });
+    acts.push({ label: "Wróć", on: () => this.settlement(s.id) });
+    this.show(`${s.name}: targ koński`, `<p>Handlarze zaglądają koniom w zęby i kłamią o wieku. Konno w bitwie: szybciej, wyżej, kopia w galopie. Kompania konna szybciej idzie po mapie.</p><p class="meta">Twój koń: ${h.horse ? HORSES[h.horse].name : "brak"} · Jazda konna ${h.skills.jazda ?? 0} (+4% szybkości i zwrotności na poziom)</p>`, acts);
+  }
   private smith(s: Settlement) {
     const c = this.c, co = c.co;
-    const weapons: WeaponId[] = s.culture === "german" ? ["sword", "longsword", "greataxe", "mace", "kord"] : s.culture === "church" ? ["mace", "sword", "glaive", "spear"] : ["hatchet", "spear", "kord", "greataxe", "sword"];
+    const weapons: WeaponId[] = s.culture === "german" ? ["sword", "longsword", "greataxe", "mace", "kord", "crossbow", "arquebus", "lance"] : s.culture === "church" ? ["mace", "sword", "glaive", "spear", "crossbow", "lance"] : ["hatchet", "spear", "kord", "greataxe", "sword", "bow"];
     const armours: Loadout[] = s.culture === "german" ? ["levy", "sergeant", "plate"] : s.culture === "church" ? ["levy", "sergeant", "knight"] : ["levy", "sergeant"];
     const acts: Act[] = [];
-    for (const w of weapons) { const it: Item = { kind: "weapon", id: w }, pr = this.buyPrice(it); acts.push({ label: WEAPONS[w].name, sub: `${pr} gr · ${PROFS[WEAPONS[w].cls as keyof typeof PROFS].toLowerCase()}`, off: co.party.gold < pr, on: () => { co.party.gold -= pr; co.stash = [...(co.stash ?? []), it]; c.note(`Kupujesz: ${WEAPONS[w].name}. Leży na wozie (Ekwipunek).`, "good"); this.smith(s); } }); }
+    for (const w of weapons) { const it: Item = { kind: "weapon", id: w }, pr = this.buyPrice(it); acts.push({ label: WEAPONS[w].name, sub: `${pr} gr · ${PROFS[profOf(w)].toLowerCase()}${WEAPONS[w].ranged ? ` · ${WEAPONS[w].ranged!.ammo} ${WEAPONS[w].ranged!.ammoName} na bitwę` : ""}`, off: co.party.gold < pr, on: () => { co.party.gold -= pr; co.stash = [...(co.stash ?? []), it]; c.note(`Kupujesz: ${WEAPONS[w].name}. Leży na wozie (Ekwipunek).`, "good"); this.smith(s); } }); }
     for (const a of armours) { const it: Item = { kind: "armour", id: a }, pr = this.buyPrice(it); acts.push({ label: ARMOUR_NAME[a], sub: `${pr} gr`, off: co.party.gold < pr, on: () => { co.party.gold -= pr; co.stash = [...(co.stash ?? []), it]; c.note(`Kupujesz: ${ARMOUR_NAME[a]}.`, "good"); this.smith(s); } }); }
     acts.push({ label: "Ekwipunek i sprzedaż łupów", on: () => this.inventoryPanel(s) });
     acts.push({ label: "Wróć", on: () => this.settlement(s.id) });

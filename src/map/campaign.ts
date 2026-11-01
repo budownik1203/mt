@@ -110,6 +110,8 @@ export class Campaign {
 
   // ---------- company figures ----------
   get men() { return this.co.party.troops.reduce((a, s) => a + (TROOPS[s.t].undead ? 0 : s.n), 0) + 1; }
+  /** Everyone alive rides (and the hero has a horse): the company moves 20% faster. */
+  get mountedCompany() { return !!this.co.hero.horse && this.co.party.troops.every((s) => TROOPS[s.t].undead || TROOPS[s.t].beast || !!TROOPS[s.t].kit.horse || s.n === 0); }
   get prisonerCount() { return (this.co.prisoners ?? []).reduce((a, p) => a + p.n, 0); }
   get mouths() { return this.men + this.prisonerCount; }
   get able() { return this.co.party.troops.reduce((a, s) => a + s.n - s.wounded, 0); }
@@ -130,7 +132,7 @@ export class Campaign {
   /** Map speed (units per game hour) of a party. */
   speedOf(p: Party) {
     let v = 3.2 * terrainSpeed(this.w, p.x, p.z);
-    if (p.kind === "player") v *= 1 + 0.03 * this.co.hero.skills.tropienie;
+    if (p.kind === "player") { v *= 1 + 0.03 * this.co.hero.skills.tropienie; if (this.mountedCompany) v *= 1.2; }
     if (this.night) v *= 0.8;
     if (this.winter) v *= 0.7;
     const size = this.partySize(p);
@@ -476,6 +478,7 @@ export class Campaign {
       if (!this.co.hero) this.co.hero = newHero();
       this.co.hero.skills.nekromancja ??= 0;
       this.co.hero.prof.rg ??= 45;
+      this.co.hero.skills.jazda ??= 0;
       this.contracts = d.contracts ?? []; this.offers = d.offers ?? [];
       if (d.fx) this.fx = d.fx; else { this.fx = newFx(this); spawnLords(this); }
       this.co.stash = this.co.stash ?? []; this.co.prisoners = this.co.prisoners ?? [];

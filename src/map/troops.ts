@@ -4,7 +4,7 @@ import { ARMOURS } from "../game/combat.ts";
 import type { Kit } from "../game/warrior.ts";
 
 export type TroopId = "chlop" | "pacholek" | "zbrojny" | "halabardnik" | "plytowy" | "rycerz" | "rozbojnik" | "herszt" | "dezerter" | "kupiec" | "zywy_trup"
-  | "szkielet" | "kosciany_wojownik" | "kosciany_straznik" | "rycerz_grobu" | "ghul" | "ghul_cmentarny" | "straznik_krypty" | "nekromanta" | "lowca" | "wilkolak" | "utopiec" | "strzyga" | "lucznik" | "kusznik" | "arkebuzer" | "chlop_luk" | "kapelan" | "zerca";
+  | "szkielet" | "kosciany_wojownik" | "kosciany_straznik" | "rycerz_grobu" | "ghul" | "ghul_cmentarny" | "straznik_krypty" | "nekromanta" | "lowca" | "wilkolak" | "utopiec" | "strzyga" | "lucznik" | "kusznik" | "arkebuzer" | "chlop_luk" | "kapelan" | "zerca" | "jezdziec" | "rycerz_konny";
 export interface TroopType {
   id: TroopId; name: { pl: string; en: string };
   kit: Omit<Kit, "name">; wage: number; tier: number; upTo?: TroopId; upCost?: number;
@@ -31,6 +31,9 @@ export const TROOPS: Record<TroopId, TroopType> = {
   // ---------- priests (build 12): poor fighters, worth their bread in morale ----------
   kapelan: { id: "kapelan", name: { pl: "Kapelan", en: "Chaplain" }, kit: k("base", "mace", false, "gambeson", 70, 0.25), wage: 6, tier: 1 },
   zerca: { id: "zerca", name: { pl: "Żerca", en: "Pagan priest" }, kit: k("base", "hatchet", false, "rags", 75, 0.3), wage: 4, tier: 1 },
+  // ---------- horsemen (build 13) ----------
+  jezdziec: { id: "jezdziec", name: { pl: "Konny zbrojny", en: "Mounted sergeant" }, kit: { ...k("sergeant", "sword", true, "mail", 105, 0.6), horse: "kon" }, wage: 14, tier: 2, upTo: "rycerz_konny", upCost: 420 },
+  rycerz_konny: { id: "rycerz_konny", name: { pl: "Rycerz z kopią", en: "Lance knight" }, kit: { ...k("knight", "lance", false, "plate", 130, 0.8), side: "longsword", horse: "rumak" }, wage: 32, tier: 4 },
   rozbojnik: { id: "rozbojnik", name: { pl: "Rozbójnik", en: "Brigand" }, kit: k("base", "hatchet", false, "rags", 80, 0.3), wage: 2, tier: 0 },
   herszt: { id: "herszt", name: { pl: "Herszt zbójców", en: "Brigand chief" }, kit: k("sergeant", "kord", true, "gambeson", 110, 0.55), wage: 10, tier: 2 },
   dezerter: { id: "dezerter", name: { pl: "Dezerter", en: "Deserter" }, kit: k("levy", "spear", false, "gambeson", 90, 0.45), wage: 4, tier: 1 },
@@ -59,4 +62,4 @@ export function power(t: TroopId): number {
 }
 
 /** Default battle group per troop type (1 melee, 2 polearms, 3 heavy). */
-export const DEFAULT_GROUP: Partial<Record<TroopId, number>> = { chlop: 1, pacholek: 2, zbrojny: 1, halabardnik: 2, plytowy: 3, rycerz: 3, kupiec: 1, rozbojnik: 1, dezerter: 2, herszt: 1, zywy_trup: 1, szkielet: 4, kosciany_wojownik: 4, kosciany_straznik: 4, rycerz_grobu: 4, ghul: 5, ghul_cmentarny: 5, straznik_krypty: 5, lowca: 1, nekromanta: 1, chlop_luk: 6, lucznik: 6, kusznik: 6, arkebuzer: 6, kapelan: 9, zerca: 9 };
+export const DEFAULT_GROUP: Partial<Record<TroopId, number>> = { chlop: 1, pacholek: 2, zbrojny: 1, halabardnik: 2, plytowy: 3, rycerz: 3, kupiec: 1, rozbojnik: 1, dezerter: 2, herszt: 1, zywy_trup: 1, szkielet: 4, kosciany_wojownik: 4, kosciany_straznik: 4, rycerz_grobu: 4, ghul: 5, ghul_cmentarny: 5, straznik_krypty: 5, lowca: 1, nekromanta: 1, chlop_luk: 6, lucznik: 6, kusznik: 6, arkebuzer: 6, kapelan: 9, zerca: 9, jezdziec: 7, rycerz_konny: 7 };

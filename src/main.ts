@@ -22,6 +22,7 @@ import { heroHp, profOf, undeadLimit } from "./map/hero.ts";
 import { undeadCount, corrupt, spawnHunters } from "./map/necro.ts";
 import { FACTIONS, FIDS, spawnLord } from "./map/factions.ts";
 import { spawnMonster } from "./map/monsters.ts";
+import { HORSES, SADDLE } from "./char/horse.ts";
 import { boon, troopFaith } from "./map/faith.ts";
 import { EVENTS } from "./map/events.ts";
 import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY, FIRE_NAMES } from "./game/tactics.ts";
@@ -95,8 +96,9 @@ const KITS: Record<string, Kit> = {
   glaive: K("Halabardnik", "Glaiveman", "levy", "glaive", false, "gambeson", 95, 0.55),
   knight: K("Rycerz Kruka", "Raven knight", "knight", "longsword", false, "plate", 125, 0.78),
 };
-const PLAYER_WEAPONS: WeaponId[] = ["sword", "kord", "hatchet", "mace", "longsword", "greataxe", "spear", "glaive", "bow", "crossbow", "arquebus"];
+const PLAYER_WEAPONS: WeaponId[] = ["sword", "kord", "hatchet", "mace", "longsword", "greataxe", "spear", "glaive", "bow", "crossbow", "arquebus", "lance"];
 let weaponSlot = 0;
+let practiceHorse = false;
 const ARMOUR_OF: Record<string, keyof typeof ARMOURS> = { base: "rags", levy: "gambeson", sergeant: "mail", knight: "plate", plate: "plate" };
 /** The player's kit: the test set in the trial battle, the hero's own gear in the campaign. */
 function playerKit(): Kit {
@@ -206,7 +208,7 @@ function projStep(dt: number) {
       const t = k / 4, x = ox + (p.x - ox) * t, y = oy + (p.y - oy) * t, z = oz + (p.z - oz) * t;
       for (const o of fighters) {
         if (o === p.owner || !o.alive) continue;
-        if (Math.hypot(o.x - x, o.z - z) < 0.3 && y > o.y && y < o.y + 1.82) { hit = o; hy = y - o.y; break; }
+        if (Math.hypot(o.x - x, o.z - z) < (o.mounted ? 0.6 : 0.3) && y > o.y && y < o.y + (o.mounted ? 2.45 : 1.82)) { hit = o; hy = y - o.y; break; }
       }
     }
     if (hit) { missileHit(p, hit, hy); continue; }
@@ -222,6 +224,7 @@ function projStep(dt: number) {
 function missileHit(p: Proj, o: Warrior, hy: number) {
   const r = WEAPONS[p.w].ranged!, att = p.owner;
   const v = Math.hypot(p.vx, p.vy, p.vz), dx = p.vx / v, dz = p.vz / v;
+  if (o.mounted) { if (hy < 1.5) { p.gone = true; hitHorse(att, o, r.dmg * (0.6 + 0.4 * v / r.speed) / Math.max(0.5, r.armourK), "pierce", 0, att === player || o === player ? 1 : 0.5); return; } hy -= SADDLE; }
   const facing = -(Math.sin(o.yaw) * dx + Math.cos(o.yaw) * dz);
   const near = att === player || o === player, vol = near ? 1 : 0.5;
   // a shield turned toward the missile catches it (always when blocking, mostly when just carried in front)
@@ -251,6 +254,7 @@ function reset() {
   fighters = []; brains.clear(); tokens.used = 0; parts.length = 0; projs.length = 0; smokes.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0;
   wave = 0; kills = 0; waveBreak = 2.5;
   player = new Warrior(R, playerKit(), 0, 4, 0);
+  if (practiceHorse) player.setMount(R, "kon");
   player.yaw = camYaw;
   fighters.push(player);
   player.hideHead = firstPerson;
@@ -300,6 +304,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyB") { autoBlock = !autoBlock; settings.autoBlock = autoBlock; saveSettings(); pushLog(autoBlock ? t("autoOn") : t("autoOff"), "sys"); }
   if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
   if (e.code === "KeyR" && !player.alive) reset();
+  if (battleKind === "waves" && e.code === "KeyM" && player.alive) { practiceHorse = !practiceHorse; player.setMount(R, practiceHorse ? "kon" : undefined); if (player.mount) player.mount.yaw = player.yaw; pushLog(practiceHorse ? L("Dosiadasz konia", "You mount up") : L("Zsiadasz z konia", "You dismount"), "sys"); return; }
   if (battleKind === "waves" && /^Digit[1-9]$/.test(e.code) && player.alive && player.state === "idle") {
     weaponSlot = Number(e.code.slice(5)) - 1;
     player.setKit(R, playerKit());
@@ -416,6 +421,8 @@ function resolve(att: Warrior) {
   }
   const part = zone === "arm" ? "body" : zone;
   const closing = (att.vx - o.vx) * dx + (att.vz - o.vz) * dz;
+  // a rider is hard to reach from the ground: low blows (and some others) land on the horse
+  if (o.mounted && !att.mounted && (zone === "legs" || Math.random() < 0.22)) { hitHorse(att, o, raw, atk.type, closing, vol); return; }
   const tooClose = dir !== DIR.THRUST && bd < 0.55 ? 0.55 : 1;
   const zoneMult = zone === "arm" ? 0.72 : 1;
   let dmg = Math.round(damage(raw * zoneMult, atk.type, o.kit.armour[part], part, closing) * tooClose);
@@ -429,6 +436,56 @@ function resolve(att: Warrior) {
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
   if (att.team === 0 && o.team !== 0 && camp && battleKind === "encounter" && boon(camp, "perun")) dmg = Math.round(dmg * 1.1);
   applyHit(att, o, dmg, atk.type, dir, zone, joint, hp, dx, dz, vol, near, att.weapon.mass);
+}
+function hitHorse(att: Warrior, o: Warrior, raw: number, type: DmgType, closing: number, vol: number) {
+  const m = o.mount!, H = HORSES[m.id];
+  const dmg = damage(raw, type, H.armour, "body", closing);
+  m.hp -= dmg; audio.hit(type === "blunt", vol);
+  bleed([o.x, o.y + 1.1, o.z], 0, 0, settings.gore ? 12 : 3);
+  if (att === player) pushLog(L(`Trafiasz konia: ${dmg}`, `You hit the horse: ${dmg}`), "good");
+  else if (o === player) pushLog(L(`Twój koń obrywa: ${dmg}`, `Your horse is hit: ${dmg}`), "bad");
+  if (m.hp <= 0) {
+    o.horseDies();
+    o.hp -= 6 + Math.round(Math.random() * 10);
+    if (o === player) { pushLog(L("Koń pada! Spadasz z siodła.", "Your horse falls! You are thrown."), "bad"); shake = Math.max(shake, 0.4); }
+    else pushLog(L(`Koń pada pod: ${nm(o)}`, `The horse falls under ${nm(o)}`), att === player ? "good" : "");
+    if (o.hp <= 0 && o.alive) { o.hp = 1; }
+  }
+}
+/** Mounted shock: a couched lance at a gallop, or the horse's chest ploughing into men on foot. */
+const bumped = new Map<number, number>();
+function cavalryStep(dt: number) {
+  for (const [k, v] of bumped) { if (v - dt <= 0) bumped.delete(k); else bumped.set(k, v - dt); }
+  for (const f of fighters) {
+    if (f !== player && f.alive && !f.mounted && f.kit.weapon === "lance" && f.kit.side && f.state === "idle") f.setKit(R, { ...f.kit, weapon: f.kit.side });
+    if (!f.alive || !f.mounted) continue;
+    const m = f.mount!, sp = m.speed; if (sp < 4.5) continue;
+    const hx = Math.sin(m.yaw), hz = Math.cos(m.yaw);
+    for (const o of fighters) {
+      if (o === f || !o.alive || o.team === f.team) continue;
+      const dx = o.x - f.x, dz = o.z - f.z, d = Math.hypot(dx, dz); if (d < 0.01) continue;
+      const ahead = (dx * hx + dz * hz) / d;
+      const near = f === player || o === player, vol = near ? 1 : 0.5;
+      if (f.couched && d < 3.3 && ahead > 0.85) {
+        const part = Math.random() < 0.25 ? "head" : "body";
+        const dmg = damage(26 + sp * 6.5, "pierce", o.kit.armour[part], part, 0);
+        f.couchCD = 1.8;
+        if (f === player) pushLog(L("Szarża z kopią!", "Couched lance!"), "good");
+        applyHit(f, o, dmg, "pierce", DIR.THRUST, part, part === "head" ? "head" : "torso", [o.x, o.y + 1.3, o.z], dx / d, dz / d, vol, near, 2.2, true);
+        o.impact(dx / d, dz / d, 1.6, 0, 0.3);
+        m.speed *= 0.75; shake = near ? Math.max(shake, 0.35) : shake;
+        break;
+      }
+      if (!o.mounted && d < 1.3 && ahead > 0.4 && !bumped.has(o.id)) {
+        bumped.set(o.id, 1.2);
+        const dmg = Math.round(3 + sp * 1.3);
+        applyHit(f, o, dmg, "blunt", DIR.THRUST, "body", "torso", [o.x, o.y + 1.1, o.z], dx / d, dz / d, vol, near, 1.6, true);
+        o.impact(dx / d, dz / d, 1.8, 0, 0); if (o.alive) o.stagger();
+        m.speed *= 0.6;
+        if (o === player) pushLog(L("Koń wroga taranuje cię!", "An enemy horse rides you down!"), "bad");
+      }
+    }
+  }
 }
 function applyHit(att: Warrior, o: Warrior, dmg: number, type: DmgType, dir: Dir, zone: Zone, joint: Joint, hp: V3, dx: number, dz: number, vol: number, near: boolean, massK: number, ranged = false) {
   o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; o.morale -= dmg * 0.35; (o as Warrior & { lastType?: string }).lastType = type;
@@ -582,6 +639,7 @@ function step(dt: number) {
   }
   for (const f of fighters) if (f.impactNow) resolve(f);
   for (const f of fighters) if (f.shot) fire(f);
+  cavalryStep(dt);
   projStep(dt);
   shooterStep(dt);
 
@@ -736,7 +794,7 @@ function hud() {
   orderHud();
   const hpP = clamp(player.hp / player.maxHp, 0, 1);
   ($("hpfill") as HTMLElement).style.width = `${hpP * 100}%`;
-  $("hptext").textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
+  $("hptext").textContent = `${Math.ceil(player.hp)} / ${player.maxHp}` + (player.mount ? (player.mount.dead ? L(" · koń padł", " · horse down") : ` · ${L("koń", "horse")} ${Math.ceil(player.mount.hp)}/${player.mount.maxHp} · ${Math.round(player.mount.speed * 3.6)} km/h`) : "");
   const ws = WSTATS[player.weaponId];
   const types = [ws.swing ? t(ws.swing.type) : null, ws.thrust ? t(ws.thrust.type) : null].filter(Boolean).join(" / ");
   const rg = player.ranged;
@@ -1039,6 +1097,7 @@ function startEncounter(p: Party) {
   camYaw = Math.PI; camPitch = -0.1;
   weaponSlot = 0;
   player = new Warrior(R, playerKit(), 0, 13, 0); player.yaw = Math.PI; player.hideHead = firstPerson; player.leader = true;
+  if (c.co.hero.horse) { player.setMount(R, c.co.hero.horse); player.mount!.yaw = Math.PI; player.mount!.k = 1 + 0.04 * (c.co.hero.skills.jazda ?? 0); }
   player.moveMul = 1 + 0.03 * c.co.hero.skills.atletyka;
   fighters.push(player);
   reinforce(0, true); reinforce(1, true);
@@ -1086,6 +1145,7 @@ function reinforce(team: 0 | 1, first = false) {
     f.noMorale = !!TROOPS[it.t].undead || !!TROOPS[it.t].beast;
     if (team === 1 && TROOPS[it.t].beast && enc!.weak) { f.maxHp = Math.round(f.maxHp * 0.75); f.hp = f.maxHp; }
     f.morale = f.baseMorale = moraleBase(team, it.t);
+    if (f.kit.horse) { f.setMount(R, f.kit.horse); f.mount!.yaw = f.yaw; }
     fighters.push(f); brains.set(f.id, new Brain(f)); enc!.troopOf.set(f.id, it.t);
     if (it.t === "nekromanta") f.leader = true;
   });
@@ -1427,7 +1487,7 @@ function loop(now: number) {
 // hooks for automated tests
 (window as unknown as { mb2: unknown }).mb2 = {
   get player() { return player; }, get fighters() { return fighters; },
-  collapse(team: number) { collapseUndead(team); }, events: EVENTS, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
+  collapse(team: number) { collapseUndead(team); }, hitHorse(a: Warrior, o: Warrior) { hitHorse(a, o, 200, "cut", 0, 1); }, mountPlayer(id: string | null) { practiceHorse = !!id; player.setMount(R, (id ?? undefined) as never); if (player.mount) player.mount.yaw = player.yaw; }, events: EVENTS, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
   get camp() { return camp; }, get ui() { return ui; }, get mode() { return mode; }, get enc() { return enc; },
   campaign() { startCampaign(); }, waves() { startWaves(); },
   mapTick(sec: number) { for (let i = 0; i < sec * 30; i++) mapStep(1 / 30); },

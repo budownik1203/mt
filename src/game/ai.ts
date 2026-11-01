@@ -26,6 +26,7 @@ export class Brain {
 
     if (!target.alive) { me.wish.x = me.wish.z = 0; if (me.state === "block") me.unblock(); return; }
     if (me.ranged) { this.shoot(dt, target, all, dist, nx, nz); return; }
+    if (me.mounted) { this.ride(dt, target, dist, nx, nz); return; }
 
     const range = me.weapon.reach + 0.55;
     // --- movement: approach, keep range, strafe ---
@@ -91,6 +92,32 @@ export class Brain {
         this.cooldown = lerp(2.6, 1.1, skill) + Math.random() * 1.2;
         me.aiToken = false; tokens.used = Math.max(0, tokens.used - 1);
       }
+    }
+  }
+
+  /** Rider (build 13): charge through, strike in passing on the weapon side, ride on, wheel and come again. */
+  passT = 0; passYaw = 0;
+  private ride(dt: number, target: Fighter, dist: number, nx: number, nz: number) {
+    const me = this.me, m = me.mount!;
+    me.wish.run = true;
+    if (me.state === "block") me.unblock();
+    if (this.passT > 0) {
+      this.passT -= dt;
+      me.wish.x = Math.sin(this.passYaw); me.wish.z = Math.cos(this.passYaw);
+      return;
+    }
+    const lance = me.kit.weapon === "lance";
+    // aim a little to the target's left so he passes on our right (sword arm); lance goes straight in
+    const off = lance ? 0 : 1.3;
+    const tx = target.x - nz * off - me.x, tz = target.z + nx * off - me.z, tl = Math.hypot(tx, tz) || 1;
+    me.wish.x = tx / tl; me.wish.z = tz / tl;
+    if (dist < 2.2) { this.passT = 1.6 + Math.random() * 0.8; this.passYaw = m.yaw; }
+    // swing in passing
+    this.cooldown -= dt;
+    if (!lance && dist < me.weapon.reach + 1.4 && this.cooldown <= 0 && me.state === "idle") {
+      const side = (target.x - me.x) * Math.cos(m.yaw) - (target.z - me.z) * Math.sin(m.yaw);
+      me.aim = -0.3;
+      if (me.attack((side > 0 ? DIR.RIGHT : DIR.LEFT) as Dir)) { me.aiHold = 0; this.cooldown = 1.4 + Math.random(); }
     }
   }
 
