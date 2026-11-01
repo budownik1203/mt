@@ -20,6 +20,7 @@ import { settings, saveSettings, RES } from "./core/settings.ts";
 import { openOptions } from "./core/optionsui.ts";
 import { heroHp, profOf, undeadLimit } from "./map/hero.ts";
 import { undeadCount, corrupt, spawnHunters } from "./map/necro.ts";
+import { FACTIONS, FIDS } from "./map/factions.ts";
 import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY } from "./game/tactics.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
@@ -714,7 +715,8 @@ function buildMapMeshes() {
     terr: [up(buildMapTerrain(c.w, false)), up(buildMapTerrain(c.w, true))],
     feat: [up(buildMapFeatures(c.w, false)), up(buildMapFeatures(c.w, true))],
     sett,
-    figs: { player: fig(0x2b2f36, 0x7a1a14, true), bandits: fig(0x3b3128, 0x1a1a1a, true), deserters: fig(0x4a4436, 0x5a5440, true), caravan: fig(0x5a4a34, 0xa08a4a, true), peasants: fig(0x5d5444, 0x6b5a3a, false), undead: fig(0x6d6a5e, 0x2a3a2a, true), necro: fig(0x141214, 0x3a5a2a, true), hunters: fig(0x3a3430, 0xb8b0a0, true) },
+    figs: { player: fig(0x2b2f36, 0x7a1a14, true), bandits: fig(0x3b3128, 0x1a1a1a, true), deserters: fig(0x4a4436, 0x5a5440, true), caravan: fig(0x5a4a34, 0xa08a4a, true), peasants: fig(0x5d5444, 0x6b5a3a, false), undead: fig(0x6d6a5e, 0x2a3a2a, true), necro: fig(0x141214, 0x3a5a2a, true), hunters: fig(0x3a3430, 0xb8b0a0, true), garrison: fig(0x3a3632, 0x5a5040, true),
+      ...Object.fromEntries(FIDS.map((f) => ["lord_" + f, fig(0x2e2a26, FACTIONS[f].color, true)])) } as Record<string, GMesh>,
     mark, ring,
   };
   // labels for settlements
@@ -770,7 +772,7 @@ function renderMap(now: number) {
     if (!seen) continue;
     const nx = p.path[0], yaw = nx ? Math.atan2(nx[0] - p.x, nx[1] - p.z) : 0;
     const bob = p.path.length && c.clockRuns ? Math.abs(Math.sin(tt * 8 + p.id)) * 0.08 : 0;
-    items.push({ mesh: g.figs[p.kind], model: trs(m4(), p.x, c.w.height(p.x, p.z) + bob, p.z, yaw) });
+    items.push({ mesh: g.figs[p.kind === "lord" ? "lord_" + p.faction : p.kind], model: trs(m4(), p.x, c.w.height(p.x, p.z) + bob, p.z, yaw) });
   }
   items.push({ mesh: g.ring, model: trs(m4(), me.x, c.w.height(me.x, me.z), me.z, tt * 0.5) });
   // the route ahead
@@ -796,7 +798,7 @@ function mapLabels(sight: number) {
   const c = camp!, me = c.co.party;
   for (const s of c.w.settlements) {
     const el = labelEls.get("s:" + s.id)!, p = project(s.x, c.w.height(s.x, s.z) + (s.kind === "town" ? 7 : 4), s.z);
-    el.hidden = !p; if (p) { el.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; el.classList.toggle("burned", s.burned); }
+    el.hidden = !p; if (p) { el.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; el.classList.toggle("burned", s.burned); el.style.borderBottom = `2px solid #${FACTIONS[c.fx.owner[s.id]].color.toString(16).padStart(6, "0")}`; }
   }
   const seen = new Set<string>();
   for (const p of c.parties) {
@@ -805,6 +807,8 @@ function mapLabels(sight: number) {
     let el = labelEls.get(key);
     if (!el) { el = document.createElement("div"); el.className = "lbl party " + (c.hostile(p) ? "hostile" : ""); $("labels").append(el); labelEls.set(key, el); }
     el.textContent = `${p.name} · ${c.partySize(p)}`;
+    if (p.faction) el.style.borderLeft = `3px solid #${FACTIONS[p.faction].color.toString(16).padStart(6, "0")}`;
+    el.classList.toggle("hostile", c.hostile(p));
     const q = project(p.x, c.w.height(p.x, p.z) + 2.4, p.z);
     el.hidden = !q; if (q) el.style.transform = `translate(${q[0]}px, ${q[1]}px) translate(-50%, -100%)`;
   }
@@ -856,7 +860,8 @@ window.addEventListener("keydown", (e) => {
     if (e.code === "Space") { e.preventDefault(); camp.speed = camp.speed === 0 ? 1 : 0; }
     if (e.code === "Digit1") camp.speed = 1;
     if (e.code === "Digit2") camp.speed = 3;
-    if (e.code === "KeyO") ui.toggleCamp();
+    if (e.code === "KeyO") ui.campMenu();
+    if (e.code === "KeyF") ui.factionsPanel();
     if (e.code === "KeyP") ui.partyPanel();
     if (e.code === "KeyC") ui.characterPanel();
     if (e.code === "KeyI") ui.inventoryPanel(camp.co.inside ? camp.settlementAt(camp.co.party.x, camp.co.party.z, 6) : undefined);
@@ -918,6 +923,7 @@ function startEncounter(p: Party) {
   const ab = pickBearer(0); if (ab) ab.bearer = true;
   if (p.troops.reduce((a, s) => a + s.n, 0) >= 10 && p.kind !== "undead" && p.kind !== "necro") { const eb = pickBearer(1); if (eb) eb.bearer = true; }
   for (const f of fighters) { const t = enc.troopOf.get(f.id); if (t === "herszt" || t === "nekromanta" || t === "lowca") f.leader = true; }
+  if (p.kind === "lord" || p.kind === "garrison") { const cap = fighters.filter((f) => f.team === 1).sort((a, b) => b.maxHp - a.maxHp)[0]; if (cap) cap.leader = true; }
   if (p.kind === "necro" || p.kind === "undead") banner(p.name, L("Zabij nekromantę, a jego martwi padną", "Kill the necromancer and his dead fall"));
   $("dead").hidden = true; log.length = 0; renderLog();
   $("glabels").hidden = false;

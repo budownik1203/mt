@@ -10,6 +10,7 @@ import type { TravelEvent } from "./events.ts";
 import { power } from "./troops.ts";
 import { rites, doRite, placeActs, undeadCount, livingCount, harvest, corrupt, learnNecromancy } from "./necro.ts";
 import { undeadLimit, corruptionWord } from "./hero.ts";
+import { FACTIONS, FIDS, LORDS, PERSONA, FactionId, lordDef, atWar, hostileTo, changeRel, lordRel, relWord, hire, vassal, leaveService, vassalNeeds, transfer, seatOf } from "./factions.ts";
 import { WEAPONS, WeaponId } from "../char/weapons.ts";
 import type { Loadout } from "../char/gear.ts";
 
@@ -32,6 +33,7 @@ export class MapUI {
     });
     $("mcamp").addEventListener("click", () => this.campMenu());
     $("mparty").addEventListener("click", () => this.partyPanel());
+    $("mfrak").addEventListener("click", () => this.factionsPanel());
     $("menu").addEventListener("click", (e) => { if (e.target === $("menu")) this.close(); });
   }
 
@@ -117,8 +119,21 @@ export class MapUI {
     if (s.burned) { this.show(s.name, `<p>Zgliszcza. Wiatr nosi popiół. Nikt tu nie został.</p>`, [{ label: "Odejdź", on: () => this.close() }]); return; }
     const kind = s.kind === "town" ? "Miasto" : s.kind === "castle" ? "Zamek" : "Wieś";
     const mood = s.prosperity > 0.6 ? "syta" : s.prosperity > 0.4 ? "biedna" : "głodująca";
-    let body = `<p class="meta">${kind} · ${s.pop} dusz · ludność ${mood}</p>` + flavour(s);
+    const fx = c.fx, of = fx.owner[s.id], lid = fx.fief[s.id];
+    const lordName = lid === "player" ? "ty" : `${lordDef(lid).title} ${lordDef(lid).name}`;
+    let body = `<p class="meta">${kind} · ${s.pop} dusz · ludność ${mood}</p><p class="meta"><span class="fdot" style="background:#${FACTIONS[of].color.toString(16).padStart(6, "0")}"></span>${FACTIONS[of].name} · pan: <b>${esc(lordName)}</b>${s.kind !== "village" ? ` · załoga ${fx.garrison[s.id]}` : ""}${hostileTo(c, of) ? ` · <b class="bad">wróg</b>` : ""}</p>` + flavour(s);
     const acts: Act[] = [];
+    if (hostileTo(c, of)) {
+      const wa: Act[] = [];
+      if (s.kind === "village") wa.push(this.raidAct(s));
+      else {
+        const need = fx.garrison[s.id] * 0.75, mine = c.partyPower(c.co.party);
+        wa.push({ label: "Szturmuj mury", sub: !fx.join ? "bez seniora zdobytego nie utrzymasz: zaciągnij się do frakcji" : `załoga ${fx.garrison[s.id]} · twoja siła ${mine.toFixed(1)} vs ${need.toFixed(1)} · bitwa`, off: !fx.join || mine < need * 0.6, kind: "go", on: () => this.assault(s) });
+      }
+      wa.push({ label: "Odejdź", on: () => this.close() });
+      this.show(s.name, body + `<p>${s.kind === "village" ? "Chłopi chowają się po chałupach. Sołtys patrzy na twoje chorągwie i wie, czyje są." : "Bramy zamknięte. Na murach kusznicy. Jesteś tu wrogiem."}</p>`, wa);
+      return;
+    }
     const cor = c.co.hero.corruption ?? 0, und = undeadCount(c);
     if (s.kind !== "village" && (cor >= 75 || (und && s.kind === "castle"))) {
       this.show(s.name, body + `<p>Straż zamyka bramę. Z murów ktoś krzyczy, żebyś zabrał ${und ? "swoje trupy" : "swój smród"} i szedł precz. Kusznicy już naciągają cięciwy.</p>`, [{ label: "Odejdź", on: () => this.close() }]);
@@ -142,12 +157,38 @@ export class MapUI {
           this.show(s.name, `<p>Inkwizytor słucha bez słowa, potem każe zdjąć koszulę. Sześć godzin modlitwy i bicza. Wychodzisz lżejszy o ${cost} groszy i o część tego, co w tobie gniło.</p>`, [{ label: "Wróć", on: () => this.settlement(s.id) }]);
         } });
       }
-      if (c.prisonerCount) acts.push({ label: "Pośrednik okupów", sub: `${c.prisonerCount} jeńców do sprzedania`, on: () => this.ransom(s) });
+      if (c.prisonerCount || c.fx.captives?.length) acts.push({ label: "Pośrednik okupów", sub: `${c.prisonerCount} jeńców${c.fx.captives?.length ? ` i ${c.fx.captives.length} lordów` : ""} do sprzedania`, on: () => this.ransom(s) });
     }
+    if (s.kind === "village" && fx.fief[s.id] !== "player" && fx.owner[s.id] !== fx.join?.f) acts.push(this.raidAct(s));
+    if (s.kind === "village" && fx.fief[s.id] === "player") acts.push({ label: "Twoje lenno", sub: `czynsz co tydzień ok. ${Math.round(30 * (0.5 + s.prosperity))} gr · rekruci tańsi`, off: true, on: () => {} });
     if (s.kind === "castle") acts.push({ label: "Pod bramą", sub: "kasztelan każe czekać", off: true, on: () => {} });
     acts.push({ label: s.kind === "town" ? "Gospoda: odpocznij do rana" : "Przenocuj", sub: s.kind === "town" ? `${Math.ceil(c.men / 2)} gr, ranni szybciej wracają do sił` : "za darmo, w stodole", on: () => this.rest(s) });
     acts.push({ label: "Wyjdź", on: () => this.close() });
     this.show(s.name, body, acts);
+  }
+  private raidAct(s: Settlement): Act {
+    const c = this.c, f = c.fx.owner[s.id], hostile = hostileTo(c, f);
+    return { label: "Splądruj wieś", sub: `3 h · srebro i żywność · wieś spłonie na 12 dni${hostile ? "" : ` · ${FACTIONS[f].short}: relacja −30 (wróg)`}`, kind: "bad", off: s.burned, on: () => {
+      const co = c.co, gold = Math.round(40 + s.prosperity * 120 + s.pop * 0.3), food = 10 + Math.floor(s.pop / 10);
+      c.passHours(3); co.party.gold += gold;
+      const b = co.food.find((x) => x.type === "grain"); if (b) b.n += food; else co.food.push({ type: "grain", n: food, age: 0 });
+      s.burned = true; c.fx.looted[s.id] = 12; s.prosperity = Math.max(0.1, s.prosperity - 0.2); s.recruits = 0; s.pop = Math.max(20, s.pop - 10);
+      changeRel(c, f, hostile ? -5 : -30, "grabież"); const lid = c.fx.fief[s.id]; if (lid !== "player") lordRel(c, lid, -15);
+      for (const l of LORDS) if (lordDef(l.id).persona === "okrutny") lordRel(c, l.id, 2); else if (lordDef(l.id).persona === "honorowy") lordRel(c, l.id, -3);
+      co.morale = Math.min(100, co.morale + 4); co.fear = (co.fear ?? 0) + 1;
+      c.note(`Splądrowano ${s.name}: ${gold} gr, ${food} porcji. Dym widać z daleka.`, "bad");
+      this.show(s.name, `<p>Drzwi wyważone, krowy wyprowadzone, stodoły w ogniu. Kto nie uciekł do lasu, ten patrzy z rowu. Twoi ludzie wracają objuczeni.</p><p class="meta">Łup: ${gold} gr, ${food} porcji jedzenia. Wieś odbuduje się za 12 dni.</p>`, [{ label: "Dalej", on: () => this.close() }]);
+    } };
+  }
+  /** Storm a town or castle: a battle against its garrison; on victory it goes to your liege (and to you, if a vassal). */
+  private assault(s: Settlement) {
+    const c = this.c, fx = c.fx, f = fx.owner[s.id];
+    const n = fx.garrison[s.id];
+    const mix = FACTIONS[f].troops, tot = mix.reduce((a, m) => a + m[1], 0);
+    const troops = mix.map(([t, w]) => ({ t, n: Math.max(0, Math.round(n * w / tot)), wounded: 0, xp: 0 })).filter((x) => x.n > 0);
+    const g = c.newParty("garrison", `Załoga: ${s.name}`, s.x, s.z, troops);
+    g.faction = f; g.siege = s.id; g.gold = s.kind === "town" ? 300 : 150; g.mode = "wait";
+    this.close(); this.h.fight(g);
   }
   private recruit(s: Settlement) {
     const c = this.c, n = Math.min(s.recruits, Math.floor(c.co.party.gold / 10), partyLimit(c.co.hero) - (c.partySize(c.co.party) - undeadCount(c)));
@@ -233,13 +274,14 @@ export class MapUI {
       p.kind === "undead" ? "Smród dochodzi pierwszy. Potem kroki, nierówne, bez oddechu." :
       p.kind === "necro" ? "Człowiek w czarnym płaszczu, a za nim kości i coś na czworakach. Zabij jego, a reszta padnie." :
       p.kind === "hunters" ? ((c.co.hero.corruption ?? 0) >= 50 ? "Łowcy czarownic. Srebrne ćwieki, księga i stos drewna na wozie. Przyszli po ciebie." : "Łowcy czarownic z Sankt Morwen. Przyglądają się twoim ludziom, potem jadą dalej.") :
+      p.kind === "lord" ? lordIntro(c, p) :
       p.kind === "caravan" ? "Wozy pod plandekami, strażnicy w kolczugach. Kupiec zerka nieufnie." : "Chłopi z wózkiem. Na twój widok cofają się do rowu.";
     const body = `<p>${intro}</p><p class="meta">${esc(p.name)}: ${esc(comp)}.</p><p class="meta">Siły: ${odds}.</p>`;
     const acts: Act[] = [];
     if (hostile) {
       acts.push({ label: "Do walki", sub: "bitwa na tym terenie, o tej porze", kind: "go", on: () => { this.close(); this.h.fight(p); } });
       acts.push({ label: "Rozstrzygnij bez walki", sub: "kapitanowie prowadzą ludzi, ty patrzysz", on: () => this.auto(p) });
-      if (p.kind !== "undead" && p.kind !== "necro" && p.kind !== "hunters") {
+      if (p.kind !== "undead" && p.kind !== "necro" && p.kind !== "hunters" && p.kind !== "garrison") {
         const bribe = 5 * c.partySize(p);
         acts.push({ label: "Przekup", sub: `${bribe} gr za spokój`, off: me.gold < bribe, on: () => { me.gold -= bribe; p.stunned = 6; c.note(`Zapłaciłeś ${bribe} gr. ${p.name} odchodzą, licząc srebro.`, "warn"); this.close(); } });
       }
@@ -247,6 +289,18 @@ export class MapUI {
       if (faster) acts.push({ label: "Wycofaj się", sub: "jesteście szybsi", on: () => { p.stunned = 1.5; c.note("Wycofujecie się, zanim zdążą zewrzeć szyk.", ""); this.close(); } });
       const rg = Math.max(1, Math.ceil((c.able) * 0.15));
       acts.push({ label: "Uciekaj, zostaw straż tylną", sub: `${rg} ludzi zostaje, by was osłonić`, kind: "bad", off: c.able < 2, on: () => { c.kill(rg, "Straż tylna"); p.stunned = 3; c.co.morale -= 8; this.close(); } });
+    } else if (p.kind === "lord") {
+      const L = lordDef(p.lord!), f = p.faction!, fx = c.fx, isRuler = FACTIONS[f].ruler === L.id;
+      const enemies = FIDS.filter((g) => atWar(fx, f, g)).map((g) => FACTIONS[g].short);
+      acts.push({ label: "Rozmowa", sub: `relacja ${fx.lords[L.id].rel} (${relWord(fx.lords[L.id].rel)})`, on: () => { this.show(p.name, `<p>„${esc(L.line)}”</p>`, [{ label: "Wróć", on: () => this.encounter(p) }]); } });
+      if (!fx.join && fx.rel[f] >= -5) acts.push({ label: "Zaciągnij się jako najemnik", sub: `30 dni · żołd ${4 * c.men} gr/tydz. · ${enemies.length ? "wrogowie: " + enemies.join(", ") : "teraz bez wojny"}`, on: () => { hire(c, f); lordRel(c, L.id, 3); this.encounter(p); } });
+      if (isRuler && fx.join?.f !== f || isRuler && fx.join?.role === "mercenary") {
+        const ok = c.co.hero.renown >= vassalNeeds.renown && fx.rel[f] >= vassalNeeds.rel && (!fx.join || fx.join.f === f);
+        acts.push({ label: "Złóż hołd lenny", sub: ok ? "zostajesz wasalem: wieś w lenno, czynsze, ziemie ze zdobyczy" : `wymaga: sława ${vassalNeeds.renown} (masz ${c.co.hero.renown}), relacja z frakcją ≥ ${vassalNeeds.rel} (${fx.rel[f]}), wolna ręka`, off: !ok, on: () => { if (fx.join) fx.join = undefined; vassal(c, f); lordRel(c, L.id, 10); this.encounter(p); } });
+      }
+      if (fx.join?.f === f && isRuler) acts.push({ label: fx.join.role === "vassal" ? "Zerwij hołd" : "Zakończ kontrakt", sub: fx.join.role === "vassal" ? "lenna wracają do władcy · relacja −25" : fx.join.until > c.day ? `przed czasem: relacja −10 (zostało ${fx.join.until - c.day} d)` : "kontrakt wypełniony", kind: "bad", on: () => { leaveService(c); this.encounter(p); } });
+      acts.push({ label: "Przepuść", on: () => { p.stunned = 0.5; this.close(); } });
+      if (fx.join?.f !== f) acts.push({ label: "Napadnij", sub: `wojna z: ${FACTIONS[f].short} · relacja −40`, kind: "bad", on: () => { changeRel(c, f, -40, "napaść na lorda"); lordRel(c, L.id, -30); this.close(); this.h.fight(p); } });
     } else {
       acts.push({ label: "Przepuść ich", on: () => { p.stunned = 0.5; this.close(); } });
       if (p.kind === "peasants") acts.push({ label: "Kup od nich zboże", sub: "10 porcji za 15 gr", off: me.gold < 15, on: () => { me.gold -= 15; const b = c.co.food.find((f) => f.type === "grain"); if (b) b.n += 10; else c.co.food.push({ type: "grain", n: 10, age: 0 }); p.stunned = 0.5; c.note("Chłopi sprzedają zboże i szybko odchodzą.", ""); this.close(); } });
@@ -302,15 +356,40 @@ export class MapUI {
       const ups = addXp(h, xp);
       h.won++; h.renown += Math.round((theirDead + c.partySize(p)) * 0.5) + 1;
       lootText += `<p class="meta">Łup: ${loot} gr (ludzie biorą ${share}), ${food} porcji jedzenia${items.length ? ", " + items.map(itemName).join(", ") : ""}.${took ? ` Jeńcy: ${took}.` : ""}</p><p class="meta">Doświadczenie +${xp}${ups ? ` · <b>Nowy poziom (${h.level})</b>: punkty do rozdania w oknie Postać` : ""} · sława ${h.renown}</p>`;
-      if (c.partySize(p) > 0) { p.stunned = 6; p.mode = "flee"; p.gold = 0; }   // the routed survive and scatter
+      if (p.kind === "lord" || p.kind === "garrison") c.removeParty(p);
+      else if (c.partySize(p) > 0) { p.stunned = 6; p.mode = "flee"; p.gold = 0; }   // the routed survive and scatter
       else c.removeParty(p);
+      if (p.faction) { const j = c.fx.join; if (j && atWar(c.fx, j.f, p.faction)) changeRel(c, j.f, 3); changeRel(c, p.faction, -3); }
       c.note(`Zwycięstwo nad: ${p.name}.`, "good");
     } else {
       co.morale -= 15; me.gold = Math.floor(me.gold * 0.6); co.hero.lost++;
       lootText = `<p class="meta">Uciekacie. Część srebra zostaje na drodze.</p>`;
       p.stunned = 4;
+      if (p.kind === "garrison") { c.fx.garrison[p.siege!] = Math.max(5, c.partySize(p)); c.removeParty(p); }
       c.note(`Klęska w starciu z: ${p.name}.`, "bad");
     }
+    const bodies = myDead + theirDead;
+    const acts: Act[] = [];
+    if (win && p.kind === "garrison") {
+      const s = c.w.settlements.find((q) => q.id === p.siege)!, j = c.fx.join!;
+      transfer(c, s, j.f, j.role === "vassal" ? "player" : FACTIONS[j.f].ruler);
+      c.note(`${s.name} zdobyta dla: ${FACTIONS[j.f].short}${j.role === "vassal" ? ". Władca oddaje ją tobie w lenno" : ""}.`, "good");
+      lootText += `<p><b>${esc(s.name)}</b> jest wasza. Chorągiew ${FACTIONS[j.f].short} na murach${j.role === "vassal" ? "; władca nadaje ci ją w lenno (czynsze co tydzień)" : "; jako najemnik dostajesz łup, ziemię bierze władca"}.</p>`;
+      co.hero.renown += 25;
+    }
+    if (win && p.kind === "lord" && p.lord) {
+      const L = lordDef(p.lord), st = c.fx.lords[p.lord];
+      st.down = 0;
+      lootText += `<p>${esc(L.title)} ${esc(L.name)} leży w błocie, żywy. Twoi ludzie patrzą na ciebie.</p>`;
+      acts.push({ label: `Uwolnij: ${L.name}`, sub: `relacja z nim +${L.persona === "honorowy" ? 25 : 12} · sława`, on: () => { lordRel(c, L.id, L.persona === "honorowy" ? 25 : 12); co.hero.renown += 5; c.note(`Uwolniłeś: ${L.title} ${L.name}.`, "good"); this.after2(p, win, myDead, theirDead, body, lootText); } });
+      acts.push({ label: `Weź do niewoli: ${L.name}`, sub: "okup 250 gr u pośrednika w mieście · relacja −20", kind: "bad", on: () => { st.captive = true; c.fx.captives = [...(c.fx.captives ?? []), L.id]; lordRel(c, L.id, -20); c.note(`${L.title} ${L.name} w twoich łańcuchach.`, "warn"); this.after2(p, win, myDead, theirDead, body, lootText); } });
+      this.show("Po bitwie", body + lootText, acts);
+      return;
+    }
+    this.after2(p, win, myDead, theirDead, body, lootText);
+  }
+  private after2(p: Party, win: boolean, myDead: number, theirDead: number, body: string, lootText: string) {
+    const c = this.c, co = c.co, me = co.party;
     const bodies = myDead + theirDead;
     const acts: Act[] = [];
     if (bodies > 0 && win) {
@@ -399,8 +478,32 @@ export class MapUI {
     const c = this.c, co = c.co;
     const price = (t: TroopId) => Math.round(18 + power(t) * 22) ;
     const acts: Act[] = (co.prisoners ?? []).map((pr) => ({ label: `${pr.n} × ${tn(pr.t)}`, sub: `${price(pr.t)} gr za głowę`, on: () => { co.party.gold += price(pr.t) * pr.n; c.note(`Sprzedajesz jeńców: ${pr.n} × ${tn(pr.t)}.`, "good"); pr.n = 0; co.prisoners = (co.prisoners ?? []).filter((x) => x.n > 0); this.ransom(s); } }));
+    for (const id of c.fx.captives ?? []) { const L = lordDef(id); acts.push({ label: `${L.title} ${L.name}`, sub: `250 gr okupu · ${FACTIONS[c.fx.lords[id].faction].short} zapłaci, ale nie zapomni (relacja −5)`, on: () => {
+      co.party.gold += 250; c.fx.captives = (c.fx.captives ?? []).filter((x) => x !== id); c.fx.lords[id].captive = false; c.fx.lords[id].down = 0; changeRel(c, c.fx.lords[id].faction, -5);
+      c.note(`Okup za ${L.title} ${L.name}: 250 gr.`, "good"); this.ransom(s); } }); }
     acts.push({ label: "Wróć", on: () => this.settlement(s.id) });
     this.show(`${s.name}: pośrednik okupów`, `<p>Gruby człowiek w futrze liczy głowy jak bydło. Płaci od sztuki, nie pyta, co z nimi będzie.</p>`, acts);
+  }
+
+  // ---------- factions (Warband: Reports → Factions / Lords) ----------
+  factionsPanel() {
+    const c = this.c, fx = c.fx, j = fx.join;
+    const dot = (f: FactionId) => `<span class="fdot" style="background:#${FACTIONS[f].color.toString(16).padStart(6, "0")}"></span>`;
+    const land = (f: FactionId) => { const ss = c.w.settlements.filter((s) => fx.owner[s.id] === f); return ss.length ? `${ss.filter((s) => s.kind === "town").length} m. · ${ss.filter((s) => s.kind === "castle").length} z. · ${ss.filter((s) => s.kind === "village").length} w.` : "brak ziem"; };
+    const frows = FIDS.map((f) => { const wars = FIDS.filter((g) => atWar(fx, f, g)).map((g) => FACTIONS[g].short); const R = lordDef(FACTIONS[f].ruler);
+      return `<tr><td>${dot(f)}${FACTIONS[f].name}<small>${R.title} ${R.name}</small></td><td>${land(f)}</td><td>${wars.length ? `<b class="bad">wojna:</b> ${wars.join(", ")}` : "pokój"}</td><td class="num">${fx.rel[f]}<small>${hostileTo(c, f) ? "wróg" : relWord(fx.rel[f])}</small></td></tr>`; }).join("");
+    const where = (pid: number) => { const p = c.parties.find((q) => q.id === pid); if (!p) return "—"; const s = [...c.w.settlements].sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0]; const raid = p.raid ? " (grabi)" : p.dest && p.mode === "wait" ? " (oblężenie)" : ""; return `koło: ${s.name}${raid}`; };
+    const lrows = LORDS.map((L) => { const st = fx.lords[L.id], p = c.parties.find((q) => q.id === st.party);
+      const fiefs = c.w.settlements.filter((s) => fx.fief[s.id] === L.id).map((s) => s.name).join(", ") || "bez ziemi";
+      const army = st.captive ? "w twojej niewoli" : p ? `${c.partySize(p)} ludzi` : st.down < 0 ? "w niewoli" : `rozbity (wraca za ${Math.max(0, 5 - st.down)} d)`;
+      return `<tr><td>${dot(st.faction)}${L.title} ${L.name}<small>${PERSONA[L.persona].pl}: ${PERSONA[L.persona].hint}</small></td><td>${esc(fiefs)}</td><td>${army}<small>${p ? where(p.id) : ""}</small></td><td class="num">${st.rel}<small>${relWord(st.rel)}</small></td></tr>`; }).join("");
+    const mine = c.w.settlements.filter((s) => fx.fief[s.id] === "player").map((s) => s.name);
+    const status = j ? `${j.role === "vassal" ? "Wasal" : "Najemnik"}: <b>${FACTIONS[j.f].name}</b>${j.role === "mercenary" ? ` · kontrakt do dnia ${j.until % 30 + 1} (${j.until - c.day} d) · żołd ${4 * c.men} gr/tydz.` : ""}` : "Wolna kompania: nikomu nie służysz.";
+    const body = `<p class="meta">${status}${mine.length ? ` · twoje lenna: ${esc(mine.join(", "))}` : ""} · sława ${c.co.hero.renown}</p>` +
+      `<table class="tbl"><thead><tr><th>Frakcja</th><th>Ziemie</th><th>Wojny</th><th>Ty</th></tr></thead><tbody>${frows}</tbody></table>` +
+      `<table class="tbl"><thead><tr><th>Lord</th><th>Lenna</th><th>Wojsko</th><th>Relacja</th></tr></thead><tbody>${lrows}</tbody></table>` +
+      `<p class="meta">Relacja ≤ −20 z frakcją = wojna z tobą. Najemnik: 30 dni, żołd co 7 dni, wrogowie seniora to twoi wrogowie. Hołd: u władcy, sława ${vassalNeeds.renown}+, relacja ≥ 0.</p>`;
+    this.show("Frakcje i lordowie", body, [{ label: "Zamknij", on: () => this.close() }], true);
   }
 
   // ---------- chronicle ----------
@@ -467,6 +570,11 @@ export class MapUI {
   }
 }
 
+function lordIntro(c: Campaign, p: Party): string {
+  const L = lordDef(p.lord!), st = c.fx.lords[L.id], f = FACTIONS[p.faction!];
+  const war = hostileTo(c, p.faction!);
+  return `Chorągiew: ${f.name}${war ? " (wróg)" : ""}. <b>${L.title} ${L.name}</b> (${PERSONA[L.persona].pl}). Relacja: ${st.rel} (${relWord(st.rel)}).${war ? " Jego ludzie już rozwijają szyk." : ""}`;
+}
 function flavour(s: Settlement): string {
   const t: Record<string, string> = {
     grauburg: "Mury z szarego kamienia, cechowe chorągwie i kat, który ma dużo pracy. Liga płaci dobrze, ale liczy każdy grosz.",

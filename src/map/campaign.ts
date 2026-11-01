@@ -2,6 +2,7 @@
 // money, morale), parties roaming the region, settlements, battlefields left
 // behind, and the daily tick that makes hunger, winter and unpaid wages bite.
 import { necroDaily } from "./necro.ts";
+import { FxState, FactionId, newFx, spawnLords, factionsDaily, lordThink, hostileTo } from "./factions.ts";
 import { clamp, rng } from "../core/math.ts";
 import { World, buildWorld, astar, cellOf, centerOf, pathCost, terrainSpeed, nearRiver, biomeAt, Settlement, MAP } from "./world.ts";
 import { TROOPS, TroopId, power } from "./troops.ts";
@@ -13,13 +14,15 @@ export const DAYS_PER_SEASON = 30;
 export const SEASONS = { pl: ["wiosna", "lato", "jesień", "zima"], en: ["spring", "summer", "autumn", "winter"] };
 
 export interface Stack { t: TroopId; n: number; wounded: number; xp: number }
-export type PartyKind = "player" | "bandits" | "deserters" | "caravan" | "peasants" | "undead" | "necro" | "hunters";
+export type PartyKind = "player" | "bandits" | "deserters" | "caravan" | "peasants" | "undead" | "necro" | "hunters" | "lord" | "garrison";
 export interface Party {
   id: number; kind: PartyKind; name: string; x: number; z: number;
   troops: Stack[]; gold: number;
   path: [number, number][]; goal?: { x: number; z: number; settlement?: string; party?: number };
   home?: { x: number; z: number }; dest?: string;
   mode: "roam" | "chase" | "flee" | "travel" | "idle" | "wait"; think: number; stunned: number;
+  /** Lord armies (build 9). */
+  lord?: string; faction?: FactionId; raid?: string; siege?: string;
 }
 export type FoodType = "grain" | "meat" | "fish" | "beer";
 export const FOOD: Record<FoodType, { pl: string; en: string; price: number; spoil: number }> = {
@@ -68,6 +71,7 @@ export class Campaign {
   onEncounter: ((p: Party) => void) | null = null;
   onDay: (() => void) | null = null;
   pendingEvent: TravelEvent | null = null;
+  fx!: FxState;
 
   constructor(seed = 37) {
     this.w = buildWorld(seed);
@@ -78,6 +82,7 @@ export class Campaign {
       hungerDays: 0, thirstDays: 0, unpaidWeeks: 0, camp: false, resting: false, wagesDue: 0, furs: 0, hero: newHero(), stash: [], prisoners: [] };
     this.parties.push(party);
     for (let i = 0; i < 4; i++) this.spawnBandits();
+    this.fx = newFx(this); spawnLords(this);
     this.spawn("deserters"); this.spawn("caravan"); this.spawn("caravan"); this.spawn("peasants"); this.spawn("peasants");
     this.note("Rok Popiołu 37. Twoja kompania stoi pod Kruczym Brodem. Zapasy na kilka dni, srebra niewiele.", "");
   }
@@ -132,6 +137,7 @@ export class Campaign {
     if (p.kind === "undead") v *= 0.7;
     if (p.kind === "necro") v *= 0.8;
     if (p.kind === "hunters") v *= 1.05;
+    if (p.kind === "lord") v *= 0.95;
     return v;
   }
   /** How far a party sees (map units): shorter at night and in forest. */
@@ -249,7 +255,7 @@ export class Campaign {
     const p: Party = { id: this.nextId++, kind, name, x: cx, z: cz, troops, gold: 0, path: [], mode: "roam", think: this.r() * 2, stunned: 0 };
     this.parties.push(p); return p;
   }
-  hostile(p: Party) { return p.kind === "bandits" || p.kind === "deserters" || p.kind === "undead" || p.kind === "necro" || (p.kind === "hunters" && (this.co.hero.corruption ?? 0) >= 50); }
+  hostile(p: Party) { return p.kind === "bandits" || p.kind === "deserters" || p.kind === "undead" || p.kind === "necro" || (p.kind === "hunters" && (this.co.hero.corruption ?? 0) >= 50) || ((p.kind === "lord" || p.kind === "garrison") && hostileTo(this, p.faction!)); }
 
   private thinkAI(h: number) {
     const me = this.co.party;
@@ -265,6 +271,8 @@ export class Campaign {
         this.onEncounter?.(p);
         return;
       }
+      if (p.kind === "garrison") continue;
+      if (p.kind === "lord") { lordThink(this, p, h, d); continue; }
       if (this.hostile(p)) {
         const pow = this.partyPower(p);
         const sees = d < this.sight(p) || (p.kind === "undead" && d < 9);
@@ -383,6 +391,7 @@ export class Campaign {
       for (const g of this.w.pois.filter((q) => q.kind === "graveyard" || q.kind === "cursed")) this.spawn("undead", { x: g.x, z: g.z }, 8);
     }
     necroDaily(this);
+    factionsDaily(this);
     if (this.day % (DAYS_PER_SEASON * 4) === 0) this.year++;
     if (this.day % DAYS_PER_SEASON === 0) this.note(`Nastaje ${SEASONS.pl[this.season]}.`, "warn");
   }
@@ -442,7 +451,7 @@ export class Campaign {
   }
   // ---------- save / load (autosave once a day, browser storage) ----------
   save(): string {
-    return JSON.stringify({ v: 1, day: this.day, hour: this.hour, year: this.year, parties: this.parties, fields: this.fields, notes: this.notes.slice(0, 20), co: { ...this.co, party: undefined }, nextId: this.nextId,
+    return JSON.stringify({ v: 1, day: this.day, hour: this.hour, year: this.year, parties: this.parties, fields: this.fields, notes: this.notes.slice(0, 20), co: { ...this.co, party: undefined }, nextId: this.nextId, fx: this.fx,
       sett: this.w.settlements.map((s) => ({ id: s.id, pop: s.pop, prosperity: s.prosperity, recruits: s.recruits, burned: s.burned })) });
   }
   load(json: string): boolean {
@@ -453,6 +462,7 @@ export class Campaign {
       this.co = { ...d.co, party: me };
       if (!this.co.hero) this.co.hero = newHero();
       this.co.hero.skills.nekromancja ??= 0;
+      if (d.fx) this.fx = d.fx; else { this.fx = newFx(this); spawnLords(this); }
       this.co.stash = this.co.stash ?? []; this.co.prisoners = this.co.prisoners ?? [];
       for (const q of d.sett) { const s = this.w.settlements.find((x) => x.id === q.id); if (s) Object.assign(s, q); }
       return true;
