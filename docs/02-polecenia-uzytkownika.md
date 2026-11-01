@@ -29,3 +29,6 @@ Wszystkie ważne polecenia, po kolei, możliwie dosłownie (pisane głosem, stą
 ## 2026-11-01
 21. „Prędkość przemieszczania się na mapie trzeba zwiększyć, i **jedna minuta to jeden dzień**, tak zrobimy.”
 22. „Dawaj **na repo wszystkie rzeczy potrzebne**: ustalenia, moje komendy i polecenia ważne dla stylu, klimatu, mechanik i samej gry, bo będę pracował na innych kontach Claude. Żeby następne AI, następny chat wiedział, co robić i jak robić.” → stąd `CLAUDE.md` i `docs/`.
+23. „Żeby ta gra **wyglądała jak Mount & Blade**.” Doprecyzowane w ankiecie: **menu i interfejs jak w Warbandzie** oraz **całość (układ, kamera, interfejs, mapa) jak w Warbandzie, ale paleta i klimat zostają grimdarkowe**.
+24. „Przede wszystkim teraz: **interfejs, opcje, content**.”
+25. „No i **mechaniki**: **podstawowe mechaniki z Warbanda**.” (postać z atrybutami i umiejętnościami, poziomy, biegłości, ekwipunek, kowal, jeńcy, okupy, sława, limit kompanii, tworzenie postaci).

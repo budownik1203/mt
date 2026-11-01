@@ -4,6 +4,8 @@
 import { clamp, rng } from "../core/math.ts";
 import { World, buildWorld, astar, cellOf, centerOf, pathCost, terrainSpeed, nearRiver, biomeAt, Settlement, MAP } from "./world.ts";
 import { TROOPS, TroopId, power } from "./troops.ts";
+import { Hero, newHero, Item, prisonerLimit } from "./hero.ts";
+import { pickEvent, TravelEvent } from "./events.ts";
 
 export const HOUR_SECONDS = 2.5;        // one game hour = 2.5 s at 1× (a day = 1 min, user decision)
 export const DAYS_PER_SEASON = 30;
@@ -42,6 +44,11 @@ export interface Company {
   furs: number;              // furs and blankets against frost
   inside?: boolean;          // in a settlement: bands do not attack
   groups?: Partial<Record<TroopId, number>>;   // battle group (1–9) per troop type
+  hero: Hero;
+  stash?: Item[];
+  prisoners?: { t: TroopId; n: number }[];
+  fear?: number;
+  seenEvents?: string[];
 }
 
 export class Campaign {
@@ -57,6 +64,7 @@ export class Campaign {
   private r = rng(4242);
   onEncounter: ((p: Party) => void) | null = null;
   onDay: (() => void) | null = null;
+  pendingEvent: TravelEvent | null = null;
 
   constructor(seed = 37) {
     this.w = buildWorld(seed);
@@ -64,7 +72,7 @@ export class Campaign {
     const party: Party = { id: this.nextId++, kind: "player", name: "Twoja kompania", x: start.x + 3, z: start.z + 2, gold: 260, path: [], mode: "idle", think: 0, stunned: 0,
       troops: [{ t: "chlop", n: 8, wounded: 0, xp: 0 }, { t: "pacholek", n: 4, wounded: 0, xp: 0 }] };
     this.co = { party, food: [{ type: "grain", n: 40, age: 0 }, { type: "beer", n: 10, age: 0 }], water: 3, waterCap: 3, morale: 60, lootShare: 0.2,
-      hungerDays: 0, thirstDays: 0, unpaidWeeks: 0, camp: false, resting: false, wagesDue: 0, furs: 0 };
+      hungerDays: 0, thirstDays: 0, unpaidWeeks: 0, camp: false, resting: false, wagesDue: 0, furs: 0, hero: newHero(), stash: [], prisoners: [] };
     this.parties.push(party);
     for (let i = 0; i < 4; i++) this.spawnBandits();
     this.spawn("deserters"); this.spawn("caravan"); this.spawn("caravan"); this.spawn("peasants"); this.spawn("peasants");
@@ -87,13 +95,16 @@ export class Campaign {
 
   // ---------- company figures ----------
   get men() { return this.co.party.troops.reduce((a, s) => a + (TROOPS[s.t].undead ? 0 : s.n), 0) + 1; }
+  get prisonerCount() { return (this.co.prisoners ?? []).reduce((a, p) => a + p.n, 0); }
+  get mouths() { return this.men + this.prisonerCount; }
   get able() { return this.co.party.troops.reduce((a, s) => a + s.n - s.wounded, 0); }
   get foodTotal() { return this.co.food.reduce((a, f) => a + f.n, 0); }
   get ration() { return this.winter ? 1.5 : 1; }
-  get foodDays() { return this.foodTotal / Math.max(1, this.men * this.ration); }
+  get foodDays() { return this.foodTotal / Math.max(1, this.mouths * this.ration); }
   get weeklyWage() { return this.co.party.troops.reduce((a, s) => a + s.n * TROOPS[s.t].wage, 0); }
   partyPower(p: Party, healthyOnly = true) {
-    return p.troops.reduce((a, s) => a + (s.n - (healthyOnly ? s.wounded : 0)) * power(s.t), 0) + (p.kind === "player" ? 2.5 : 0);
+    const base = p.troops.reduce((a, s) => a + (s.n - (healthyOnly ? s.wounded : 0)) * power(s.t), 0);
+    return p.kind === "player" ? (base + 2 + this.co.hero.level * 0.15) * (1 + 0.06 * this.co.hero.skills.taktyka) : base;
   }
   partySize(p: Party) { return p.troops.reduce((a, s) => a + s.n, 0) + (p.kind === "player" ? 1 : 0); }
   addTroops(p: Party, t: TroopId, n: number) {
@@ -104,6 +115,7 @@ export class Campaign {
   /** Map speed (units per game hour) of a party. */
   speedOf(p: Party) {
     let v = 3.2 * terrainSpeed(this.w, p.x, p.z);
+    if (p.kind === "player") v *= 1 + 0.03 * this.co.hero.skills.tropienie;
     if (this.night) v *= 0.8;
     if (this.winter) v *= 0.7;
     const size = this.partySize(p);
@@ -122,6 +134,7 @@ export class Campaign {
     let s = this.night ? 7 : 13;
     if (biomeAt(this.w, p.x, p.z) === "forest") s *= 0.7;
     if (p.kind === "undead") s = 9;
+    if (p.kind === "player") s *= 1 + 0.1 * this.co.hero.skills.zwiad;
     return s;
   }
 
@@ -166,7 +179,8 @@ export class Campaign {
     if (this.day !== prevDay) { this.daily(); this.onDay?.(); }
     // camp heals faster; resting in town is handled by the menu
     const co = this.co;
-    if (co.camp || co.resting) for (const s of co.party.troops) if (s.wounded > 0 && this.r() < h * (co.resting ? 0.06 : 0.04)) s.wounded--;
+    const heal = 1 + 0.2 * co.hero.skills.leczenie;
+    for (const s of co.party.troops) if (s.wounded > 0 && this.r() < h * (co.resting ? 0.06 : co.camp ? 0.04 : 0.015) * heal) s.wounded--;
     if (co.party.path.length === 0 && co.party.goal) this.arrived();
   }
 
@@ -278,7 +292,7 @@ export class Campaign {
   private daily() {
     const co = this.co, p = co.party;
     // food: eat the spoiling things first, keep beer for morale
-    let need = Math.ceil(this.men * this.ration);
+    let need = Math.ceil(this.mouths * this.ration);
     co.food.sort((a, b) => (FOOD[a.type].spoil - a.age) - (FOOD[b.type].spoil - b.age));
     const kinds = new Set<FoodType>();
     for (const f of co.food) { if (need <= 0) break; const eat = Math.min(f.n, need); f.n -= eat; need -= eat; if (eat > 0) kinds.add(f.type); }
@@ -331,6 +345,18 @@ export class Campaign {
     if (co.morale < 20 && this.r() < 0.5) this.desert(1 + Math.floor(this.men / 20), "z braku ducha");
     // recruits come back slowly, in proportion to people left
     for (const s of this.w.settlements) if (s.kind === "village" && !s.burned) s.recruits = Math.min(3 + Math.floor(s.pop / 40), s.recruits + (this.r() < s.pop / 300 ? 1 : 0));
+    // training: veterans teach the green ones
+    const tr = co.hero.skills.szkolenie;
+    if (tr) for (const s of p.troops) s.xp = Math.min(s.n, s.xp + s.n * 0.06 * tr);
+    // prisoners: some slip away if there are too few guards
+    for (const pr of co.prisoners ?? []) { const esc = Math.floor(pr.n * (this.able < this.prisonerCount ? 0.15 : 0.03) + this.r() * 0.6); if (esc > 0) { pr.n -= esc; this.note(`Uciekło ${esc} jeńców.`, "warn"); } }
+    co.prisoners = (co.prisoners ?? []).filter((x) => x.n > 0);
+    // a travel event, now and then, while on the move
+    if (p.path.length && !this.pendingEvent && this.r() < 0.16) {
+      const seen = new Set(co.seenEvents ?? []);
+      const ev = pickEvent(this, seen);
+      if (ev) { this.pendingEvent = ev; co.seenEvents = [...seen, ev.id].slice(-10); }
+    }
     // battlefields: the unburied rise after 2–3 nights
     for (const f of [...this.fields]) {
       f.nights++;
@@ -419,10 +445,13 @@ export class Campaign {
       this.day = d.day; this.hour = d.hour; this.year = d.year; this.parties = d.parties; this.fields = d.fields; this.notes = d.notes; this.nextId = d.nextId;
       const me = this.parties.find((p) => p.kind === "player")!;
       this.co = { ...d.co, party: me };
+      if (!this.co.hero) this.co.hero = newHero();
+      this.co.stash = this.co.stash ?? []; this.co.prisoners = this.co.prisoners ?? [];
       for (const q of d.sett) { const s = this.w.settlements.find((x) => x.id === q.id); if (s) Object.assign(s, q); }
       return true;
     } catch { return false; }
   }
+  get prisonerCap() { return prisonerLimit(this.co.hero); }
   clampToMap(v: number) { return clamp(v, -MAP / 2 + 10, MAP / 2 - 10); }
   rand() { return this.r(); }
 }

@@ -12,21 +12,23 @@ Aktualizuj po każdym buildzie. Linki do artefaktów claude.ai są prywatne dla 
 | mb2 build 4 | 2026-11-01 | ciężar ciosów: hit-stop, odrzut, skręt ofiary, krok w cios, antycypacja i dokończenie wg masy broni, wstrząs kamery | claude.ai/artifact/AKNRyiLpugyoD7vb2kmw83 |
 | mb2 build 5 | 2026-11-01 | kampania na mapie świata: region (3 miasta, zamek, 10 wsi, rzeka, brody, drogi, biomy, POI), czas, jedzenie/woda/zima/żołd/morale, osady (werbunek, targ, karczma, plotki, awanse, nocleg), bandy AI, spotkania, bitwa z kompanią na terenie z mapy, pobojowiska i wstający umarli, autozapis | claude.ai/artifact/B3DbifjUxgjnKQVsZshqwh |
 | mb2 build 6 | 2026-11-01 | 1 min = 1 doba, szybszy ruch na mapie; 9 grup, rozkazy F1–F3 z podmenu, 6 formacji, rozstawienie przed bitwą, rezerwa, morale żołnierza z sąsiadami, ucieczki i powroty, rzeź, okrzyk (X), sztandary, grupy w panelu Kompania, broń pod kółkiem; dokumentacja w repo | (patrz ostatnia wiadomość) |
+| mb2 build 7 | 2026-11-01 | wygląd i interfejs jak w Warbandzie (grimdark zostaje): menu główne, okno Opcji, menu w grze (Esc), dolny pasek mapy (Obóz, Kronika, Postać, Ekwipunek, Kompania, Menu), menu osad i spotkań z obrazem miejsca z mapy; mechaniki Warbanda: tworzenie postaci (imię, 5 pochodzeń), atrybuty, 14 umiejętności, biegłości rosnące w walce, poziomy, sława, limit kompanii, ekwipunek bohatera (zbroja, 4 bronie, tarcza), kowal i sprzedaż łupów, łupy przedmiotów, jeńcy (pośrednik okupów, namawianie do służby, ucieczki), chirurgia, szkolenie, tropienie, zwiad, taktyka; 14 wydarzeń w podróży; Tab = wycofanie; pochodnie nocą | (patrz ostatnia wiadomość) |
 
 Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Zg2su1kEkFC; dokument projektu (Claude Doc) claude.ai/artifact/LSVQm1s9kszcteorQCNAqK.
 
 ## Znane braki (do zrobienia przy okazji)
-- Żywe trupy mają wygląd chłopów (modele nieumarłych w buildzie 7).
-- Brak frontów pogody, śladów na mapie, nocnych napadów na obóz, wycofania się z trwającej bitwy.
-- Rany trwałe gracza tylko jako wpis w kronice; brak ekwipunku gracza poza testowym zestawem 8 broni (kółko).
+- Żywe trupy mają wygląd chłopów (modele nieumarłych w buildzie 8).
+- Brak frontów pogody, śladów na mapie, nocnych napadów na obóz.
+- Rany trwałe gracza tylko jako wpis w kronice.
+- Brak relacji z wsiami, zadań od sołtysów i lordów, turniejów, handlu towarami (Warband: zboże, żelazo, sukno itd.).
 - Wrogowie nie używają formacji (zawsze szarża); brak strzelców i jazdy.
 - Morale kompanii na mapie jedno (tura 2 chce osobnych grup: żywi, nieumarli, najemnicy, fanatycy).
-- Lordowie, frakcje, wojny, zamki: jeszcze nie ma (build 8).
-- Wydarzenia tekstowe, kontrakty, lochy: jeszcze nie ma.
+- Lordowie, frakcje, wojny, zamki: jeszcze nie ma (build 9).
+- Kontrakty i lochy: jeszcze nie ma (wydarzenia w podróży: 14 od build 7).
 
 ## Plan
-1. **Build 7: nekromancja.** Modele nieumarłych (szkielety, ghule), zwłoki zbierane z pola, rytuał w obozie (3–5 nieumarłych, godziny, zdrowie, zepsucie, ryzyko przerwania), drzewka nieumarłych, zepsucie gracza z progami 25/50/75/100, morale osobne dla nieumarłych, wskrzeszanie w bitwie, cmentarze jako źródło.
-2. **Build 8: frakcje i lordowie** (pierwsze 2–3 frakcje regionu, lordowie z osobowościami, wojny, przejęcia osad przez menu).
-3. **Build 9: potwory i kontrakty** (3–4 gatunki, legowiska, śledztwo tekstowe).
-4. **Build 10: broń dystansowa** (łuki, kusze, arkebuzy z dymem), strzelcy w grupach, salwy.
+1. **Build 8: nekromancja.** Modele nieumarłych (szkielety, ghule), zwłoki zbierane z pola, rytuał w obozie (3–5 nieumarłych, godziny, zdrowie, zepsucie, ryzyko przerwania), drzewka nieumarłych, zepsucie gracza z progami 25/50/75/100, morale osobne dla nieumarłych, wskrzeszanie w bitwie, cmentarze jako źródło.
+2. **Build 9: frakcje i lordowie** (pierwsze 2–3 frakcje regionu, lordowie z osobowościami, wojny, przejęcia osad przez menu).
+3. **Build 10: potwory i kontrakty** (3–4 gatunki, legowiska, śledztwo tekstowe).
+4. **Build 11: broń dystansowa** (łuki, kusze, arkebuzy z dymem), strzelcy w grupach, salwy.
 5. Dalej: wydarzenia tekstowe (ok. 60), wiara i obrzędy, konie, oblężenia, kolejne regiony i frakcje do 16, pogoda, zmęczenie w walce, rozbijanie tarcz, egzekucje.

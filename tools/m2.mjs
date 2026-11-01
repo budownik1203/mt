@@ -1,6 +1,7 @@
 export default async (p) => {
   const errs = []; p.on("pageerror", (e) => errs.push(String(e)));
-  await p.evaluate(() => mb2.campaign());
+  await p.evaluate(() => mb2.campaign(true));
+  await p.evaluate(() => { [...document.querySelectorAll("#macts button")][0].click(); });
   await p.evaluate(() => { mb2.mapCam(0.6, 1.2, 150); mb2.mapTick(0.3); });
   await p.waitForTimeout(500); await p.screenshot({ path: "shots/m2_over.png" });
   await p.evaluate(() => { mb2.mapCam(0.6, 0.95, 55); mb2.mapTick(0.3); });

@@ -99,6 +99,7 @@ export class Warrior {
   /** Knock-back / lunge velocity on top of walking. */
   kx = 0; kz = 0;
   /** Battle command and morale (build 6). */
+  moveMul = 1;
   group = 1; morale = 60; baseMorale = 60; fleeing = false; noMorale = false; bearer = false; leader = false;
 
   constructor(R: PSX, kit: Kit, x: number, z: number, team: number) {
@@ -213,7 +214,7 @@ export class Warrior {
     // forward is fastest, sidestep slower, backpedal slowest; running only really helps forward
     const dirK = fwd >= 0 ? 0.74 + 0.26 * fwd : 0.74 - 0.16 * -fwd;
     const runK = this.wish.run ? 1 + 0.62 * Math.max(0, fwd) ** 1.5 + 0.08 : 1;
-    let sp = 3.2 * dirK * runK;
+    let sp = 3.2 * dirK * runK * this.moveMul;
     if (this.state === "windup" || this.state === "hold") sp *= 0.7;
     if (this.state === "block") sp *= 0.62;
     if (this.state === "release" || this.state === "stagger" || this.state === "blockstun") sp *= 0.4;

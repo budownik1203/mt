@@ -16,6 +16,9 @@ import { buildMapTerrain, buildMapFeatures, settlementModel, partyFigure } from 
 import { biomeAt, cellOf, cellIndex, MAP } from "./map/world.ts";
 import { TroopId, kitOf, TROOPS, DEFAULT_GROUP } from "./map/troops.ts";
 import { invert } from "./core/math.ts";
+import { settings, saveSettings, RES } from "./core/settings.ts";
+import { openOptions } from "./core/optionsui.ts";
+import { heroHp, profOf } from "./map/hero.ts";
 import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY } from "./game/tactics.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
@@ -89,7 +92,15 @@ const KITS: Record<string, Kit> = {
 };
 const PLAYER_WEAPONS: WeaponId[] = ["sword", "kord", "hatchet", "mace", "longsword", "greataxe", "spear", "glaive"];
 let weaponSlot = 0;
-const playerKit = (): Kit => ({ name: { pl: t("you"), en: t("you") }, loadout: "knight", weapon: PLAYER_WEAPONS[weaponSlot], shield: true, armour: ARMOURS.mail, hp: 130, skill: 1 });
+const ARMOUR_OF: Record<string, keyof typeof ARMOURS> = { base: "rags", levy: "gambeson", sergeant: "mail", knight: "plate", plate: "plate" };
+/** The player's kit: the test set in the trial battle, the hero's own gear in the campaign. */
+function playerKit(): Kit {
+  const h = camp && battleKind === "encounter" ? camp.co.hero : null;
+  if (!h) return { name: { pl: t("you"), en: t("you") }, loadout: "knight", weapon: PLAYER_WEAPONS[weaponSlot % 8], shield: true, armour: ARMOURS.mail, hp: 130, skill: 1 };
+  const w = h.weapons[weaponSlot % h.weapons.length] ?? "kord";
+  return { name: { pl: t("you"), en: t("you") }, loadout: h.armour, weapon: w, shield: h.shield, armour: ARMOURS[ARMOUR_OF[h.armour]], hp: heroHp(h), skill: clamp(0.55 + h.prof[profOf(w)] / 250, 0.6, 1.5) };
+}
+function weaponCount() { return camp && battleKind === "encounter" ? camp.co.hero.weapons.length : 8; }
 const wName = (w: WeaponId) => WEAPONS[w].name;
 
 // ---------- state ----------
@@ -110,7 +121,7 @@ interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: T
 let enc: Enc | null = null;
 let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
-let firstPerson = false, hints = true, autoBlock = false, helpOpen = false;
+let firstPerson = false, hints = settings.hints, autoBlock = settings.autoBlock, helpOpen = false;
 let camYaw = Math.PI, camPitch = -0.1;
 let botWish: [number, number] | null = null;
 let noAI = false, botRun = false;   // test hook   // test hook: drive the player without a keyboard
@@ -171,7 +182,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyV") { firstPerson = !firstPerson; player.hideHead = firstPerson; }
   if (e.code === "KeyT") hour = (hour + 1) % 24;
   if (e.code === "KeyH") { hints = !hints; pushLog(hints ? t("hintsOn") : t("hintsOff"), "sys"); }
-  if (e.code === "KeyB") { autoBlock = !autoBlock; pushLog(autoBlock ? t("autoOn") : t("autoOff"), "sys"); }
+  if (e.code === "KeyB") { autoBlock = !autoBlock; settings.autoBlock = autoBlock; saveSettings(); pushLog(autoBlock ? t("autoOn") : t("autoOff"), "sys"); }
   if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
   if (e.code === "KeyR" && !player.alive) reset();
   if (battleKind === "waves" && /^Digit[1-8]$/.test(e.code) && player.alive && player.state === "idle") {
@@ -187,7 +198,8 @@ window.addEventListener("mousemove", (e) => {
   const locked = document.pointerLockElement === canvas;
   if (!locked && e.buttons === 0 && !dragLook) return;
   const dx = e.movementX || 0, dy = e.movementY || 0;
-  camYaw -= dx * SENS; camPitch = clamp(camPitch - dy * SENS, -1.1, 0.9);
+  const sens = SENS * settings.sens;
+  camYaw -= dx * sens; camPitch = clamp(camPitch - (settings.invertY ? -dy : dy) * sens, -1.1, 0.9);
   intentX = intentX * 0.55 + dx; intentY = intentY * 0.55 + dy;
   if (Math.hypot(intentX, intentY) > 2) curDir = dirFromMouse(intentX, intentY);
 });
@@ -292,6 +304,13 @@ function resolve(att: Warrior) {
   const tooClose = dir !== DIR.THRUST && bd < 0.55 ? 0.55 : 1;
   const zoneMult = zone === "arm" ? 0.72 : 1;
   let dmg = Math.round(damage(raw * zoneMult, atk.type, o.kit.armour[part], part, closing) * tooClose);
+  // the hero's strength and practice; how hard the world hits back
+  if (att === player && camp && battleKind === "encounter") {
+    const h = camp.co.hero, pf = profOf(att.weaponId);
+    dmg = Math.round(dmg * (1 + 0.08 * h.skills.sila) * (0.85 + h.prof[pf] / 600));
+    h.prof[pf] = Math.min(400, h.prof[pf] + 1.6 * (1 - h.prof[pf] / 450));
+  }
+  if (o === player) dmg = Math.round(dmg * [0.6, 1, 1.3][settings.difficulty]);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
   o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; o.morale -= dmg * 0.35; (o as Warrior & { lastType?: string }).lastType = atk.type;
   // weight of the blow: hit-stop on both, the victim is shoved and twisted by it
@@ -304,12 +323,12 @@ function resolve(att: Warrior) {
   if (o === player) shake = Math.max(shake, 0.25 + force * 0.3);
   audio.hit(atk.type === "blunt", vol);
   if (Math.random() < 0.6) audio.grunt(vol * 0.8);
-  bleed(hp, dx, dz, 16 + Math.min(40, dmg));
+  bleed(hp, dx, dz, settings.gore ? 16 + Math.min(40, dmg) : 4);
   if (o === player) hurt = Math.min(1, hurt + 0.35 + dmg / 80);
   const lethal = o.hp <= 0;
   // dismemberment: cutting blows that kill, or heavy cuts to limbs
   let gore: string | null = null;
-  if (atk.type === "cut") {
+  if (atk.type === "cut" && settings.gore) {
     if (zone === "head" && lethal) gore = "head";
     else if (zone === "arm" && (lethal || dmg >= 30) && SEVER[joint]) gore = joint;
     else if (zone === "legs" && (lethal || dmg >= 34) && SEVER[joint]) gore = joint;
@@ -509,6 +528,8 @@ function lightAt(h: number, focus: V3, fires: [number, number, number][] = scen.
   for (const f of fires) { const d = Math.hypot(f[0] - focus[0], f[2] - focus[2]); if (d < bd) { bd = d; best = f; } }
   const night = clamp(1 - p.col[1] * 1.2, 0, 1);
   const point = best && bd < 22 ? { pos: [best[0], best[1] + 0.4, best[2]], col: [2.2 * (0.35 + night), 1.05 * (0.35 + night), 0.38 * (0.35 + night)], rad: 9 + night * 5 } : undefined;
+  // at night, with no fire near, the company fights by torchlight (around the player)
+  if (!point && night > 0.45 && mode === "battle" && player?.alive) return { dir: sd, col: p.col, amb: p.amb.map((v) => v * 1.3), rim: p.rim, fog: p.fog, sky: p.sky, bg: p.fog, point: { pos: [player.x, player.y + 2.6, player.z], col: [1.6 * night, 0.85 * night, 0.35 * night], rad: 16 } };
   return { dir: sd, col: p.col, amb: p.amb, rim: p.rim, fog: p.fog, sky: p.sky, bg: p.fog, point };
 }
 
@@ -631,6 +652,18 @@ function renderIdle(now: number) {
 
 // ======================= campaign map =======================
 const MAP_MODE = { ...MODE, fog: [70, 260] as [number, number] };
+/** Apply the options screen: image quality, battle size, volume, toggles, language. */
+function applySettings() {
+  MODE.res = RES[settings.quality] ?? 360; MAP_MODE.res = MODE.res;
+  CAP = settings.battleSize;
+  hints = settings.hints; autoBlock = settings.autoBlock;
+  try { if (audio.master) audio.master.gain.value = settings.volume; } catch { /* audio not started */ }
+  applyLang(); ui?.hud();
+}
+function showOptions() { openOptions(applySettings, () => {}); }
+$("topts").addEventListener("click", (e) => { e.stopPropagation(); showOptions(); });
+$("thelp").addEventListener("click", (e) => { e.stopPropagation(); toggleHelp(); });
+queueMicrotask(applySettings);
 let mapG: { terr: GMesh[]; feat: GMesh[]; sett: Map<string, { ok: GMesh; burned: GMesh }>; figs: Record<string, GMesh>; mark: GMesh; ring: GMesh } | null = null;
 let mapYaw = 0.6, mapPitch = 0.95, mapDist = 62;
 const mapCenter: V3 = [0, 0, 0];
@@ -641,11 +674,14 @@ const SAVE_KEY = "mb2.campaign";
 function saveCampaign() { try { if (camp) localStorage.setItem(SAVE_KEY, camp.save()); } catch { /* storage blocked */ } }
 function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } }
 function startCampaign(fresh = false) {
+  let created = false;
   if (!camp) {
     camp = new Campaign(37);
-    if (!fresh) { try { const sv = localStorage.getItem(SAVE_KEY); if (sv && camp.load(sv)) camp.note("Wczytano zapis kampanii.", ""); } catch { /* */ } }
+    let loaded = false;
+    if (!fresh) { try { const sv = localStorage.getItem(SAVE_KEY); if (sv && camp.load(sv)) { camp.note("Wczytano zapis kampanii.", ""); loaded = true; } } catch { /* */ } }
+    created = !loaded;
     camp.onDay = () => saveCampaign();
-    ui = new MapUI(camp, { fight: (p) => startEncounter(p), refresh: () => ui?.hud() });
+    ui = new MapUI(camp, { fight: (p) => startEncounter(p), refresh: () => ui?.hud(), snapshot: (x, z, d) => mapSnapshot(x, z, d) });
     camp.onEncounter = (p) => { ui!.encounter(p); };
     camp.enterSettlement = (id) => ui!.settlement(id);
     buildMapMeshes();
@@ -654,8 +690,9 @@ function startCampaign(fresh = false) {
   mode = "map"; started = false; $("title").hidden = true;
   $("mapHud").hidden = false; $("labels").hidden = false; setBattleHud(false); $("banner").hidden = true;
   try { document.exitPointerLock(); } catch { /* */ }
-  audio.start();
+  audio.start(); applySettings();
   ui!.hud();
+  if (created) ui!.creation(() => { ui!.hud(); saveCampaign(); });
 }
 
 function buildMapMeshes() {
@@ -685,6 +722,7 @@ function buildMapMeshes() {
 function mapStep(dt: number) {
   const c = camp!;
   if (!ui!.open) c.step(dt);
+  if (c.pendingEvent && !ui!.open) { const ev = c.pendingEvent; c.pendingEvent = null; ui!.event(ev); }
   hudT -= dt; if (hudT <= 0) { hudT = 0.25; ui!.hud(); }
   // the camera follows the company
   const me = c.co.party, k = Math.min(1, dt * 4);
@@ -699,12 +737,23 @@ function mapEye(): V3 {
   const cp = Math.cos(mapPitch);
   return [mapCenter[0] + Math.sin(mapYaw) * cp * mapDist, mapCenter[1] + Math.sin(mapPitch) * mapDist, mapCenter[2] + Math.cos(mapYaw) * cp * mapDist];
 }
+/** Render the map from a low, close camera and return it as a picture (menu illustrations). */
+function mapSnapshot(x: number, z: number, dist: number): string | null {
+  if (!camp || !mapG) return null;
+  const y = camp.w.height(x, z);
+  const yaw = mapYaw + 0.5;
+  snapCam = { eye: [x + Math.sin(yaw) * dist, y + dist * 0.42, z + Math.cos(yaw) * dist], target: [x, y + 1.2, z] };
+  renderMap(performance.now());
+  snapCam = null;
+  try { return canvas.toDataURL("image/jpeg", 0.82); } catch { return null; }
+}
+let snapCam: { eye: V3; target: V3 } | null = null;
 function renderMap(now: number) {
   resize();
   const c = camp!, g = mapG!;
-  const eye = mapEye();
-  perspective(mproj, 45 * Math.PI / 180, canvas.width / Math.max(1, canvas.height), 1, 600);
-  lookAt(mview, eye, [mapCenter[0], mapCenter[1], mapCenter[2]]); mul(mvp, mproj, mview);
+  const eye = snapCam ? snapCam.eye : mapEye();
+  perspective(mproj, (snapCam ? 50 : 45) * Math.PI / 180, canvas.width / Math.max(1, canvas.height), snapCam ? 0.3 : 1, 600);
+  lookAt(mview, eye, snapCam ? snapCam.target : [mapCenter[0], mapCenter[1], mapCenter[2]]); mul(mvp, mproj, mview);
   const L0 = lightAt(c.hour, [mapCenter[0], 0, mapCenter[2]], []);
   // the map is a reading surface: brighter than the battlefield, and night stays legible
   const L = { ...L0, col: L0.col.map((v) => v * 1.25), amb: L0.amb.map((v) => Math.max(0.24, v * 1.35)), fog: L0.fog.map((v) => Math.max(0.07, v)), bg: L0.bg.map((v) => Math.max(0.07, v)) };
@@ -731,7 +780,7 @@ function renderMap(now: number) {
   }
   items.sort((a, b) => a.mesh.tex - b.mesh.tex);
   R.render(MAP_MODE, mvp, eye, L, items, false, L.bg, 1, 600);
-  mapLabels(sight);
+  if (!snapCam) mapLabels(sight);
 }
 function project(x: number, y: number, z: number): [number, number] | null {
   const m = mvp, w = m[3] * x + m[7] * y + m[11] * z + m[15];
@@ -793,17 +842,22 @@ window.addEventListener("mousemove", (e) => {
 });
 window.addEventListener("mouseup", () => { mapDrag = false; });
 canvas.addEventListener("wheel", (e) => {
-  if (mode === "battle" && player?.alive && player.state === "idle") { e.preventDefault(); weaponSlot = (weaponSlot + (e.deltaY > 0 ? 1 : 7)) % 8; player.setKit(R, playerKit()); pushLog(wName(player.weaponId), "sys"); return; }
+  if (mode === "battle" && player?.alive && player.state === "idle") { e.preventDefault(); weaponSlot = (weaponSlot + (e.deltaY > 0 ? 1 : weaponCount() - 1)) % weaponCount(); player.setKit(R, playerKit()); pushLog(wName(player.weaponId), "sys"); return; }
   if (mode !== "map") return; e.preventDefault(); mapDist = clamp(mapDist * (e.deltaY > 0 ? 1.12 : 0.89), 22, 160); }, { passive: false });
 window.addEventListener("keydown", (e) => {
   if (mode === "map" && camp && ui) {
+    if (e.code === "Escape" && !$("opts").hidden) { $("opts").hidden = true; return; }
     if (e.code === "Escape" && ui.open) { ui.close(); return; }
+    if (e.code === "Escape") { gameMenu(); return; }
     if (ui.open) return;
     if (e.code === "Space") { e.preventDefault(); camp.speed = camp.speed === 0 ? 1 : 0; }
     if (e.code === "Digit1") camp.speed = 1;
     if (e.code === "Digit2") camp.speed = 3;
-    if (e.code === "KeyC") ui.toggleCamp();
+    if (e.code === "KeyO") ui.toggleCamp();
     if (e.code === "KeyP") ui.partyPanel();
+    if (e.code === "KeyC") ui.characterPanel();
+    if (e.code === "KeyI") ui.inventoryPanel(camp.co.inside ? camp.settlementAt(camp.co.party.x, camp.co.party.z, 6) : undefined);
+    if (e.code === "KeyN") ui.chronicle();
     if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
     ui.hud();
   } else if (mode === "battle" && enc) {
@@ -811,8 +865,23 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+/** Warband-style in-game menu (Esc on the map). */
+function gameMenu() {
+  if (!ui || !camp) return;
+  ui.pic = null;
+  ui.show(lang === "pl" ? "Menu" : "Menu", `<p class="meta">${esc2(camp.co.hero.name)} · ${camp.dateText(lang)}</p>`, [
+    { label: lang === "pl" ? "Wróć do gry" : "Back to the game", on: () => ui!.close() },
+    { label: lang === "pl" ? "Opcje" : "Options", on: () => { ui!.close(); showOptions(); } },
+    { label: lang === "pl" ? "Zapisz teraz" : "Save now", sub: lang === "pl" ? "gra zapisuje się też sama co dobę i po bitwie" : "also autosaves daily and after battles", on: () => { saveCampaign(); camp!.note("Zapisano.", ""); ui!.close(); } },
+    { label: lang === "pl" ? "Wyjdź do menu głównego" : "Quit to main menu", kind: "bad", on: () => { saveCampaign(); ui!.close(); mode = "title"; $("mapHud").hidden = true; $("labels").hidden = true; $("title").hidden = false; if (hasSave()) { $("tcamp").textContent = lang === "pl" ? "Kontynuuj kampanię" : "Continue campaign"; $("tnew").hidden = false; } } },
+  ]);
+}
+const esc2 = (s: string) => s.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]!));
+// map bottom bar
+for (const [id, fn] of [["mchar", () => ui?.characterPanel()], ["minv", () => ui?.inventoryPanel(camp?.co.inside ? camp.settlementAt(camp.co.party.x, camp.co.party.z, 6) : undefined)], ["mchron", () => ui?.chronicle()], ["mmenu", () => gameMenu()]] as [string, () => void][]) $(id).addEventListener("click", fn);
+
 // ---------- battle from an encounter on the map (build 6: groups, formations, morale) ----------
-const CAP = 18;            // fighters per side in the scene at once; the rest come as reinforcements
+let CAP = settings.battleSize;            // fighters per side in the scene at once; the rest come as reinforcements
 function groupOfTroop(t: TroopId) { return camp?.co.groups?.[t] ?? DEFAULT_GROUP[t] ?? 1; }
 const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
@@ -836,7 +905,9 @@ function startEncounter(p: Party) {
   $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
   fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
   camYaw = Math.PI; camPitch = -0.1;
+  weaponSlot = 0;
   player = new Warrior(R, playerKit(), 0, 13, 0); player.yaw = Math.PI; player.hideHead = firstPerson; player.leader = true;
+  player.moveMul = 1 + 0.03 * c.co.hero.skills.atletyka;
   fighters.push(player);
   reinforce(0, true); reinforce(1, true);
   // the standard: carried by the best man of the first group; big enemy bands have one too
@@ -988,6 +1059,13 @@ function battleKey(e: KeyboardEvent) {
   if (code === "Digit0" || code === "Backquote") { enc.sel = new Set(groupMembers().keys()); enc.menu = null; return; }
   if (code === "Escape") { enc.menu = null; return; }
   if (code === "KeyX") { warCry(); return; }
+  if (code === "Tab") {
+    e.preventDefault();
+    if (enc.deploy || enc.done) return;
+    const near = fighters.some((f) => f.team === 1 && f.alive && !f.fleeing && Math.hypot(f.x - player.x, f.z - player.z) < 14);
+    if (near && player.alive) { pushLog(L("Nie da się wycofać: wróg jest za blisko.", "You cannot retreat: the enemy is too close."), "bad"); return; }
+    enc.done = true; pushLog(L("Wycofujecie się z pola.", "You retreat from the field."), "warn"); setTimeout(() => endEncounter(false), 600); return;
+  }
   if (enc.deploy) {
     if (code === "KeyR") { for (const G of sel) G.reserve = !G.reserve; return; }
     if (code === "F2") { e.preventDefault(); for (const G of sel) G.formation = FORMATIONS[(FORMATIONS.indexOf(G.formation) + 1) % FORMATIONS.length]; placeDeployed(); return; }
@@ -1098,14 +1176,16 @@ function endEncounter(win: boolean | null) {
   const c = camp, me = c.co.party, p = enc.enemy;
   // who fell, and how: blunt wounds, blades kill, a severed limb always kills
   let myDead = 0, myWounded = 0, theirDead = 0;
-  const fate = (f: Warrior) => { const ty = (f as Warrior & { lastType?: string }).lastType; return f.severed.size > 0 || ty !== "blunt" ? "dead" : "wounded"; };
+  const fate = (f: Warrior): "dead" | "wounded" => { const ty = (f as Warrior & { lastType?: string }).lastType; return f.severed.size > 0 || ty !== "blunt" ? "dead" : "wounded"; };
   const lose = (party: Party, t: TroopId, how: "dead" | "wounded") => { const s = party.troops.find((x) => x.t === t); if (!s) return; if (how === "dead") { s.n--; s.wounded = Math.min(s.wounded, s.n); } else s.wounded = Math.min(s.n, s.wounded + 1); };
+  const surg = c.co.hero.skills.chirurgia * 0.04;
   for (const f of fighters) {
     if (f.alive || f === player) continue;
     const t = enc.troopOf.get(f.id); if (!t) continue;
-    const how = fate(f);
+    let how: "dead" | "wounded" = fate(f);
+    if (f.team === 0 && how === "dead" && f.severed.size === 0 && Math.random() < surg) how = "wounded";   // the surgeon saves one
     if (f.team === 0) { lose(me, t, how); if (how === "dead") myDead++; else myWounded++; }
-    else { lose(p, t, how); theirDead++; }
+    else { lose(p, t, how); if (how === "dead") theirDead++; }
   }
   me.troops = me.troops.filter((s) => s.n > 0); p.troops = p.troops.filter((s) => s.n > 0);
   let body = "";
@@ -1118,6 +1198,7 @@ function endEncounter(win: boolean | null) {
   } else body += `<p>${win ? (enc.routed[1].length ? `Wróg pęka. ${enc.routed[1].length} uciekło w zarośla.` : "Ostatni z wrogów pada w błoto.") : "Wycofujecie się."}</p>`;
   body += `<p class="meta">Twoje straty: ${myDead} zabitych, ${myWounded} rannych${enc.routed[0].length ? `, ${enc.routed[0].length} uciekło z pola (wrócili po bitwie)` : ""}. Wróg: ${theirDead} zabitych.</p>`;
   if (enc.routed[0].length) c.co.morale -= enc.routed[0].length * 1.5;
+  c.co.hero.kills += kills;
   const hrs = ((hour - enc.startHour) + 24) % 24;
   c.co.inside = true;
   c.passHours(Math.min(3, Math.max(0.5, hrs)));

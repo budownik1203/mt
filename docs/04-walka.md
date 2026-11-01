@@ -7,7 +7,8 @@ Zasada nadrzędna: **kopia Mount & Blade: Warband**, z ciężarem i gore ponad o
 - PPM: blok w kierunku myszy; PPM w trakcie zamachu = **zwód** (przejście w blok). B: automatyczny kierunek bloku (dla początkujących). H: podpowiedź kierunku nadchodzącego ciosu.
 - **Pochylenie (build 2):** patrzenie w górę/dół pochyla tułów i ugina kolana; decyduje, czy cios boczny trafi w głowę, tułów czy nogi. Kropka na celowniku pokazuje wysokość.
 - Ruch: przód 3,2 m/s (bieg 5,4), bok 2,4 (2,6), tył 1,85 (2,0); bieg pomaga głównie do przodu.
-- Kółko myszy: zmiana broni. Kamera 1./3. osoby (V).
+- Kółko myszy: zmiana broni (w kampanii: sloty 1–4 bohatera). Kamera 1./3. osoby (V). **Tab: wycofanie się z bitwy** (tylko gdy wróg nie stoi bliżej niż 14 m; liczone jak przegrana). Nocą bez ogniska walczy się przy świetle pochodni wokół gracza.
+- Bohater w kampanii: obrażenia × (1 + 8% za Siłę ciosu) × (0,85 + biegłość/600); biegłość klasy broni rośnie z każdym trafieniem; zdrowie = 90 + 3×Ciało + 4×Twarde ciało; Atletyka przyspiesza bieg. Obrażenia otrzymywane wg opcji (60% / 100% / 130%). Opcja „Przemoc: mniej” wyłącza odcinanie.
 
 ## Animacje
 - Jedna paczka animacji na klasę broni: **jednoręczna (OH), dwuręczna (TH), drzewcowa (PA, osobno włócznia)**; bronie w klasie różnią się tylko modelem i statystykami.

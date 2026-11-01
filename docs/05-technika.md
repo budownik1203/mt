@@ -35,6 +35,9 @@ Zmienna `CHROME` wskazuje własną przeglądarkę dla Playwrighta.
 | `map/mapmesh.ts` | geometria mapy (teren lato/zima, rzeka, drogi, lasy, osady, POI, figurki oddziałów) |
 | `map/ui.ts` | HUD mapy i menu (osady, targ, karczma, plotki, awanse, spotkania, po bitwie, kompania) |
 | `core/i18n.ts`, `audio.ts`, `math.ts` | teksty PL/EN, dźwięk syntetyzowany, matematyka |
+| `core/settings.ts`, `optionsui.ts` | opcje gracza (liczebność bitwy, jakość, przemoc, trudność, blok, czułość, głośność), zapis w przeglądarce, okno Opcje |
+| `map/hero.ts` | bohater: atrybuty (Ciało, Refleks, Wiedza, Posłuch), 14 umiejętności z limitem atrybut/3, biegłości, poziomy i doświadczenie, sława, limity kompanii i jeńców, pochodzenia (tworzenie postaci), przedmioty i ceny |
+| `map/events.ts` | wydarzenia w podróży (14 scen z wyborami) |
 | `lab.ts` + `web/lab.html` | pracownia modeli (style, zestawy, bronie, pozy, światło) |
 
 ## Testy
@@ -42,6 +45,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b7.mjs` menu główne, opcje, tworzenie postaci, miasto, kowal, postać, ekwipunek, bitwa z ekwipunkiem bohatera, jeńcy, doświadczenie.
 - `lab*.mjs`, `gif*.mjs` zrzuty i GIF-y z pracowni.
 Przed wydaniem: typecheck, build, co najmniej `g4`, `g6`, `g7`, `m2`, `b6` bez błędów konsoli.
 

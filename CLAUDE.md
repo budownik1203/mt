@@ -15,6 +15,7 @@ Czytaj to pierwsze. Ten plik i folder `docs/` to **jedyne źródło prawdy** o p
 4. Walka (święta rzecz, kopia Warbanda): `docs/04-walka.md`. Technika i testy: `docs/05-technika.md`.
 
 ## Zasady stałe (nie łam bez wyraźnego polecenia)
+- Wygląd całości: **układ, kamera, menu i interfejs jak w Mount & Blade: Warband**, ale paleta i klimat grimdarkowe. Mechaniki bazowe też jak w Warbandzie.
 - Styl graficzny: **„hybryda fasetowa”** (shader 8, `LEVELS.hfa`), grimdarkowa korekcja barw (post 3), low-poly w duchu PS1/PS2. Wszystko generowane w kodzie.
 - Walka: **kopia Mount & Blade: Warband** (4 kierunki myszą, osobne animacje na klasę broni, blok kierunkowy, zwód, kontra). Ciężkie, fizyczne ciosy, gore z odcinaniem kończyn.
 - Ton: low / dark / grimdark fantasy w stylu moda **World of Vasnar** do Warbanda: nekromancja, potwory, pogańskie kulty, gotyk z późnym średniowieczem. Nie klasyczne high fantasy.
