@@ -40,3 +40,10 @@ Zasada nadrzędna: **kopia Mount & Blade: Warband**, z ciężarem i gore ponad o
 - Gracz: LPM trzymany = naciąg/celowanie, puszczenie = strzał (tylko z pełnego naciągu); celownik to promień kamery (do pierwszego ciała lub ziemi) z poprawką na opad; ruch i za długo trzymany łuk (> 2,5 s) zwiększają rozrzut. Podczas celowania ruch × 0,45, przy ładowaniu kuszy/arkebuzu × 0,3.
 - Trafienie wg wysokości: głowa > 1,52 m, nogi < 0,88 m, reszta tułów. Obrażenia kłute przez pancerz strefy × współczynnik broni, × prędkość pocisku. Tarcza zwrócona do pocisku łapie go (zawsze przy bloku, 70% gdy tylko niesiona przodem).
 - Strzelcy AI trzymają dystans (cofają się poniżej 8 m), przy wrogu bliżej 4,5 m lub bez amunicji biorą broń boczną; wracają do strzelania, gdy wróg odejdzie dalej niż 13 m. Rozkaz F4: F1 ognia wedle uznania, F2 wstrzymać ogień, F3 salwami (salwa, gdy 80% grupy gotowe albo po 4 s).
+
+## Konie i jazda (build 13)
+- Konie: szkapa (80 zdrowia, 31 km/h, pancerz 4, 120 gr), koń wierzchowy (115, 37 km/h, 8, 320 gr), rumak bojowy w kropierzu (170, 35 km/h, 22, 760 gr, wymaga Jazdy 2). Jazda konna: +4% prędkości i zwrotności na poziom.
+- Sterowanie: W/A/S/D wskazują kierunek względem kamery, koń skręca w tę stronę z ograniczoną zwrotnością (wolniej w galopie), Shift = galop. Przyspieszenie 3,2 m/s², hamowanie 6,5 m/s². Jeździec może patrzeć i ciąć do ±63° od osi konia.
+- Ciosy z siodła dostają premię z prędkości (jak w Warbandzie, do +50%). Kopia: przy prędkości > 6,2 m/s i spokojnych rękach kładzie się sama; trafia wroga do 3,3 m przed koniem za 26 + 6,5 × prędkość obrażeń kłutych, potem 1,8 s przerwy. Koń w biegu > 4,5 m/s taranuje pieszych (3 + 1,3 × prędkość, przewrócenie), sam zwalnia.
+- Ciosy pieszego w konnego: niskie (nogi) i 22% pozostałych trafiają konia (pancerz konia). Pociski poniżej 1,5 m trafiają konia. Koń pada → jeździec spada (6–16 obrażeń, zachwianie), kopijnik bierze broń boczną.
+- AI jazdy: szarża przez cel z przesunięciem na stronę miecza, cios w przejeździe, 1,6–2,4 s jazdy dalej, nawrót.

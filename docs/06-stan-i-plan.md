@@ -18,6 +18,7 @@ Aktualizuj po każdym buildzie. Linki do artefaktów claude.ai są prywatne dla 
 | mb2 build 10 | 2026-11-01 | potwory i kontrakty: 3 legowiska na mapie (Wilcza Jama, Topiel, Kurhan pod Ostrowiem), modele wilkołaka, utopców i strzygi, bestie napadają nocą na wsie i wracają do legowisk za dnia; kontrakty od sołtysów i rad miejskich (nagroda, 20 dni, kierunek i odległość do legowiska), śledztwo w 3 krokach (rozpytać, ślady, przygotowanie) osłabia bestię o 1/4; kontrakty w Kronice; śmierć strzygi rozsypuje jej trupy; bestie bez morale, bez jeńców i łupów | claude.ai/artifact/AFHfbruUkJTZrC4sdsu5WS |
 | mb2 build 11 | 2026-11-01 | broń dystansowa: łuk, kusza, arkebuz (modele, pozy celowania i ładowania, prawdziwe pociski z grawitacją, celownik kamery, rozrzut wg umiejętności i ruchu, amunicja na bitwę, dym, błysk i huk arkebuzu); trafienia w głowę/tułów/nogi przez pancerz (kusza i kula przebijają lepiej), tarcza zwrócona do strzelca łapie pociski; strzelcy: chłop z łukiem, łucznik, kusznik, arkebuzer (broń boczna do walki wręcz, przełączają się, gdy wróg podejdzie); AI strzelców trzyma dystans i wylicza tor; rozkaz F4: ognia wedle uznania / wstrzymać ogień / salwami; amunicja grup w panelu rozkazów; biegłość Strzelectwo; strzelcy w karczmach, u band i w armiach frakcji | claude.ai/artifact/SdHLKhQq89bD2jSzDet3Ws |
 | mb2 build 12 | 2026-11-01 | wiara i obrzędy: wiara bohatera (Kościół / stara wiara), pobożność i łaska bogów, wiara każdego żołnierza i kłótnie dwóch wiar w kompanii (wpływ na morale rozpisany w panelu Kompania), kapelan i żerca, Klasztor Świętego Męczennika (msza, pokuta, relikwia, chrzest) i Święty Gaj Peruna (ofiary z jadła, koguta, jeńca; powrót do starych bogów) na mapie, msza polowa i ogień dla Swaroga w obozie, łaski na kilka dni (Błogosławieństwo, Perun, Weles, Mokosz) działające w bitwie i na mapie, ekskomunika (ofiara z człowieka, zepsucie ≥ 60) i pokuta, Kupała i Dziady (karmienie zmarłych), 6 nowych wydarzeń (żywy święty, wróżka, stos, pielgrzymi, gniew bogów, kaznodzieja) | claude.ai/artifact/W8h4GKAJSHsVZW1tyiPLUm |
+| mb2 build 13 | 2026-11-01 | konie i jazda: modele koni (szkapa, koń wierzchowy, rumak w kropierzu z naczółkiem) z chodem nóg, jeździec w siodle, ruch konia (przyspieszanie, hamowanie, skręt zależny od prędkości), premia prędkości do ciosów, kopia kładzie się sama w galopie (szarża), koń taranuje pieszych, ciosy z ziemi i pociski trafiają w konia, koń pada i zrzuca jeźdźca (kopijnik bierze miecz), AI jazdy (szarża na wylot, cios w przejeździe, nawrót), konny zbrojny i rycerz z kopią w kompaniach, karczmach i armiach frakcji, targ koński w miastach, umiejętność Jazda konna, kompania konna +20% na mapie, M w próbnej bitwie = koń | (patrz ostatnia wiadomość) |
 
 Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Zg2su1kEkFC; dokument projektu (Claude Doc) claude.ai/artifact/LSVQm1s9kszcteorQCNAqK.
 
@@ -27,7 +28,7 @@ Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Z
 - Brak frontów pogody, śladów na mapie, nocnych napadów na obóz.
 - Rany trwałe gracza tylko jako wpis w kronice.
 - Brak relacji z wsiami, zadań od sołtysów i lordów, turniejów, handlu towarami (Warband: zboże, żelazo, sukno itd.).
-- Wrogowie nie używają formacji (zawsze szarża); brak jazdy. Strzały nie wbijają się w ciała (znikają), brak strzał zapalających i ostrzału z murów.
+- Wrogowie nie używają formacji (zawsze szarża). Jazda: brak łuczników konnych, koni bez jeźdźców uciekających z pola, wsiadania na cudzego konia, osobnej animacji konia przy skręcie i staniu dęba. Strzały nie wbijają się w ciała (znikają), brak strzał zapalających i ostrzału z murów.
 - Morale kompanii na mapie jedno (tura 2 chce osobnych grup: żywi, nieumarli, najemnicy, fanatycy).
 - Frakcje: brak dyplomacji gracza (pokój na żądanie, trybut), rady lordów, małżeństw, własnej frakcji gracza; lordowie bez ziemi nie odchodzą; wsie nie zmieniają właściciela razem z zamkiem; brak obrony osad przez lordów (odsiecz).
 - Lochy (wejście do legowiska jako osobna mapa) jeszcze nie ma; bestie bez skalowania rozmiaru (wilkołak tej samej wysokości co człowiek); brak trofeów jako przedmiotów i alchemii.
@@ -38,6 +39,6 @@ Inne strony: rada projektowa (pytania tur 1–2) claude.ai/artifact/J3myU6uMT57Z
 3. ~~Build 10: potwory i kontrakty~~ (zrobione).
 4. ~~Build 11: broń dystansowa~~ (zrobione).
 5. ~~Build 12: wiara i obrzędy~~ (zrobione; wydarzeń jest 23, cel ok. 60 zostaje na kolejne buildy).
-6. **Build 13: konie i jazda** (koń bohatera, jeźdźcy w oddziałach, szarża z kopią, cios z siodła, upadek z konia).
+6. ~~Build 13: konie i jazda~~ (zrobione).
 7. **Build 14: oblężenia** (mury, drabiny, brama, obrońcy na murach z kuszami; szturm zamiast samej bitwy w polu).
 8. Dalej: kolejne regiony i frakcje do 16, pogoda w bitwie, zmęczenie, rozbijanie tarcz, egzekucje jeńców, turnieje, handel towarami, zadania lordów.
