@@ -9,7 +9,13 @@ import { LEVELS } from "./char/human.ts";
 import { TMesh } from "./char/tmesh.ts";
 import { WeaponId, WEAPONS } from "./char/weapons.ts";
 import { MeshBuilder, T, hex } from "./gfx/meshbuilder.ts";
-import { buildTerrain, height, WORLD } from "./world/terrain.ts";
+import { buildTerrain, height, WORLD, setBattlefield, setClassicField, BattleBiome } from "./world/terrain.ts";
+import { Campaign, Party } from "./map/campaign.ts";
+import { MapUI } from "./map/ui.ts";
+import { buildMapTerrain, buildMapFeatures, settlementModel, partyFigure } from "./map/mapmesh.ts";
+import { biomeAt, cellOf, cellIndex, MAP } from "./map/world.ts";
+import { TroopId, kitOf, TROOPS } from "./map/troops.ts";
+import { invert } from "./core/math.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
 import { Brain } from "./game/ai.ts";
@@ -41,10 +47,18 @@ function fromBuilder(b: MeshBuilder, mat = 0) {
 }
 
 // ---------- world ----------
-const terrainG = R.upload(fromBuilder(buildTerrain()), 3, false);
-const scen = buildScenery();
-const sceneryG = R.upload(fromBuilder(scen.mesh), 3, false);
-const colliders: Collider[] = scen.colliders;
+let terrainG = R.upload(fromBuilder(buildTerrain()), 3, false);
+let scen = buildScenery();
+let sceneryG = R.upload(fromBuilder(scen.mesh), 3, false);
+let colliders: Collider[] = scen.colliders;
+/** Rebuild the battle scene for the current battlefield setup (biome, season, road). */
+function rebuildField() {
+  R.free(terrainG); R.free(sceneryG);
+  terrainG = R.upload(fromBuilder(buildTerrain()), 3, false);
+  scen = buildScenery();
+  sceneryG = R.upload(fromBuilder(scen.mesh), 3, false);
+  colliders = scen.colliders;
+}
 const ground = (x: number, z: number) => height(x, z);
 const flameG = (() => { const b = new MeshBuilder(); b.jitter = 0.15; b.cyl(T(0, 0, 0), 0.3, 0, 0.85, 5, hex(0xe0782a), false); b.cyl(T(0.1, 0, 0.05, 1), 0.17, 0, 0.55, 4, hex(0xf2c24a), false); return R.upload(fromBuilder(b, 3), 3, false); })();
 const bloodG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(), 1, 1, 1, hex(0x6a0c08)); return R.upload(fromBuilder(b), 3, false); })();
@@ -80,6 +94,17 @@ let player!: Warrior;
 let fighters: Warrior[] = [];
 const brains = new Map<number, Brain>();
 const tokens = { used: 0, max: 1 };
+const freeTok = { used: 0, max: 999 };
+const targets = new Map<number, Warrior>();      // AI: whom each fighter is after
+let targetT = 0;
+// ---------- campaign ----------
+type Mode = "title" | "map" | "battle";
+let mode: Mode = "title";
+let battleKind: "waves" | "encounter" = "waves";
+let camp: Campaign | null = null;
+let ui: MapUI | null = null;
+interface Enc { enemy: Party; allyQ: TroopId[]; enemyQ: TroopId[]; troopOf: Map<number, TroopId>; order: "charge" | "hold" | "follow"; startHour: number; startDay: number; done: boolean }
+let enc: Enc | null = null;
 let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
 let firstPerson = false, hints = true, autoBlock = false, helpOpen = false;
@@ -139,7 +164,7 @@ canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 window.addEventListener("keydown", (e) => {
   if (e.code === "F1") { e.preventDefault(); toggleHelp(); return; }
   keys.add(e.code);
-  if (!started) return;
+  if (!started || mode !== "battle") return;
   if (e.code === "KeyV") { firstPerson = !firstPerson; player.hideHead = firstPerson; }
   if (e.code === "KeyT") hour = (hour + 1) % 24;
   if (e.code === "KeyH") { hints = !hints; pushLog(hints ? t("hintsOn") : t("hintsOff"), "sys"); }
@@ -179,7 +204,15 @@ function tryLock() {
   try { const p = canvas.requestPointerLock() as unknown as Promise<void> | undefined; if (p && typeof p.catch === "function") p.catch(() => { dragLook = true; }); } catch { dragLook = true; }
 }
 document.addEventListener("pointerlockerror", () => { dragLook = true; });
-$("title").addEventListener("click", () => { started = true; $("title").hidden = true; audio.start(); tryLock(); reset(); });
+$("tstart").addEventListener("click", (e) => { e.stopPropagation(); startWaves(); });
+$("tcamp").addEventListener("click", (e) => { e.stopPropagation(); startCampaign(); });
+$("tnew").addEventListener("click", (e) => { e.stopPropagation(); try { localStorage.removeItem(SAVE_KEY); } catch { /* */ } camp = null; startCampaign(true); });
+if (hasSave()) { $("tcamp").textContent = "Kontynuuj kampanię"; $("tnew").hidden = false; }
+function startWaves() {
+  mode = "battle"; battleKind = "waves"; enc = null; started = true; $("title").hidden = true; $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
+  setClassicField(); rebuildField(); audio.start(); tryLock(); reset();
+}
+function setBattleHud(on: boolean) { for (const id of ["hp", "weapon", "dirs", "clock", "log"]) ($(id) as HTMLElement).hidden = !on; }
 
 /** Direction of the most threatening enemy wind-up, from the player's side. */
 function threat(): Dir | -1 {
@@ -257,7 +290,7 @@ function resolve(att: Warrior) {
   const zoneMult = zone === "arm" ? 0.72 : 1;
   let dmg = Math.round(damage(raw * zoneMult, atk.type, o.kit.armour[part], part, closing) * tooClose);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
-  o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id;
+  o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; (o as Warrior & { lastType?: string }).lastType = atk.type;
   // weight of the blow: hit-stop on both, the victim is shoved and twisted by it
   const mass = att.weapon.mass, force = Math.min(1.4, (0.35 + dmg / 45) * (0.7 + mass * 0.3));
   att.freeze = Math.max(att.freeze, 0.05 + mass * 0.035 + Math.min(0.06, dmg / 700));
@@ -286,6 +319,7 @@ function resolve(att: Warrior) {
     if (atk.type === "blunt" && zone === "head") bleed(hp, dx, dz, 50);
     if (o.aiToken) { o.aiToken = false; tokens.used = Math.max(0, tokens.used - 1); }
     if (o !== player) { if (att === player) kills++; pushLog(goreText(gore, att, o) ?? t("killed", { who: nm(o) }), att === player ? "good" : ""); }
+    else if (battleKind === "encounter") { pushLog(lang === "pl" ? "Padasz ogłuszony. Bitwa toczy się bez ciebie." : "You go down, stunned. The battle goes on without you.", "bad"); }
     else { $("dead").hidden = false; $("deadSub").textContent = t("deadSub", { n: Math.max(0, wave - 1) }); try { document.exitPointerLock(); } catch { /* */ } }
   } else if (dmg >= 6 || o.attacking) o.stagger();
   const zn = zone === "arm" ? (lang === "pl" ? "ręka" : "arm") : t(zone);
@@ -367,9 +401,30 @@ function step(dt: number) {
     if (rmb && player.state === "idle") player.block(blockDir());
   } else player.wish.x = player.wish.z = 0;
 
+  // pick targets: each AI goes for the nearest living enemy (refreshed a few times a second)
+  targetT -= dt;
+  if (targetT <= 0) {
+    targetT = 0.35;
+    for (const f of fighters) {
+      if (f === player || !f.alive) continue;
+      let best: Warrior | null = null, bd = 1e9;
+      for (const o of fighters) { if (o.team === f.team || !o.alive) continue; const d = Math.hypot(o.x - f.x, o.z - f.z) - (o === player ? 1.5 : 0); if (d < bd) { bd = d; best = o; } }
+      if (best) targets.set(f.id, best); else targets.delete(f.id);
+    }
+  }
+  tokens.used = fighters.filter((f) => f.alive && f.aiToken && targets.get(f.id) === player).length;
+  freeTok.used = 0;
   for (const f of fighters) {
     const b = brains.get(f.id);
-    if (b && !noAI) b.update(dt, player, fighters, tokens);
+    const tg = targets.get(f.id);
+    if (b && !noAI && tg) {
+      b.update(dt, tg, fighters, tg === player ? tokens : freeTok);
+      if (enc && f.team === 0 && f.alive) {
+        const dE = Math.hypot(tg.x - f.x, tg.z - f.z), dP = Math.hypot(player.x - f.x, player.z - f.z);
+        if (enc.order === "hold" && dE > 5) { f.wish.x = f.wish.z = 0; }
+        if (enc.order === "follow" && dE > 6 && dP > 3.5 && player.alive) { f.wish.x = (player.x - f.x) / dP; f.wish.z = (player.z - f.z) / dP; f.wish.run = dP > 10; }
+      }
+    } else if (b && !tg && f !== player) { f.wish.x = f.wish.z = 0; }
     let hold: boolean;
     if (f === player) hold = lmb;
     else { f.aiHold -= dt; hold = f.aiHold > 0; }
@@ -411,8 +466,9 @@ function step(dt: number) {
   shake = Math.max(0, shake - dt * 2.2);
   for (let i = parts.length - 1; i >= 0; i--) if (parts[i].life <= 0) parts.splice(i, 1);
 
+  if (battleKind === "encounter") { encounterTick(); }
   const alive = fighters.filter((f) => f.team === 1 && f.alive).length;
-  if (player.alive && started && alive === 0) {
+  if (battleKind === "waves" && player.alive && started && alive === 0) {
     if (waveBreak <= 0 && wave > 0) { waveBreak = 6; banner(t("cleared"), `${t("kills")}: ${kills}`); player.hp = Math.min(player.maxHp, player.hp + 45); }
     waveBreak -= dt;
     if (waveBreak <= 0) spawnWave();
@@ -430,7 +486,7 @@ const mixLP = (a: LP, b: LP, k: number): LP => ({
   col: a.col.map((v, i) => lerp(v, b.col[i], k)), amb: a.amb.map((v, i) => lerp(v, b.amb[i], k)), rim: a.rim.map((v, i) => lerp(v, b.rim[i], k)),
   fog: a.fog.map((v, i) => lerp(v, b.fog[i], k)), sky: a.sky.map((r, j) => r.map((v, i) => lerp(v, b.sky[j][i], k))),
 });
-function lightAt(h: number, focus: V3): Light & { bg: number[] } {
+function lightAt(h: number, focus: V3, fires: [number, number, number][] = scen.fires): Light & { bg: number[] } {
   let p: LP;
   if (h >= 8 && h < 16.5) p = DAY;
   else if (h >= 16.5 && h < 18.5) p = mixLP(DAY, DUSK, (h - 16.5) / 2);
@@ -443,7 +499,7 @@ function lightAt(h: number, focus: V3): Light & { bg: number[] } {
   const l = Math.hypot(sd[0], sd[1], sd[2]); sd = sd.map((v) => v / l);
   // nearest fire becomes the point light
   let best: number[] | null = null, bd = 1e9;
-  for (const f of scen.fires) { const d = Math.hypot(f[0] - focus[0], f[2] - focus[2]); if (d < bd) { bd = d; best = f; } }
+  for (const f of fires) { const d = Math.hypot(f[0] - focus[0], f[2] - focus[2]); if (d < bd) { bd = d; best = f; } }
   const night = clamp(1 - p.col[1] * 1.2, 0, 1);
   const point = best && bd < 22 ? { pos: [best[0], best[1] + 0.4, best[2]], col: [2.2 * (0.35 + night), 1.05 * (0.35 + night), 0.38 * (0.35 + night)], rad: 9 + night * 5 } : undefined;
   return { dir: sd, col: p.col, amb: p.amb, rim: p.rim, fog: p.fog, sky: p.sky, bg: p.fog, point };
@@ -527,6 +583,10 @@ function hud() {
   const types = [ws.swing ? t(ws.swing.type) : null, ws.thrust ? t(ws.thrust.type) : null].filter(Boolean).join(" / ");
   $("weapon").innerHTML = `<b>${wName(player.weaponId)}</b><span>${types}${player.hasShield ? " · " + (lang === "pl" ? "tarcza" : "shield") : ""}${autoBlock ? " · auto-blok" : ""}</span>`;
   const hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
+  if (enc) {
+    const mine = fighters.filter((f) => f.team === 0 && f.alive && f !== player).length, foe = fighters.filter((f) => f.team === 1 && f.alive).length;
+    $("clock").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${lang === "pl" ? "twoi" : "yours"} ${mine}${enc.allyQ.length ? "+" + enc.allyQ.length : ""} · ${lang === "pl" ? "wróg" : "enemy"} ${foe}${enc.enemyQ.length ? "+" + enc.enemyQ.length : ""} · ${({ charge: lang === "pl" ? "naprzód" : "charge", hold: lang === "pl" ? "stać" : "hold", follow: lang === "pl" ? "za mną" : "follow me" })[enc.order]}`;
+  } else
   $("clock").textContent = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")} · ${t("wave")} ${wave} · ${t("kills")} ${kills}`;
   const incoming = hints ? threat() : -1;
   for (const k of [0, 1, 2, 3] as Dir[]) {
@@ -559,19 +619,300 @@ function renderIdle(now: number) {
   R.render(MODE, vp, eye, L, items, false, L.bg, 0.1, 260);
 }
 
+// ======================= campaign map =======================
+const MAP_MODE = { ...MODE, fog: [70, 260] as [number, number] };
+let mapG: { terr: GMesh[]; feat: GMesh[]; sett: Map<string, { ok: GMesh; burned: GMesh }>; figs: Record<string, GMesh>; mark: GMesh; ring: GMesh } | null = null;
+let mapYaw = 0.6, mapPitch = 0.95, mapDist = 62;
+const mapCenter: V3 = [0, 0, 0];
+let mapDrag = false, mapLX = 0, mapLY = 0, mapMoved = 0, hudT = 0;
+const labelEls = new Map<string, HTMLElement>();
+
+const SAVE_KEY = "mb2.campaign";
+function saveCampaign() { try { if (camp) localStorage.setItem(SAVE_KEY, camp.save()); } catch { /* storage blocked */ } }
+function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch { return false; } }
+function startCampaign(fresh = false) {
+  if (!camp) {
+    camp = new Campaign(37);
+    if (!fresh) { try { const sv = localStorage.getItem(SAVE_KEY); if (sv && camp.load(sv)) camp.note("Wczytano zapis kampanii.", ""); } catch { /* */ } }
+    camp.onDay = () => saveCampaign();
+    ui = new MapUI(camp, { fight: (p) => startEncounter(p), refresh: () => ui?.hud() });
+    camp.onEncounter = (p) => { ui!.encounter(p); };
+    camp.enterSettlement = (id) => ui!.settlement(id);
+    buildMapMeshes();
+    const me = camp.co.party; mapCenter[0] = me.x; mapCenter[2] = me.z;
+  }
+  mode = "map"; started = false; $("title").hidden = true;
+  $("mapHud").hidden = false; $("labels").hidden = false; setBattleHud(false); $("banner").hidden = true;
+  try { document.exitPointerLock(); } catch { /* */ }
+  audio.start();
+  ui!.hud();
+}
+
+function buildMapMeshes() {
+  const c = camp!;
+  const up = (b: MeshBuilder) => R.upload(fromBuilder(b), 3, false);
+  const sett = new Map<string, { ok: GMesh; burned: GMesh }>();
+  for (const s of c.w.settlements) {
+    const ok = up(settlementModel(c.w, s));
+    s.burned = true; const burned = up(settlementModel(c.w, s)); s.burned = false;
+    sett.set(s.id, { ok, burned });
+  }
+  const fig = (body: number, flag: number, big: boolean) => up(partyFigure(hex(body), hex(flag), big));
+  const mark = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(0, 0.05, 0), 0.35, 0.1, 0.35, hex(0xb4561e)); return R.upload(fromBuilder(b, 3), 3, false); })();
+  const ring = (() => { const b = new MeshBuilder(); b.jitter = 0; for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; b.box(T(Math.cos(a) * 1.3, 0.06, Math.sin(a) * 1.3, -a), 0.12, 0.06, 0.55, hex(0xc9392a)); } return R.upload(fromBuilder(b, 3), 3, false); })();
+  mapG = {
+    terr: [up(buildMapTerrain(c.w, false)), up(buildMapTerrain(c.w, true))],
+    feat: [up(buildMapFeatures(c.w, false)), up(buildMapFeatures(c.w, true))],
+    sett,
+    figs: { player: fig(0x2b2f36, 0x7a1a14, true), bandits: fig(0x3b3128, 0x1a1a1a, true), deserters: fig(0x4a4436, 0x5a5440, true), caravan: fig(0x5a4a34, 0xa08a4a, true), peasants: fig(0x5d5444, 0x6b5a3a, false), undead: fig(0x6d6a5e, 0x2a3a2a, true) },
+    mark, ring,
+  };
+  // labels for settlements
+  const box = $("labels"); box.textContent = "";
+  for (const s of c.w.settlements) { const d = document.createElement("div"); d.className = "lbl " + s.kind; d.textContent = s.name; box.append(d); labelEls.set("s:" + s.id, d); }
+}
+
+function mapStep(dt: number) {
+  const c = camp!;
+  if (!ui!.open) c.step(dt);
+  hudT -= dt; if (hudT <= 0) { hudT = 0.25; ui!.hud(); }
+  // the camera follows the company
+  const me = c.co.party, k = Math.min(1, dt * 4);
+  mapCenter[0] += (me.x - mapCenter[0]) * k; mapCenter[2] += (me.z - mapCenter[2]) * k;
+  mapCenter[1] = c.w.height(mapCenter[0], mapCenter[2]);
+  if (keys.has("KeyQ")) mapYaw += dt * 1.4;
+  if (keys.has("KeyE")) mapYaw -= dt * 1.4;
+}
+
+const mvp = m4(), mview = m4(), mproj = m4();
+function mapEye(): V3 {
+  const cp = Math.cos(mapPitch);
+  return [mapCenter[0] + Math.sin(mapYaw) * cp * mapDist, mapCenter[1] + Math.sin(mapPitch) * mapDist, mapCenter[2] + Math.cos(mapYaw) * cp * mapDist];
+}
+function renderMap(now: number) {
+  resize();
+  const c = camp!, g = mapG!;
+  const eye = mapEye();
+  perspective(mproj, 45 * Math.PI / 180, canvas.width / Math.max(1, canvas.height), 1, 600);
+  lookAt(mview, eye, [mapCenter[0], mapCenter[1], mapCenter[2]]); mul(mvp, mproj, mview);
+  const L0 = lightAt(c.hour, [mapCenter[0], 0, mapCenter[2]], []);
+  // the map is a reading surface: brighter than the battlefield, and night stays legible
+  const L = { ...L0, col: L0.col.map((v) => v * 1.25), amb: L0.amb.map((v) => Math.max(0.24, v * 1.35)), fog: L0.fog.map((v) => Math.max(0.07, v)), bg: L0.bg.map((v) => Math.max(0.07, v)) };
+  const wi = c.winter ? 1 : 0;
+  const items: { mesh: GMesh; model: Float32Array }[] = [{ mesh: g.terr[wi], model: m4() }, { mesh: g.feat[wi], model: m4() }];
+  for (const s of c.w.settlements) { const m = g.sett.get(s.id)!; items.push({ mesh: s.burned ? m.burned : m.ok, model: m4() }); }
+  const me = c.co.party, sight = c.sight(me) * 1.6;
+  const tt = now / 1000;
+  for (const p of c.parties) {
+    const seen = p === me || Math.hypot(p.x - me.x, p.z - me.z) < sight;
+    if (!seen) continue;
+    const nx = p.path[0], yaw = nx ? Math.atan2(nx[0] - p.x, nx[1] - p.z) : 0;
+    const bob = p.path.length && c.clockRuns ? Math.abs(Math.sin(tt * 8 + p.id)) * 0.08 : 0;
+    items.push({ mesh: g.figs[p.kind], model: trs(m4(), p.x, c.w.height(p.x, p.z) + bob, p.z, yaw) });
+  }
+  items.push({ mesh: g.ring, model: trs(m4(), me.x, c.w.height(me.x, me.z), me.z, tt * 0.5) });
+  // the route ahead
+  if (me.path.length) { let acc = 0; let px = me.x, pz = me.z; for (const [x, z] of me.path) { acc += Math.hypot(x - px, z - pz); px = x; pz = z; if (acc > 2.2) { acc = 0; items.push({ mesh: g.mark, model: trs(m4(), x, c.w.height(x, z), z) }); } } }
+  // battlefields left to the crows
+  for (const f of c.fields) {
+    const y = c.w.height(f.x, f.z);
+    items.push({ mesh: decalG, model: trs(m4(), f.x, y + 0.05, f.z, f.id, 0, 0, 3, 1, 3) });
+    for (let i = 0; i < 5; i++) { const a = tt * 0.6 + i * 1.25 + f.id; items.push({ mesh: crowG, model: trs(m4(), f.x + Math.cos(a) * 2.5, y + 4 + Math.sin(tt + i) * 0.4, f.z + Math.sin(a) * 2.5, -a, 0, 0, 0.6, 0.6, 0.6) }); }
+  }
+  items.sort((a, b) => a.mesh.tex - b.mesh.tex);
+  R.render(MAP_MODE, mvp, eye, L, items, false, L.bg, 1, 600);
+  mapLabels(sight);
+}
+function project(x: number, y: number, z: number): [number, number] | null {
+  const m = mvp, w = m[3] * x + m[7] * y + m[11] * z + m[15];
+  if (w <= 0.1) return null;
+  const nx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w, ny = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+  if (Math.abs(nx) > 1.1 || Math.abs(ny) > 1.1) return null;
+  return [(nx * 0.5 + 0.5) * canvas.clientWidth, (1 - (ny * 0.5 + 0.5)) * canvas.clientHeight];
+}
+function mapLabels(sight: number) {
+  const c = camp!, me = c.co.party;
+  for (const s of c.w.settlements) {
+    const el = labelEls.get("s:" + s.id)!, p = project(s.x, c.w.height(s.x, s.z) + (s.kind === "town" ? 7 : 4), s.z);
+    el.hidden = !p; if (p) { el.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; el.classList.toggle("burned", s.burned); }
+  }
+  const seen = new Set<string>();
+  for (const p of c.parties) {
+    if (p === me || Math.hypot(p.x - me.x, p.z - me.z) > sight) continue;
+    const key = "p:" + p.id; seen.add(key);
+    let el = labelEls.get(key);
+    if (!el) { el = document.createElement("div"); el.className = "lbl party " + (c.hostile(p) ? "hostile" : ""); $("labels").append(el); labelEls.set(key, el); }
+    el.textContent = `${p.name} · ${c.partySize(p)}`;
+    const q = project(p.x, c.w.height(p.x, p.z) + 2.4, p.z);
+    el.hidden = !q; if (q) el.style.transform = `translate(${q[0]}px, ${q[1]}px) translate(-50%, -100%)`;
+  }
+  for (const [k, el] of labelEls) if (k.startsWith("p:") && !seen.has(k)) { el.remove(); labelEls.delete(k); }
+}
+/** Mouse → point on the map terrain (ray march along the view ray). */
+function mapPick(cx: number, cy: number): [number, number] | null {
+  const c = camp!, inv = invert(m4(), mvp);
+  const nx = (cx / canvas.clientWidth) * 2 - 1, ny = 1 - (cy / canvas.clientHeight) * 2;
+  const un = (z: number): V3 => { const v = xform(inv, nx, ny, z); const w = inv[3] * nx + inv[7] * ny + inv[11] * z + inv[15]; return [v[0] / w, v[1] / w, v[2] / w]; };
+  const a = un(-1), b = un(1);
+  const d: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], len = Math.hypot(...d);
+  for (let t = 0; t < Math.min(len, 600); t += 0.4) {
+    const x = a[0] + d[0] / len * t, y = a[1] + d[1] / len * t, z = a[2] + d[2] / len * t;
+    if (y <= c.w.height(x, z)) return [x, z];
+  }
+  return null;
+}
+canvas.addEventListener("mousedown", (e) => {
+  if (mode !== "map") return;
+  if (e.button === 2 || e.button === 1) { mapDrag = true; mapLX = e.clientX; mapLY = e.clientY; return; }
+  if (e.button !== 0 || ui!.open) return;
+  const hit = mapPick(e.clientX, e.clientY); if (!hit) return;
+  const c = camp!, me = c.co.party, sight = c.sight(me) * 1.6;
+  const s = c.settlementAt(hit[0], hit[1], 5);
+  const party = c.parties.find((p) => p !== me && Math.hypot(p.x - hit[0], p.z - hit[1]) < 2.8 && Math.hypot(p.x - me.x, p.z - me.z) < sight);
+  if (party) c.orderMove(party.x, party.z, undefined, party.id);
+  else if (s) c.orderMove(s.x + 1.5, s.z + 1.5, s.id);
+  else c.orderMove(hit[0], hit[1]);
+  if (c.speed === 0) c.speed = 1;
+  c.co.inside = false;
+  ui!.hud();
+});
+window.addEventListener("mousemove", (e) => {
+  if (mode !== "map" || !mapDrag) return;
+  mapYaw -= (e.clientX - mapLX) * 0.006; mapPitch = clamp(mapPitch + (e.clientY - mapLY) * 0.004, 0.45, 1.35);
+  mapLX = e.clientX; mapLY = e.clientY; mapMoved++;
+});
+window.addEventListener("mouseup", () => { mapDrag = false; });
+canvas.addEventListener("wheel", (e) => { if (mode !== "map") return; e.preventDefault(); mapDist = clamp(mapDist * (e.deltaY > 0 ? 1.12 : 0.89), 22, 160); }, { passive: false });
+window.addEventListener("keydown", (e) => {
+  if (mode === "map" && camp && ui) {
+    if (e.code === "Escape" && ui.open) { ui.close(); return; }
+    if (ui.open) return;
+    if (e.code === "Space") { e.preventDefault(); camp.speed = camp.speed === 0 ? 1 : 0; }
+    if (e.code === "Digit1") camp.speed = 1;
+    if (e.code === "Digit2") camp.speed = 3;
+    if (e.code === "KeyC") ui.toggleCamp();
+    if (e.code === "KeyP") ui.partyPanel();
+    if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
+    ui.hud();
+  } else if (mode === "battle" && enc) {
+    const o = e.code === "F2" ? "charge" : e.code === "F3" ? "hold" : e.code === "F4" ? "follow" : null;
+    if (o) { e.preventDefault(); enc.order = o; pushLog(lang === "pl" ? `Rozkaz: ${({ charge: "naprzód", hold: "stać", follow: "za mną" })[o]}` : `Order: ${o}`, "warn"); audio.grunt(0.5); }
+  }
+});
+
+// ---------- battle from an encounter on the map ----------
+const CAP = 14;            // fighters per side in the scene at once; the rest come as reinforcements
+function startEncounter(p: Party) {
+  const c = camp!, me = c.co.party;
+  const mb = biomeAt(c.w, me.x, me.z);
+  const biome: BattleBiome = mb === "edge" ? "hills" : mb;
+  const [i, j] = cellOf(me.x, me.z);
+  setBattlefield(biome, p.id + c.day * 7, c.winter, !!c.w.road[cellIndex(i, j)]);
+  rebuildField();
+  const allyQ: TroopId[] = [], enemyQ: TroopId[] = [];
+  for (const s of me.troops) for (let k = 0; k < s.n - s.wounded; k++) allyQ.push(s.t);
+  for (const s of p.troops) for (let k = 0; k < s.n - s.wounded; k++) enemyQ.push(s.t);
+  enc = { enemy: p, allyQ, enemyQ, troopOf: new Map(), order: "charge", startHour: c.hour, startDay: c.day, done: false };
+  mode = "battle"; battleKind = "encounter"; started = true; hour = c.hour;
+  $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
+  fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
+  camYaw = Math.PI; camPitch = -0.1;
+  player = new Warrior(R, playerKit(), 0, 12, 0); player.yaw = Math.PI; player.hideHead = firstPerson;
+  fighters.push(player);
+  reinforce(0, true); reinforce(1, true);
+  $("dead").hidden = true; log.length = 0; renderLog();
+  banner(p.name, lang === "pl" ? "F2 naprzód · F3 stać · F4 za mną" : "F2 charge · F3 hold · F4 follow me");
+  tryLock();
+}
+function reinforce(team: 0 | 1, first = false) {
+  if (!enc) return;
+  const q = team === 0 ? enc.allyQ : enc.enemyQ;
+  const alive = fighters.filter((f) => f.team === team && f.alive && f !== player).length;
+  let n = Math.min(q.length, CAP - alive);
+  if (n <= 0) return;
+  if (!first && alive > CAP * 0.4) return;
+  const z0 = team === 0 ? 15 : -16, dir = team === 0 ? 1 : -1;
+  let k = 0;
+  while (n-- > 0) {
+    const t = q.shift()!;
+    const row = Math.floor(k / 7), col = (k % 7) - 3; k++;
+    const x = col * 1.6 + (Math.random() - 0.5) * 0.4, z = z0 + dir * row * 1.6 + (first ? 0 : dir * 8);
+    const f = new Warrior(R, kitOf(t), x, z, team);
+    f.yaw = team === 0 ? Math.PI : 0;
+    fighters.push(f); brains.set(f.id, new Brain(f)); enc.troopOf.set(f.id, t);
+  }
+  if (!first) banner(lang === "pl" ? "Posiłki" : "Reinforcements", team === 0 ? (lang === "pl" ? "twoi ludzie" : "your men") : (lang === "pl" ? "wroga" : "the enemy's"));
+}
+function encounterTick() {
+  if (!enc || enc.done) return;
+  reinforce(0); reinforce(1);
+  const foes = fighters.filter((f) => f.team === 1 && f.alive).length + enc.enemyQ.length;
+  const mine = fighters.filter((f) => f.team === 0 && f.alive && f !== player).length + enc.allyQ.length;
+  if (foes === 0) { enc.done = true; setTimeout(() => endEncounter(true), 2200); return; }
+  if (!player.alive) { enc.done = true; setTimeout(() => endEncounter(null), 2500); return; }
+  void mine;
+}
+/** win: true / false, or null = player knocked out → the rest is decided without him. */
+function endEncounter(win: boolean | null) {
+  if (!enc || !camp || !ui) return;
+  const c = camp, me = c.co.party, p = enc.enemy;
+  // who fell, and how: blunt wounds, blades kill, a severed limb always kills
+  let myDead = 0, myWounded = 0, theirDead = 0;
+  const fate = (f: Warrior) => { const ty = (f as Warrior & { lastType?: string }).lastType; return f.severed.size > 0 || ty !== "blunt" ? "dead" : "wounded"; };
+  const lose = (party: Party, t: TroopId, how: "dead" | "wounded") => { const s = party.troops.find((x) => x.t === t); if (!s) return; if (how === "dead") { s.n--; s.wounded = Math.min(s.wounded, s.n); } else s.wounded = Math.min(s.n, s.wounded + 1); };
+  for (const f of fighters) {
+    if (f.alive || f === player) continue;
+    const t = enc.troopOf.get(f.id); if (!t) continue;
+    const how = fate(f);
+    if (f.team === 0) { lose(me, t, how); if (how === "dead") myDead++; else myWounded++; }
+    else { lose(p, t, how); theirDead++; }
+  }
+  me.troops = me.troops.filter((s) => s.n > 0); p.troops = p.troops.filter((s) => s.n > 0);
+  let body = "";
+  if (win === null) {
+    // the player is down: the rest of the fight is resolved by the numbers still standing
+    const res = c.autoResolve(p);
+    win = res.win;
+    myDead += res.mine.killed; myWounded += res.mine.wounded; theirDead += res.theirs.killed;
+    body += `<p>Padasz ogłuszony. Gdy otwierasz oczy, ${win ? "twoi ludzie stoją nad trupami wroga" : "twoi ludzie wloką cię z pola"}.</p>`;
+    c.note("Zostałeś ogłuszony w bitwie. Głowa pęka, ale żyjesz.", "warn");
+  } else body += `<p>${win ? "Ostatni z wrogów pada w błoto." : "Wycofujecie się."}</p>`;
+  body += `<p class="meta">Twoje straty: ${myDead} zabitych, ${myWounded} rannych. Wróg: ${theirDead} zabitych.</p>`;
+  // the time the fight took
+  const hrs = ((hour - enc.startHour) + 24) % 24;
+  c.co.inside = true;
+  c.passHours(Math.min(3, Math.max(0.5, hrs)));
+  const e = enc; enc = null;
+  mode = "map"; started = false; battleKind = "waves";
+  $("mapHud").hidden = false; $("labels").hidden = false; setBattleHud(false); $("banner").hidden = true;
+  try { document.exitPointerLock(); } catch { /* */ }
+  fighters = []; brains.clear(); player = undefined as unknown as Warrior;
+  ui.after(e.enemy, win, myDead, theirDead, 0, body);
+  saveCampaign();
+}
+
 // ---------- loop ----------
 let last = performance.now();
 function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  if (started && player && !paused) step(dt);
-  if (player) render(now); else renderIdle(now);
+  if (mode === "map") { if (!paused) mapStep(dt); renderMap(now); }
+  else {
+    if (started && player && !paused) step(dt);
+    if (player && mode === "battle") render(now); else renderIdle(now);
+  }
   requestAnimationFrame(loop);
 }
 
 // hooks for automated tests
 (window as unknown as { mb2: unknown }).mb2 = {
   get player() { return player; }, get fighters() { return fighters; },
-  start() { $("title").click(); }, setHour(h: number) { hour = h; }, pause(v: boolean) { paused = v; },
+  get camp() { return camp; }, get ui() { return ui; }, get mode() { return mode; }, get enc() { return enc; },
+  campaign() { startCampaign(); }, waves() { startWaves(); },
+  mapTick(sec: number) { for (let i = 0; i < sec * 30; i++) mapStep(1 / 30); },
+  mapCam(yaw: number, pitch: number, dist: number) { mapYaw = yaw; mapPitch = pitch; mapDist = dist; },
+  endBattle(win: boolean | null) { endEncounter(win); },
+  killFoes() { for (const f of fighters) if (f.team === 1) { f.hp = 0; f.die(); } if (enc) enc.enemyQ.length = 0; },
+  start() { startWaves(); }, setHour(h: number) { hour = h; }, pause(v: boolean) { paused = v; },
   look(yaw: number, pitch: number) { camYaw = yaw; camPitch = pitch; },
   attack(d: Dir) { player.attack(d); }, block(d: Dir) { player.block(d); }, unblock() { player.unblock(); }, spawn() { spawnWave(); },
   setLmb(v: boolean) { lmb = v; }, tick(sec: number) { for (let i = 0; i < sec * 60; i++) { step(1 / 60); for (const f of fighters) f.draw([]); } }, noAI(v: boolean) { noAI = v; }, gibs: () => gibs.length, cam(e: V3 | null, t?: V3) { camOverride = e && t ? [e, t] : null; }, dbg: () => JSON.stringify({ tokens, b: [...brains.values()].map((b) => ({ cd: b.cooldown, tok: b.me.aiToken, st: b.me.state, mcd: b.me.cd })) }), bot(x: number, z: number, run = false) { botWish = x || z ? [x, z] : null; botRun = run; }, weapon(i: number) { weaponSlot = i; player.setKit(R, playerKit()); },

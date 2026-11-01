@@ -50,7 +50,7 @@ body{font-family:var(--body);font-size:15px}
 #help div{display:grid;grid-template-columns:64px 1fr;gap:10px}
 kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 .screen{position:fixed;inset:0;display:grid;place-items:center;text-align:center;background:radial-gradient(ellipse at center,#0000 0%,#000c 75%);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-#title{cursor:pointer}
+#title{cursor:default}
 #title .inner{display:grid;gap:10px;justify-items:center}
 #title .eyebrow{letter-spacing:.3em;text-transform:uppercase;font-size:12px;color:var(--ember)}
 #title h1{font-family:var(--display);font-weight:400;font-size:clamp(48px,10vw,110px);line-height:.95;margin:0;text-shadow:0 4px 24px #000}
@@ -63,6 +63,43 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 #dead p{color:var(--bone)}
 .vign{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,#0000 55%,#0007 100%)}
 .build{position:fixed;left:max(16px,env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));font-size:12px;color:#ffffff55;letter-spacing:.1em;text-transform:uppercase;pointer-events:none}
+
+/* ---------- campaign map: iron and parchment ---------- */
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;font-family:var(--display);font-size:16px;color:var(--bone);text-shadow:0 1px 3px #000,0 0 8px #000;white-space:nowrap}
+.lbl.town{font-size:20px} .lbl.castle{font-size:18px;color:#c9c2b0} .lbl.burned{color:#7a6f63;text-decoration:line-through}
+.lbl.party{font-family:var(--body);font-size:12px;color:#cfc6b0;background:#0009;padding:1px 6px}
+.lbl.party.hostile{color:#e6a090;border-bottom:1px solid var(--blood)}
+#mapHud{position:fixed;left:0;right:0;top:0;pointer-events:none;padding-top:env(safe-area-inset-top,0px)}
+#mapHud .bar{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;background:linear-gradient(#0e0f11f2,#0e0f11c0);border-bottom:1px solid #ffffff1a;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px))}
+#mdate{font-family:var(--display);font-size:18px}
+#mstats{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:14px;color:var(--dim)} #mstats b{color:var(--bone);font-weight:500} #mstats .warn,#mstats .warn b{color:#e07a6a}
+#mflags{font-size:13px;color:var(--ember);letter-spacing:.06em}
+#mapHud .tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.ib{background:#1b1d21;border:1px solid #ffffff26;color:var(--bone);font:500 14px var(--body);padding:5px 11px;cursor:pointer}
+.ib:hover{border-color:var(--bone)} .ib.on{background:var(--blood);border-color:var(--blood)}
+#mspeed{display:flex;gap:2px}
+#mnotes{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(420px,80vw);display:flex;flex-direction:column;gap:3px;font-size:14px;text-align:right;text-shadow:0 1px 3px #000;pointer-events:none}
+#mnotes .good{color:#d7c68f} #mnotes .bad{color:#e07a6a} #mnotes .warn{color:var(--steel)}
+#mkeys{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:12px;color:#ffffff66;pointer-events:none}
+#menu{position:fixed;inset:0;display:grid;place-items:center;background:#000a;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#menu .panel{width:min(520px,100%);max-height:86vh;overflow:auto;background:#171512;border:1px solid #5b4a33;box-shadow:0 0 0 4px #0e0d0b,0 0 0 5px #3a3127,0 18px 50px #000;padding:20px 22px;color:var(--bone)}
+#menu.wide .panel{width:min(720px,100%)}
+#mtitle{font-family:var(--display);font-weight:400;font-size:30px;margin:0 0 8px;border-bottom:1px solid #3a3127;padding-bottom:8px}
+#mbody p{margin:8px 0;line-height:1.5} #mbody .meta{color:var(--dim);font-size:14px}
+#macts{display:grid;gap:6px;margin-top:14px}
+.act{display:grid;gap:2px;text-align:left;background:#22201c;border:1px solid #4a3f30;color:var(--bone);padding:9px 12px;font:16px var(--body);cursor:pointer}
+.act small{color:var(--dim);font-size:13px} .act:hover:not(:disabled){border-color:var(--ember);background:#2a2620}
+.act.go{border-color:#7a2a1f} .act.go:hover{background:#3a1712} .act.bad span{color:#e0a090}
+.act:disabled{opacity:.4;cursor:default}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;margin:8px 0;font-variant-numeric:tabular-nums}
+.tbl th{text-align:left;color:var(--dim);font-weight:500;border-bottom:1px solid #3a3127;padding:4px 6px}
+.tbl td{padding:4px 6px;border-bottom:1px solid #26221c} .tbl tfoot td{color:var(--dim)}
+#title .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:18px}
+#title .go{margin-top:0;cursor:pointer;color:var(--bone)}
+#title .go:hover{background:var(--blood);border-color:var(--blood)}
+#title:hover .go{background:#0006;border-color:var(--bone)}
+#title .go:hover{background:var(--blood)!important;border-color:var(--blood)!important}
 </style>
 <canvas id="c"></canvas>
 <div class="vign"></div>
@@ -77,12 +114,26 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 <div class="hud" id="help" hidden></div>
 <div class="screen" id="title">
   <div class="inner">
-    <div class="eyebrow">mb2 build 1 · walka</div>
+    <div class="eyebrow">mb2 build 1 · mapa świata</div>
     <h1>Montablate</h1>
     <div class="sub" id="tsub"></div>
-    <div class="go" id="tstart"></div>
-    <div class="keys">WSAD · Shift · LPM/LMB · PPM/RMB · 1–8 · B · V · T · H · L · F1</div>
+    <div class="btns"><button type="button" class="go" id="tcamp">Kampania</button><button type="button" class="go" id="tnew" hidden>Nowa kampania</button><button type="button" class="go" id="tstart"></button></div>
+    <div class="keys">Kampania: mapa świata, kompania, osady, bandy. Próbna bitwa: fale wrogów jak dotąd.<br>Bitwa: WSAD · Shift · LPM · PPM · 1–8 · B · V · F2–F4 rozkazy · F1 pomoc</div>
   </div>
 </div>
+<div id="labels" hidden></div>
+<div id="mapHud" hidden>
+  <div class="bar">
+    <span id="mdate"></span><span id="mstats"></span><span id="mflags"></span>
+    <span class="tools">
+      <span id="mspeed"><button type="button" class="ib" data-s="0" title="Pauza (spacja)">❚❚</button><button type="button" class="ib" data-s="1" title="Normalnie (1)">▶</button><button type="button" class="ib" data-s="3" title="Szybko (2)">▶▶</button></span>
+      <button type="button" class="ib" id="mcamp" title="Obóz (C)">Obóz</button>
+      <button type="button" class="ib" id="mparty" title="Kompania (P)">Kompania</button>
+    </span>
+  </div>
+  <div id="mnotes"></div>
+  <div id="mkeys">LPM: idź / wejdź / zaatakuj · PPM + ruch: obrót · kółko: zoom · Q/E obrót · spacja: pauza · 1/2 tempo · C obóz · P kompania</div>
+</div>
+<div id="menu" hidden><div class="panel" role="dialog" aria-labelledby="mtitle"><h2 id="mtitle"></h2><div id="mbody"></div><div id="macts"></div></div></div>
 <div class="screen" id="dead" hidden><div><h2 id="deadT">Padłeś</h2><p id="deadSub"></p></div></div>
 <script>/*GAME*/</script>

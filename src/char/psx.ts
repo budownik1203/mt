@@ -142,7 +142,7 @@ void main(){
   o = vec4(c,1.0);
 }`;
 
-export interface GMesh { vao: WebGLVertexArrayObject; count: number; wvao: WebGLVertexArrayObject; wcount: number; tex: number }
+export interface GMesh { vao: WebGLVertexArrayObject; count: number; wvao: WebGLVertexArrayObject; wcount: number; tex: number; bufs?: WebGLBuffer[] }
 export interface Light { dir: number[]; col: number[]; amb: number[]; rim: number[]; fog: number[]; sky: number[][]; point?: { pos: number[]; col: number[]; rad: number } }
 export interface Mode { res: number; snap: boolean; affine: boolean; dither: boolean; bilinear: boolean; shader: number; outline: boolean; vertexSpec: boolean; post: number; fog: [number, number] }
 
@@ -191,8 +191,9 @@ export class PSX {
     const gl = this.gl;
     const vao = gl.createVertexArray()!;
     gl.bindVertexArray(vao);
+    const bufs: WebGLBuffer[] = [];
     const buf = (data: number[], loc: number, size: number) => {
-      const b = gl.createBuffer()!; gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      const b = gl.createBuffer()!; bufs.push(b); gl.bindBuffer(gl.ARRAY_BUFFER, b);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
       gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
     };
@@ -208,7 +209,14 @@ export class PSX {
     buf(wp, 0, 3);
     gl.vertexAttrib3f(1, 0, 1, 0); gl.vertexAttrib2f(2, 0, 0); gl.vertexAttrib1f(3, 0); gl.vertexAttrib3f(4, 1, 1, 1);
     gl.bindVertexArray(null);
-    return { vao, count: t.pos.length / 3, wvao, wcount: wp.length / 3, tex };
+    return { vao, count: t.pos.length / 3, wvao, wcount: wp.length / 3, tex, bufs };
+  }
+  /** Release a mesh's GPU memory (battlefields are rebuilt for every fight). */
+  free(m: GMesh) {
+    const gl = this.gl;
+    gl.deleteVertexArray(m.vao); gl.deleteVertexArray(m.wvao);
+    for (const b of m.bufs ?? []) gl.deleteBuffer(b);
+    m.count = 0; m.wcount = 0;
   }
 
   private ensureFb(w: number, h: number) {

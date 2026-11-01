@@ -2,7 +2,7 @@
 // chapel, gallows with a crow cage, a bandit camp with a fire.
 import { rng, clamp } from "../core/math.ts";
 import { MeshBuilder, T, hex } from "../gfx/meshbuilder.ts";
-import { height, roadDist, slope, WORLD } from "./terrain.ts";
+import { height, roadDist, slope, WORLD, BF } from "./terrain.ts";
 
 export interface Collider { x: number; z: number; r: number }
 export interface Scenery { mesh: MeshBuilder; colliders: Collider[]; fires: [number, number, number][] }
@@ -200,6 +200,7 @@ function camp(b: MeshBuilder, x: number, z: number, cols: Collider[], fires: [nu
 }
 
 export function buildScenery(): Scenery {
+  if (!BF.classic) return buildFieldFor();
   const b = new MeshBuilder();
   const cols: Collider[] = [];
   const fires: [number, number, number][] = [];
@@ -264,4 +265,41 @@ export function brazier(b: MeshBuilder, x: number, z: number, cols: Collider[], 
   b.cyl(T(x, y + 1.3, z), 0.35, 0.3, 0.06, 7, EMBER);
   fires.push([x, y + 1.6, z]);
   cols.push({ x, z, r: 0.45 });
+}
+
+/** A battlefield matching a spot on the campaign map: trees, rocks and water by biome, no old dead. */
+function buildFieldFor(): Scenery {
+  const b = new MeshBuilder();
+  const cols: Collider[] = [];
+  const fires: [number, number, number][] = [];
+  const r = rng(1000 + BF.seed);
+  const half = WORLD / 2 - 6, B = BF.biome;
+  const inner = B === "forest" ? 12 : B === "swamp" ? 20 : 34;          // how close the trees come
+  const dense = B === "forest" ? 1.6 : B === "swamp" ? 0.7 : B === "cursed" ? 0.6 : B === "hills" ? 0.5 : 0.8;
+  const pineK = B === "forest" ? 0.8 : B === "swamp" ? 0.2 : B === "cursed" ? 0.05 : 0.6;
+  let placed = 0;
+  for (let i = 0; i < 4200 && placed < 700 * dense; i++) {
+    const x = (r() - 0.5) * 2 * half, z = (r() - 0.5) * 2 * half, d = Math.hypot(x, z);
+    if (d < inner || roadDist(x, z) < 6) continue;
+    const ring = clamp((d - inner) / 50, 0, 1);
+    if (r() > (ring * 0.9 + 0.08) * Math.min(1, dense)) continue;
+    if (slope(x, z) > 0.8) continue;
+    const s = 0.8 + r() * 0.7;
+    if (r() < pineK) pine(b, x, z, s, r); else deadTree(b, x, z, s, r);
+    if (d < 70) cols.push({ x, z, r: 0.35 * s });
+    placed++;
+  }
+  // a few lone trees inside a forest clearing give cover
+  if (B === "forest") for (let i = 0; i < 10; i++) { const a = r() * 6.28, d = 6 + r() * 8, x = Math.cos(a) * d, z = Math.sin(a) * d; pine(b, x, z, 0.9 + r() * 0.4, r); cols.push({ x, z, r: 0.4 }); }
+  const rocks = B === "hills" ? 160 : 60;
+  for (let i = 0; i < rocks; i++) {
+    const x = (r() - 0.5) * 2 * half, z = (r() - 0.5) * 2 * half;
+    if ((Math.abs(x) < 26 && Math.abs(z) < 34) || roadDist(x, z) < 4) continue;      // keep the fighting ground clear
+    const s = 0.4 + r() * (B === "hills" ? 2.2 : 1.4);
+    b.rock(T(x, height(x, z) + s * 0.2, z, r() * 6), s, r() < 0.5 ? STONE : STONE_D, 0.35, i);
+    if (Math.hypot(x, z) < 70) cols.push({ x, z, r: s * 0.85 });
+  }
+  if (B === "cursed") for (let i = 0; i < 18; i++) { const a = r() * 6.28, d = 8 + r() * 35; corpse(b, Math.cos(a) * d, Math.sin(a) * d, r, cols); }
+  if (B === "cursed" || r() < 0.3) for (let i = 0; i < 3; i++) { const a = r() * 6.28, d = 16 + r() * 20; pike(b, Math.cos(a) * d, Math.sin(a) * d, r, cols); }
+  return { mesh: b, colliders: cols, fires };
 }

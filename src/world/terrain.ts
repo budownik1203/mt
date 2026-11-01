@@ -6,20 +6,31 @@ import { MeshBuilder, RGB, hex } from "../gfx/meshbuilder.ts";
 export const WORLD = 360;           // metres per side
 const CELL = 2.5;
 
-const GRASS = hex(0x2c3320), GRASS_DRY = hex(0x4b4632), MUD = hex(0x2d241b), ROAD = hex(0x43362a), ROCK = hex(0x55534f), ROCK_D = hex(0x3c3a36), ASHC = hex(0x201d1b), GORE = hex(0x3b1b15);
+const GRASS = hex(0x2c3320), GRASS_DRY = hex(0x4b4632), MUD = hex(0x2d241b), ROAD = hex(0x43362a), ROCK = hex(0x55534f), ROCK_D = hex(0x3c3a36), ASHC = hex(0x201d1b), GORE = hex(0x3b1b15),
+  FOREST = hex(0x222b1c), SWAMP = hex(0x283020), WATER = hex(0x1b2224), SNOW = hex(0xaeb1ae);
+
+/** Battlefield setup: the classic killing field, or a scene matching a campaign map spot. */
+export type BattleBiome = "fields" | "forest" | "swamp" | "hills" | "cursed";
+export const BF = { classic: true, biome: "fields" as BattleBiome, seed: 0, winter: false, road: true };
+export function setBattlefield(biome: BattleBiome, seed: number, winter: boolean, road: boolean) {
+  BF.classic = false; BF.biome = biome; BF.seed = seed; BF.winter = winter; BF.road = road;
+}
+export function setClassicField() { BF.classic = true; BF.biome = "fields"; BF.seed = 0; BF.winter = false; BF.road = true; }
 
 export function roadDist(x: number, z: number) {
+  if (!BF.road) return 999;
   // road snakes north-south through the field
   const cx = Math.sin(z * 0.018) * 18 + Math.sin(z * 0.05) * 4;
   return Math.abs(x - cx);
 }
 
 export function height(x: number, z: number): number {
-  const r = Math.hypot(x, z);
-  let h = fbm(x * 0.006, z * 0.006, 5, 7) * 38 + fbm(x * 0.03, z * 0.03, 3, 11) * 3;
+  const r = Math.hypot(x, z), o = BF.seed * 17.3;
+  let h = fbm(x * 0.006 + o, z * 0.006, 5, 7) * 38 + fbm(x * 0.03, z * 0.03 + o, 3, 11) * 3;
   h += Math.pow(clamp((r - 90) / 90, 0, 1), 1.6) * 30;          // hills ring the field
   const field = smooth(clamp((r - 35) / 55, 0, 1));
-  h = lerp(fbm(x * 0.02, z * 0.02, 3, 5) * 1.6, h, field);        // flat-ish battlefield
+  const local = BF.biome === "hills" ? fbm(x * 0.012 + o, z * 0.012, 3, 5) * 9 + x * 0.06 : BF.biome === "swamp" ? fbm(x * 0.04, z * 0.04 + o, 2, 5) * 0.7 : fbm(x * 0.02 + o, z * 0.02, 3, 5) * 1.6;
+  h = lerp(local, h, field);                                       // the fighting ground
   const rd = roadDist(x, z);
   if (rd < 5) h -= (1 - rd / 5) * 0.35;
   return h;
@@ -34,18 +45,25 @@ export function slope(x: number, z: number) {
 function colourAt(x: number, z: number, y: number, s: number): RGB {
   const n = fbm(x * 0.05, z * 0.05, 3, 21) * 0.5 + 0.5;
   let c: RGB = [lerp(GRASS[0], GRASS_DRY[0], n), lerp(GRASS[1], GRASS_DRY[1], n), lerp(GRASS[2], GRASS_DRY[2], n)];
-  // churned mud over the whole killing field, scorched earth where something burned
-  const mud = clamp(fbm(x * 0.08, z * 0.08, 2, 33) * 2 + 0.15, 0, 1) * clamp(1.15 - Math.hypot(x, z) / 85, 0, 1);
+  const B = BF.biome, classic = BF.classic;
+  if (B === "forest") c = c.map((v, i) => lerp(v, FOREST[i], 0.6)) as RGB;
+  if (B === "swamp") c = c.map((v, i) => lerp(v, SWAMP[i], 0.65)) as RGB;
+  if (B === "cursed") c = c.map((v, i) => lerp(v, ASHC[i], 0.55)) as RGB;
+  // churned mud over the killing field, scorched earth where something burned
+  const mudK = classic ? 1 : B === "swamp" ? 0.9 : 0.45;
+  const mud = clamp(fbm(x * 0.08, z * 0.08, 2, 33) * 2 + 0.15, 0, 1) * clamp(1.15 - Math.hypot(x, z) / 85, 0, 1) * mudK;
   c = c.map((v, i) => lerp(v, MUD[i], mud * 0.85)) as RGB;
-  const burn = clamp(fbm(x * 0.03, z * 0.03, 2, 71) * 3 - 0.9, 0, 1);
+  if (B === "swamp" && fbm(x * 0.06, z * 0.06 + BF.seed, 2, 13) > 0.25) c = c.map((v, i) => lerp(v, WATER[i], 0.8)) as RGB;   // standing water
+  const burn = clamp(fbm(x * 0.03, z * 0.03, 2, 71) * 3 - 0.9, 0, 1) * (classic || B === "cursed" ? 1 : 0.3);
   c = c.map((v, i) => lerp(v, ASHC[i], burn * 0.8)) as RGB;
-  const gore = clamp(fbm(x * 0.15, z * 0.15, 2, 91) * 3 - 1.1, 0, 1) * clamp(1 - Math.hypot(x, z) / 40, 0, 1);
+  const gore = clamp(fbm(x * 0.15, z * 0.15, 2, 91) * 3 - 1.1, 0, 1) * clamp(1 - Math.hypot(x, z) / 40, 0, 1) * (classic || B === "cursed" ? 1 : 0.15);
   c = c.map((v, i) => lerp(v, GORE[i], gore * 0.7)) as RGB;
   const rd = roadDist(x, z);
   if (rd < 4.2) c = c.map((v, i) => lerp(ROAD[i], v, smooth(clamp(rd / 4.2, 0, 1)))) as RGB;
   const rock = clamp((s - 0.55) * 3, 0, 1);
   const rc = y > 25 ? ROCK : ROCK_D;
   c = c.map((v, i) => lerp(v, rc[i], rock)) as RGB;
+  if (BF.winter) c = c.map((v, i) => lerp(SNOW[i], v, 0.2 + rock * 0.5 + (rd < 4.2 ? 0.3 : 0))) as RGB;
   return c;
 }
 
