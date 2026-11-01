@@ -29,8 +29,8 @@ export const SKILLS: Record<Skill, { pl: string; attr: Attr; desc: string }> = {
   perswazja: { pl: "Perswazja", attr: "posluch", desc: "jeńcy łatwiej przechodzą na twoją stronę" },
   nekromancja: { pl: "Nekromancja", attr: "wiedza", desc: "tylko z księgą: rytuały, +4 nieumarłych na poziom, wskrzeszanie w bitwie" },
 };
-export type Prof = "oh" | "th" | "pa";
-export const PROFS: Record<Prof, string> = { oh: "Broń jednoręczna", th: "Broń dwuręczna", pa: "Broń drzewcowa" };
+export type Prof = "oh" | "th" | "pa" | "rg";
+export const PROFS: Record<Prof, string> = { oh: "Broń jednoręczna", th: "Broń dwuręczna", pa: "Broń drzewcowa", rg: "Strzelectwo" };
 
 export type Item = { kind: "weapon"; id: WeaponId } | { kind: "armour"; id: Loadout };
 export interface Hero {
@@ -44,7 +44,7 @@ export interface Hero {
 }
 export function newHero(): Hero {
   const skills = Object.fromEntries(Object.keys(SKILLS).map((k) => [k, 0])) as Record<Skill, number>;
-  return { name: "Bezimienny", origin: "", level: 1, xp: 0, attrPts: 0, skillPts: 1, attr: { cialo: 7, refleks: 6, wiedza: 5, posluch: 6 }, skills, prof: { oh: 70, th: 50, pa: 55 },
+  return { name: "Bezimienny", origin: "", level: 1, xp: 0, attrPts: 0, skillPts: 1, attr: { cialo: 7, refleks: 6, wiedza: 5, posluch: 6 }, skills, prof: { oh: 70, th: 50, pa: 55, rg: 45 },
     renown: 0, kills: 0, won: 0, lost: 0, armour: "levy", weapons: ["sword"], shield: true };
 }
 /** Skill cap from its attribute (Warband: attribute / 3). */
@@ -77,12 +77,12 @@ export const ORIGINS: Origin[] = [
 
 // ---------- items and prices ----------
 import { WEAPONS } from "../char/weapons.ts";
-export const WEAPON_PRICE: Record<WeaponId, number> = { claws: 0, kord: 40, hatchet: 35, mace: 60, sword: 110, spear: 45, longsword: 220, greataxe: 160, glaive: 130 };
+export const WEAPON_PRICE: Record<WeaponId, number> = { claws: 0, bow: 60, crossbow: 110, arquebus: 220, kord: 40, hatchet: 35, mace: 60, sword: 110, spear: 45, longsword: 220, greataxe: 160, glaive: 130 };
 export const ARMOUR_PRICE: Record<Loadout, number> = { base: 10, levy: 70, sergeant: 320, knight: 900, plate: 1400 };
 export const ARMOUR_NAME: Record<Loadout, string> = { base: "Łachmany i owijacze", levy: "Przeszywanica i kapalin", sergeant: "Kolczuga, czepiec i szyszak", knight: "Kolczuga, wappenrock i hełm garnczkowy", plate: "Zbroja płytowa" };
 export const itemName = (it: Item) => (it.kind === "weapon" ? WEAPONS[it.id].name : ARMOUR_NAME[it.id]);
 export const itemPrice = (it: Item) => (it.kind === "weapon" ? WEAPON_PRICE[it.id] : ARMOUR_PRICE[it.id]);
-export const profOf = (w: WeaponId): Prof => WEAPONS[w].cls as Prof;
+export const profOf = (w: WeaponId): Prof => WEAPONS[w].ranged ? "rg" : WEAPONS[w].cls as Prof;
 
 export const undeadLimit = (h: Hero) => (h.necro ? 4 + 4 * h.skills.nekromancja : 0) * (h.lich ? 2 : 1);
 export function corruptionWord(c: number) { return c >= 100 ? "martwe serce" : c >= 75 ? "trupi odór" : c >= 50 ? "oczy jak węgle" : c >= 25 ? "blada skóra" : "czysty"; }

@@ -16,12 +16,12 @@ export default async (p) => {
   console.log("notes", await p.evaluate(() => mb2.camp.notes.slice(0, 12).map((n) => n.text).join(" / ")));
   await p.evaluate(() => { mb2.camp.co.party.troops = [{ t: "zbrojny", n: 20, wounded: 0, xp: 0 }, { t: "halabardnik", n: 10, wounded: 0, xp: 0 }, { t: "rycerz", n: 6, wounded: 0, xp: 0 }]; mb2.camp.co.party.gold = 1000; });
   // meet the Wrońsk ruler: hire as mercenary
-  await p.evaluate(() => { const c = mb2.camp; let q = c.parties.find((x) => x.lord === "wsiewolod"); if (!q) q = null; mb2.ui.close(); if (q) mb2.ui.encounter(q); });
+  await p.evaluate(() => { const c = mb2.camp; let q = mb2.spawnLord("wsiewolod"); mb2.ui.close(); if (q) mb2.ui.encounter(q); });
   await shot("lord");
   console.log("lord menu", await p.evaluate(() => document.getElementById("mbody").innerText.replace(/\n/g, " ").slice(0, 300)));
   console.log("hire", await click("Zaciągnij"), await p.evaluate(() => JSON.stringify(mb2.camp.fx.join)));
   console.log("homage (renown low)", await click("Złóż hołd"));
-  await p.evaluate(() => { mb2.camp.co.hero.renown = 150; const q = mb2.camp.parties.find((x) => x.lord === "wsiewolod"); if (q) mb2.ui.encounter(q); });
+  await p.evaluate(() => { mb2.camp.co.hero.renown = 150; const q = mb2.spawnLord("wsiewolod"); if (q) mb2.ui.encounter(q); });
   console.log("homage", await click("Złóż hołd"), await p.evaluate(() => JSON.stringify(mb2.camp.fx.join) + " fiefs " + Object.entries(mb2.camp.fx.fief).filter(([, v]) => v === "player").map(([k]) => k)));
   // war with the Empire: raid an imperial village, storm Lindenau/Grauburg? take a castle-like target: Grauburg town
   await p.evaluate(() => { const c = mb2.camp; if (!c.fx.wars.includes("cesarstwo|wronsk")) c.fx.wars.push("cesarstwo|wronsk"); mb2.ui.close(); const v = c.w.settlements.find((s) => s.kind === "village" && c.fx.owner[s.id] === "cesarstwo" && !s.burned); window.__v = v && v.id; if (v) mb2.ui.settlement(v.id); });
@@ -38,7 +38,7 @@ export default async (p) => {
   console.log("after siege", await p.evaluate(() => document.getElementById("mbody").innerText.replace(/\n/g, " ").slice(0, 300)), await p.evaluate(() => window.__t + " " + mb2.camp.fx.owner[window.__t] + " / " + mb2.camp.fx.fief[window.__t]));
   await p.evaluate(() => mb2.ui.close());
   // beat an imperial lord and take him prisoner, then ransom
-  await p.evaluate(() => { const c = mb2.camp; let q = c.parties.find((x) => x.kind === "lord" && x.faction === "cesarstwo"); if (!q) return; q.troops = [{ t: "zbrojny", n: 6, wounded: 0, xp: 0 }]; mb2.ui.encounter(q); });
+  await p.evaluate(() => { const c = mb2.camp; let q = c.parties.find((x) => x.kind === "lord" && x.faction === "cesarstwo") ?? mb2.spawnLord("brenner"); if (!q) return; q.troops = [{ t: "zbrojny", n: 6, wounded: 0, xp: 0 }]; mb2.ui.encounter(q); });
   console.log("fight lord", await click("Rozstrzygnij"));
   await shot("lord_captured");
   console.log("capture", await click("Weź do niewoli"), await p.evaluate(() => JSON.stringify(mb2.camp.fx.captives)));

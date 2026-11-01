@@ -20,16 +20,16 @@ import { settings, saveSettings, RES } from "./core/settings.ts";
 import { openOptions } from "./core/optionsui.ts";
 import { heroHp, profOf, undeadLimit } from "./map/hero.ts";
 import { undeadCount, corrupt, spawnHunters } from "./map/necro.ts";
-import { FACTIONS, FIDS } from "./map/factions.ts";
+import { FACTIONS, FIDS, spawnLord } from "./map/factions.ts";
 import { spawnMonster } from "./map/monsters.ts";
-import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY } from "./game/tactics.ts";
+import { Group, Order, newGroups, slotWorld, engageRadius, FORMATIONS, ORDER_NAMES, FORM_NAMES, ROUT, RALLY, FIRE_NAMES } from "./game/tactics.ts";
 import { buildScenery, Collider } from "./world/props.ts";
 import { Warrior, Kit, WSTATS } from "./game/warrior.ts";
 import { Brain } from "./game/ai.ts";
 import { locateHit, SEVER, Gib, Zone } from "./game/gore.ts";
 import { Joint } from "./char/human.ts";
 import { xform } from "./core/math.ts";
-import { ARMOURS, DIR, Dir, damage, hitPart, blockMatches, shieldCovers, dirFromMouse, mirror } from "./game/combat.ts";
+import { DmgType, ARMOURS, DIR, Dir, damage, hitPart, blockMatches, shieldCovers, dirFromMouse, mirror } from "./game/combat.ts";
 import { Audio } from "./core/audio.ts";
 import { t, lang, setLang, helpRows } from "./core/i18n.ts";
 
@@ -93,17 +93,17 @@ const KITS: Record<string, Kit> = {
   glaive: K("Halabardnik", "Glaiveman", "levy", "glaive", false, "gambeson", 95, 0.55),
   knight: K("Rycerz Kruka", "Raven knight", "knight", "longsword", false, "plate", 125, 0.78),
 };
-const PLAYER_WEAPONS: WeaponId[] = ["sword", "kord", "hatchet", "mace", "longsword", "greataxe", "spear", "glaive"];
+const PLAYER_WEAPONS: WeaponId[] = ["sword", "kord", "hatchet", "mace", "longsword", "greataxe", "spear", "glaive", "bow", "crossbow", "arquebus"];
 let weaponSlot = 0;
 const ARMOUR_OF: Record<string, keyof typeof ARMOURS> = { base: "rags", levy: "gambeson", sergeant: "mail", knight: "plate", plate: "plate" };
 /** The player's kit: the test set in the trial battle, the hero's own gear in the campaign. */
 function playerKit(): Kit {
   const h = camp && battleKind === "encounter" ? camp.co.hero : null;
-  if (!h) return { name: { pl: t("you"), en: t("you") }, loadout: "knight", weapon: PLAYER_WEAPONS[weaponSlot % 8], shield: true, armour: ARMOURS.mail, hp: 130, skill: 1 };
+  if (!h) return { name: { pl: t("you"), en: t("you") }, loadout: "knight", weapon: PLAYER_WEAPONS[weaponSlot % PLAYER_WEAPONS.length], shield: true, armour: ARMOURS.mail, hp: 130, skill: 1 };
   const w = h.weapons[weaponSlot % h.weapons.length] ?? "kord";
   return { name: { pl: t("you"), en: t("you") }, loadout: h.armour, weapon: w, shield: h.shield, armour: ARMOURS[ARMOUR_OF[h.armour]], hp: heroHp(h), skill: clamp(0.55 + h.prof[profOf(w)] / 250, 0.6, 1.5) };
 }
-function weaponCount() { return camp && battleKind === "encounter" ? camp.co.hero.weapons.length : 8; }
+function weaponCount() { return camp && battleKind === "encounter" ? camp.co.hero.weapons.length : PLAYER_WEAPONS.length; }
 const wName = (w: WeaponId) => WEAPONS[w].name;
 
 // ---------- state ----------
@@ -120,7 +120,7 @@ let mode: Mode = "title";
 let battleKind: "waves" | "encounter" = "waves";
 let camp: Campaign | null = null;
 let ui: MapUI | null = null;
-interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number; raiseCD: number; raised: Set<number>; risen: Set<number>; weak?: boolean }
+interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form" | "fire"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number; raiseCD: number; raised: Set<number>; risen: Set<number>; weak?: boolean }
 let enc: Enc | null = null;
 let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
@@ -131,12 +131,121 @@ let noAI = false, botRun = false;   // test hook   // test hook: drive the playe
 
 interface Particle { x: number; y: number; z: number; vx: number; vy: number; vz: number; life: number; s: number; spark: boolean }
 const parts: Particle[] = [];
+
+// ---------- missiles (build 11): arrows, bolts and lead balls fly as real projectiles ----------
+interface Proj { x: number; y: number; z: number; vx: number; vy: number; vz: number; owner: Warrior; w: WeaponId; life: number; stuck: number; gone?: boolean }
+const projs: Proj[] = [];
+const smokes: { x: number; y: number; z: number; vx: number; vy: number; vz: number; t: number; life: number; s: number }[] = [];
+let flashT = 0, flashAt: V3 = [0, 0, 0];
+const arrowG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(0, 0, -0.35), 0.012, 0.012, 0.75, hex(0x6b5236)); b.box(T(0, 0, 0.04), 0.02, 0.02, 0.06, hex(0x2a2826)); b.box(T(0, 0.015, -0.68), 0.004, 0.035, 0.1, hex(0x8a8070)); return R.upload(fromBuilder(b), 3, false); })();
+const boltG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(0, 0, -0.17), 0.018, 0.018, 0.36, hex(0x4e3c28)); b.box(T(0, 0, 0.03), 0.03, 0.03, 0.05, hex(0x2a2826)); return R.upload(fromBuilder(b), 3, false); })();
+const ballG = (() => { const b = new MeshBuilder(); b.jitter = 0; b.box(T(0, 0, -0.3), 0.012, 0.012, 0.6, hex(0xd8c890)); return R.upload(fromBuilder(b), 3, false); })();
+const smokeG = (() => { const b = new MeshBuilder(); b.jitter = 0.2; b.rock(T(), 0.5, hex(0x6e6a64), 0.3, 3); return R.upload(fromBuilder(b), 3, false); })();
+const flashG = (() => { const b = new MeshBuilder(); b.jitter = 0.1; b.rock(T(), 0.18, hex(0xffb040), 0.5, 2); return R.upload(fromBuilder(b), 3, false); })();
+const projMesh = (w: WeaponId) => w === "arquebus" ? ballG : w === "crossbow" ? boltG : arrowG;
+
+/** f has just loosed: spawn the missile. The player aims with the camera; the AI leads its target and arcs for range. */
+function fire(f: Warrior) {
+  f.shot = false;
+  const r = WEAPONS[f.weaponId].ranged!;
+  let yaw = f.yaw, pitch = 0;
+  if (f === player) {
+    // the crosshair: march the camera ray to the first body or the ground, then aim the shot at that point
+    const cp = Math.cos(camPitch), fx = Math.sin(camYaw) * cp, fy = Math.sin(camPitch), fz = Math.cos(camYaw) * cp;
+    let ex: number, ey: number, ez: number;
+    if (firstPerson) { [ex, ey, ez] = player.eye; }
+    else { const rx = -Math.cos(camYaw), rz = Math.sin(camYaw); ex = player.x + rx * 0.55 - fx * 3.3; ey = player.y + 1.82 - fy * 3.3; ez = player.z + rz * 0.55 - fz * 3.3; }
+    let ax = ex + fx * 80, ay = ey + fy * 80, az = ez + fz * 80;
+    for (let d = 3.5; d < 80; d += 0.25) {
+      const x = ex + fx * d, y = ey + fy * d, z = ez + fz * d;
+      if (y < ground(x, z) || fighters.some((o) => o !== player && o.alive && Math.hypot(o.x - x, o.z - z) < 0.35 && y > o.y && y < o.y + 1.85)) { ax = x; ay = y; az = z; break; }
+    }
+    const lx = f.x + Math.sin(f.yaw) * 0.45, lz = f.z + Math.cos(f.yaw) * 0.45, hd = Math.hypot(ax - lx, az - lz);
+    yaw = Math.atan2(ax - lx, az - lz);
+    pitch = Math.atan2(ay - (f.y + 1.48), hd) + 0.5 * Math.asin(Math.min(1, r.grav * hd / (r.speed * r.speed)));
+  }
+  else {
+    const tg = targets.get(f.id);
+    if (tg) {
+      const dx = tg.x - f.x, dz = tg.z - f.z, d = Math.hypot(dx, dz);
+      const tof = d / r.speed;
+      const lx = dx + tg.vx * tof, lz = dz + tg.vz * tof, ld = Math.hypot(lx, lz);
+      yaw = Math.atan2(lx, lz);
+      const k = Math.min(1, r.grav * ld / (r.speed * r.speed));
+      pitch = 0.5 * Math.asin(k) + Math.atan2((tg.y + 1.15) - (f.y + 1.5), ld);
+    }
+  }
+  // spread: weapon, skill, and a held bow that starts to shake
+  let sp = r.spread * (1.6 - Math.min(1.2, f.kit.skill)) * (f === player ? 0.6 : 1);
+  if (r.kind === "bow" && f.heldT > 2.5) sp *= 1 + (f.heldT - 2.5);
+  if (Math.hypot(f.vx, f.vz) > 0.5) sp *= 1.8;
+  yaw += (Math.random() - 0.5) * 2 * sp; pitch += (Math.random() - 0.5) * 2 * sp;
+  const fx = Math.sin(yaw) * Math.cos(pitch), fy = Math.sin(pitch), fz = Math.cos(yaw) * Math.cos(pitch);
+  const x = f.x + Math.sin(f.yaw) * 0.45, y = f.y + 1.48, z = f.z + Math.cos(f.yaw) * 0.45;
+  projs.push({ x, y, z, vx: fx * r.speed, vy: fy * r.speed, vz: fz * r.speed, owner: f, w: f.weaponId, life: 6, stuck: 0 });
+  const near = Math.hypot(f.x - player.x, f.z - player.z) < 25 ? 1 : 0.4;
+  if (r.kind === "arquebus") {
+    audio.shot(near);
+    flashT = 0.06; flashAt = [x + fx * 1.1, y + fy * 1.1, z + fz * 1.1];
+    for (let i = 0; i < 9; i++) smokes.push({ x: x + fx * (0.9 + i * 0.25), y: y + fy * 0.9, z: z + fz * (0.9 + i * 0.25), vx: fx * (1.6 - i * 0.12) + (Math.random() - 0.5) * 0.4, vy: 0.25 + Math.random() * 0.3, vz: fz * (1.6 - i * 0.12) + (Math.random() - 0.5) * 0.4, t: 0, life: 5 + Math.random() * 3, s: 0.22 + Math.random() * 0.2 });
+    if (f === player) shake = Math.max(shake, 0.18);
+  } else audio.loose(r.kind === "crossbow", near);
+  if (f === player && camp && battleKind === "encounter") { const h = camp.co.hero; h.prof.rg = Math.min(400, h.prof.rg + 0.6 * (1 - h.prof.rg / 450)); }
+}
+function projStep(dt: number) {
+  for (const p of projs) {
+    if (p.stuck > 0) { p.stuck -= dt; continue; }
+    const r = WEAPONS[p.w].ranged!;
+    const ox = p.x, oy = p.y, oz = p.z;
+    p.vy -= r.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt;
+    // who is on the path this frame (sampled segment vs a body cylinder)
+    let hit: Warrior | null = null, hy = 0;
+    for (let k = 1; k <= 4 && !hit; k++) {
+      const t = k / 4, x = ox + (p.x - ox) * t, y = oy + (p.y - oy) * t, z = oz + (p.z - oz) * t;
+      for (const o of fighters) {
+        if (o === p.owner || !o.alive) continue;
+        if (Math.hypot(o.x - x, o.z - z) < 0.3 && y > o.y && y < o.y + 1.82) { hit = o; hy = y - o.y; break; }
+      }
+    }
+    if (hit) { missileHit(p, hit, hy); continue; }
+    if (p.y < ground(p.x, p.z)) { p.y = ground(p.x, p.z) + 0.05; p.stuck = p.w === "arquebus" ? 0 : 25; p.gone = p.w === "arquebus"; if (p.gone && Math.random() < 0.5) parts.push({ x: p.x, y: p.y, z: p.z, vx: 0, vy: 1.5, vz: 0, life: 0.3, s: 0.05, spark: true }); }
+    else if (p.life <= 0) p.gone = true;
+  }
+  for (let i = projs.length - 1; i >= 0; i--) if (projs[i].gone || (projs[i].stuck <= 0 && projs[i].life <= 0)) projs.splice(i, 1);
+  while (projs.length > 260) projs.shift();
+  for (const m of smokes) { m.t += dt; m.x += m.vx * dt; m.y += m.vy * dt; m.z += m.vz * dt; m.vx *= 1 - dt * 0.8; m.vz *= 1 - dt * 0.8; m.vy *= 1 - dt * 0.3; }
+  for (let i = smokes.length - 1; i >= 0; i--) if (smokes[i].t > smokes[i].life) smokes.splice(i, 1);
+  flashT = Math.max(0, flashT - dt);
+}
+function missileHit(p: Proj, o: Warrior, hy: number) {
+  const r = WEAPONS[p.w].ranged!, att = p.owner;
+  const v = Math.hypot(p.vx, p.vy, p.vz), dx = p.vx / v, dz = p.vz / v;
+  const facing = -(Math.sin(o.yaw) * dx + Math.cos(o.yaw) * dz);
+  const near = att === player || o === player, vol = near ? 1 : 0.5;
+  // a shield turned toward the missile catches it (always when blocking, mostly when just carried in front)
+  if (o.hasShield && facing > 0.35 && (o.state === "block" || Math.random() < 0.7) && hy > 0.55) {
+    audio.shieldThud(vol * 0.8); p.gone = true;
+    if (o === player) pushLog(L("Pocisk wbija się w tarczę", "A missile thuds into your shield"), "good");
+    return;
+  }
+  const zone: Zone = hy > 1.52 ? "head" : hy < 0.88 ? "legs" : "body";
+  const part = zone;
+  const arm = o.kit.armour[part] * r.armourK;
+  let dmg = Math.round(damage(r.dmg * (0.6 + 0.4 * v / r.speed), "pierce", arm, part, 0));
+  if (att === player && camp && battleKind === "encounter") dmg = Math.round(dmg * (0.85 + camp.co.hero.prof.rg / 600));
+  if (o === player) dmg = Math.round(dmg * [0.6, 1, 1.3][settings.difficulty]);
+  if (att.team === o.team) dmg = Math.round(dmg * 0.6);
+  const joint: Joint = zone === "head" ? "head" : zone === "legs" ? "thighR" : "torso";
+  const hp: V3 = [p.x, o.y + hy, p.z];
+  p.gone = true;
+  applyHit(att, o, dmg, "pierce", DIR.THRUST, zone, joint, hp, dx, dz, vol, near, p.w === "arquebus" ? 1.3 : 0.6, true);
+}
 const decals: { x: number; y: number; z: number; r: number; s: number; s1: number }[] = [];
 let hurt = 0, shake = 0;
 let camOverride: [V3, V3] | null = null;   // test hook
 
 function reset() {
-  fighters = []; brains.clear(); tokens.used = 0; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0;
+  fighters = []; brains.clear(); tokens.used = 0; parts.length = 0; projs.length = 0; smokes.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0;
   wave = 0; kills = 0; waveBreak = 2.5;
   player = new Warrior(R, playerKit(), 0, 4, 0);
   player.yaw = camYaw;
@@ -188,7 +297,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyB") { autoBlock = !autoBlock; settings.autoBlock = autoBlock; saveSettings(); pushLog(autoBlock ? t("autoOn") : t("autoOff"), "sys"); }
   if (e.code === "KeyL") { setLang(lang === "pl" ? "en" : "pl"); applyLang(); }
   if (e.code === "KeyR" && !player.alive) reset();
-  if (battleKind === "waves" && /^Digit[1-8]$/.test(e.code) && player.alive && player.state === "idle") {
+  if (battleKind === "waves" && /^Digit[1-9]$/.test(e.code) && player.alive && player.state === "idle") {
     weaponSlot = Number(e.code.slice(5)) - 1;
     player.setKit(R, playerKit());
     pushLog(wName(player.weaponId), "sys");
@@ -211,11 +320,11 @@ canvas.addEventListener("mousedown", (e) => {
   audio.start();
   if (document.pointerLockElement !== canvas) tryLock();
   if (!player.alive) return;
-  if (e.button === 0) { lmb = true; if (player.attack(curDir)) audio.swing(0.35); }
+  if (e.button === 0) { lmb = true; if (player.ranged) { if (!player.startAim() && player.ammo <= 0) pushLog(L("Pusto: nie ma czym strzelać. Kółko: zmień broń.", "Empty: nothing to shoot. Wheel: switch weapon."), "warn"); } else if (player.attack(curDir)) audio.swing(0.35); }
   if (e.button === 2) { rmb = true; const d = blockDir(); if (player.state === "windup" || player.state === "hold") player.feint(d); else player.block(d); }
 });
 window.addEventListener("mouseup", (e) => {
-  if (e.button === 0) lmb = false;
+  if (e.button === 0) { lmb = false; if (player?.ranged) player.loose(); }
   if (e.button === 2) { rmb = false; player?.unblock(); }
 });
 function tryLock() {
@@ -315,23 +424,26 @@ function resolve(att: Warrior) {
   }
   if (o === player) dmg = Math.round(dmg * [0.6, 1, 1.3][settings.difficulty]);
   if (att.team === o.team) dmg = Math.round(dmg * 0.5);
-  o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; o.morale -= dmg * 0.35; (o as Warrior & { lastType?: string }).lastType = atk.type;
+  applyHit(att, o, dmg, atk.type, dir, zone, joint, hp, dx, dz, vol, near, att.weapon.mass);
+}
+function applyHit(att: Warrior, o: Warrior, dmg: number, type: DmgType, dir: Dir, zone: Zone, joint: Joint, hp: V3, dx: number, dz: number, vol: number, near: boolean, massK: number, ranged = false) {
+  o.hp -= dmg; o.flash = 1; o.lastHitBy = att.id; o.morale -= dmg * 0.35; (o as Warrior & { lastType?: string }).lastType = type;
   // weight of the blow: hit-stop on both, the victim is shoved and twisted by it
-  const mass = att.weapon.mass, force = Math.min(1.4, (0.35 + dmg / 45) * (0.7 + mass * 0.3));
-  att.freeze = Math.max(att.freeze, 0.05 + mass * 0.035 + Math.min(0.06, dmg / 700));
-  o.freeze = Math.max(o.freeze, att.freeze * 0.8);
+  const mass = massK, force = Math.min(1.4, (0.35 + dmg / 45) * (0.7 + mass * 0.3));
+  if (!ranged) att.freeze = Math.max(att.freeze, 0.05 + mass * 0.035 + Math.min(0.06, dmg / 700));
+  o.freeze = Math.max(o.freeze, ranged ? 0.05 : att.freeze * 0.8);
   const side = dir === DIR.RIGHT ? 1 : dir === DIR.LEFT ? -1 : 0;
   o.impact(dx, dz, force * (dir === DIR.THRUST ? 1.2 : 1), side, zone === "head" ? 1 : zone === "legs" ? -0.6 : 0);
   if (att === player) shake = Math.max(shake, 0.12 + force * 0.18);
   if (o === player) shake = Math.max(shake, 0.25 + force * 0.3);
-  audio.hit(atk.type === "blunt", vol);
+  audio.hit(type === "blunt", vol);
   if (Math.random() < 0.6) audio.grunt(vol * 0.8);
   bleed(hp, dx, dz, settings.gore ? 16 + Math.min(40, dmg) : 4);
   if (o === player) hurt = Math.min(1, hurt + 0.35 + dmg / 80);
   const lethal = o.hp <= 0;
   // dismemberment: cutting blows that kill, or heavy cuts to limbs
   let gore: string | null = null;
-  if (atk.type === "cut" && settings.gore) {
+  if (type === "cut" && settings.gore) {
     if (zone === "head" && lethal) gore = "head";
     else if (zone === "arm" && (lethal || dmg >= 30) && SEVER[joint]) gore = joint;
     else if (zone === "legs" && (lethal || dmg >= 34) && SEVER[joint]) gore = joint;
@@ -347,15 +459,15 @@ function resolve(att: Warrior) {
     o.hp = 0;
     if (o.alive) o.die();
     decals.push({ x: o.x + dx * 0.5, y: ground(o.x + dx * 0.5, o.z + dz * 0.5) + 0.02, z: o.z + dz * 0.5, r: Math.random() * 6, s: 0.4, s1: 1.8 + Math.random() * 0.8 });
-    if (atk.type === "blunt" && zone === "head") bleed(hp, dx, dz, 50);
+    if (type === "blunt" && zone === "head") bleed(hp, dx, dz, 50);
     if (o.aiToken) { o.aiToken = false; tokens.used = Math.max(0, tokens.used - 1); }
     if (o !== player) { if (att === player) kills++; pushLog(goreText(gore, att, o) ?? t("killed", { who: nm(o) }), att === player ? "good" : ""); }
     else if (battleKind === "encounter") { pushLog(lang === "pl" ? "Padasz ogłuszony. Bitwa toczy się bez ciebie." : "You go down, stunned. The battle goes on without you.", "bad"); }
     else { $("dead").hidden = false; $("deadSub").textContent = t("deadSub", { n: Math.max(0, wave - 1) }); try { document.exitPointerLock(); } catch { /* */ } }
   } else if (dmg >= 6 || o.attacking) o.stagger();
   const zn = zone === "arm" ? (lang === "pl" ? "ręka" : "arm") : t(zone);
-  if (att === player) pushLog(t("youHit", { who: nm(o), part: zn, dmg, type: t(atk.type), arm: o.kit.armour.name[lang] }), "good");
-  else if (o === player) pushLog(t("hitYou", { who: nm(att), part: zn, dmg, type: t(atk.type) }), "bad");
+  if (att === player) pushLog(t("youHit", { who: nm(o), part: zn, dmg, type: t(type), arm: o.kit.armour.name[lang] }), "good");
+  else if (o === player) pushLog(t("hitYou", { who: nm(att), part: zn, dmg, type: t(type) }), "bad");
   if (dmg > 2) decals.push({ x: hp[0], y: ground(hp[0], hp[2]) + 0.02, z: hp[2], r: Math.random() * 6, s: 0.3, s1: 0.5 + Math.random() * 0.5 });
   while (decals.length > 160) decals.shift();
 }
@@ -465,6 +577,9 @@ function step(dt: number) {
     collide(f);
   }
   for (const f of fighters) if (f.impactNow) resolve(f);
+  for (const f of fighters) if (f.shot) fire(f);
+  projStep(dt);
+  shooterStep(dt);
 
   for (const p of parts) {
     p.vy -= 9.8 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.life -= dt;
@@ -571,6 +686,9 @@ function render(now: number) {
     items.push({ mesh: flameG, model: trs(m4(), f[0], f[1] - 0.45, f[2], now * 0.003 + i, 0, 0, 0.85, 0.75 + fl * 0.35, 0.85) });
   });
   for (const d of decals) items.push({ mesh: decalG, model: trs(m4(), d.x, d.y, d.z, d.r, 0, 0, d.s, 1, d.s) });
+  for (const p of projs) { const h = Math.hypot(p.vx, p.vz); items.push({ mesh: projMesh(p.w), model: trs(m4(), p.x, p.y, p.z, Math.atan2(p.vx, p.vz), -Math.atan2(p.vy, h)) }); }
+  for (const m of smokes) { const k = m.t / m.life, sc = m.s * (1 + m.t * 0.9); if (k < 1) items.push({ mesh: smokeG, model: trs(m4(), m.x, m.y, m.z, m.t * 0.3, 0, 0, sc, sc * 0.8, sc) }); }
+  if (flashT > 0) items.push({ mesh: flashG, model: trs(m4(), flashAt[0], flashAt[1], flashAt[2]) });
   for (const g of gibs) g.draw(items);
   for (const sp of spurts) { const J = sp.w.lastJ; if (J) items.push({ mesh: bloodG, model: mul(m4(), J[sp.parent], trs(m4(), sp.at[0], sp.at[1], sp.at[2], 0, 0, 0, 0.1, 0.035, 0.1)) }); }
   for (const f of fighters) for (const j of f.severed) { const info = SEVER[j]; if (info && !f.severed.has(info.parent) && f.lastJ) items.push({ mesh: bloodG, model: mul(m4(), f.lastJ[info.parent], trs(m4(), info.at[0], info.at[1], info.at[2], 0, 0, 0, 0.11, 0.04, 0.11)) }); }
@@ -617,7 +735,8 @@ function hud() {
   $("hptext").textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
   const ws = WSTATS[player.weaponId];
   const types = [ws.swing ? t(ws.swing.type) : null, ws.thrust ? t(ws.thrust.type) : null].filter(Boolean).join(" / ");
-  $("weapon").innerHTML = `<b>${wName(player.weaponId)}</b><span>${types}${player.hasShield ? " · " + (lang === "pl" ? "tarcza" : "shield") : ""}${autoBlock ? " · auto-blok" : ""}</span>`;
+  const rg = player.ranged;
+  $("weapon").innerHTML = rg ? `<b>${wName(player.weaponId)}</b><span>${player.ammo} ${rg.ammoName} · ${player.rs === "reload" ? L("ładowanie…", "reloading…") : player.rs === "ready" ? L("gotów: puść", "ready: release") : player.rs === "draw" ? L("naciąganie…", "drawing…") : L("LPM: celuj", "LMB: aim")}</span>` : `<b>${wName(player.weaponId)}</b><span>${types}${player.hasShield ? " · " + (lang === "pl" ? "tarcza" : "shield") : ""}${autoBlock ? " · auto-blok" : ""}</span>`;
   const hh = Math.floor(hour), mm = Math.floor((hour - hh) * 60);
   if (enc) {
     const mine = fighters.filter((f) => f.team === 0 && f.alive && f !== player).length, foe = fighters.filter((f) => f.team === 1 && f.alive).length;
@@ -912,7 +1031,7 @@ function startEncounter(p: Party) {
   enc = { enemy: p, allyQ, enemyQ, reserveQ: [], troopOf: new Map(), groups, sel: new Set(used), menu: null, deploy: true, cryCD: 0, routed: { 0: [], 1: [] }, startHour: c.hour, startDay: c.day, done: false, moraleT: 0, raiseCD: 0, raised: new Set(), risen: new Set(), weak: p.kind === "monster" && c.contracts.some((k) => k.monster === p.monster && k.steps >= 3) };
   mode = "battle"; battleKind = "encounter"; started = true; hour = c.hour;
   $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
-  fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
+  fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; projs.length = 0; smokes.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
   camYaw = Math.PI; camPitch = -0.1;
   weaponSlot = 0;
   player = new Warrior(R, playerKit(), 0, 13, 0); player.yaw = Math.PI; player.hideHead = firstPerson; player.leader = true;
@@ -1087,6 +1206,26 @@ function raiseDead() {
   shake = Math.max(shake, 0.25); audio.grunt(1);
   pushLog(L(`Mówisz słowa z księgi. ${bodies.length} martwych wstaje.`, `You speak the words. ${bodies.length} dead rise.`), "good");
 }
+/** Shooters switch to the sidearm when the enemy closes (or the quiver is empty) and back when there is room; volley clocks. */
+function shooterStep(dt: number) {
+  for (const f of fighters) {
+    if (f === player || !f.alive || !f.primary || !f.kit.side) continue;
+    const tg = targets.get(f.id), d = tg ? Math.hypot(tg.x - f.x, tg.z - f.z) : 99;
+    if (f.ranged && (d < 4.5 || f.ammo <= 0) && f.state === "idle") f.setKit(R, { ...f.kit, weapon: f.kit.side });
+    else if (!f.ranged && f.ammo > 0 && d > 13 && f.state === "idle") f.setKit(R, { ...f.kit, weapon: f.primary });
+    f.volleyGo = false;
+    if (enc && f.team === 0) { const G = enc.groups[f.group - 1]; f.fire = G.fire; }
+  }
+  if (!enc) return;
+  for (const G of enc.groups) {
+    if (G.fire !== "volley") continue;
+    const mem = fighters.filter((f) => f.team === 0 && f.group === G.id && f.alive && f.ranged);
+    const ready = mem.filter((f) => f.rs === "ready").length;
+    G.volleyT -= dt;
+    // the volley goes when most are drawn, or the sergeant loses patience
+    if (mem.length && (ready >= Math.ceil(mem.length * 0.8) || G.volleyT <= 0) && ready > 0) { for (const f of mem) f.volleyGo = true; G.volleyT = 4; if (ready >= 3) pushLog(L(`Grupa ${G.id}: salwa!`, `Group ${G.id}: volley!`), "warn"); }
+  }
+}
 function warCry() {
   if (!enc || enc.cryCD > 0 || !player.alive) return;
   enc.cryCD = 25;
@@ -1126,7 +1265,7 @@ function battleKey(e: KeyboardEvent) {
   e.preventDefault();
   const n = Number(code.slice(1));
   if (!enc.menu) {
-    if (n === 1) enc.menu = "move"; else if (n === 2) enc.menu = "form";
+    if (n === 1) enc.menu = "move"; else if (n === 2) enc.menu = "form"; else if (n === 4) enc.menu = "fire";
     else if (n === 3) {
       // release the reserve
       let k = 0; for (const G of enc.groups) if (G.reserve && (enc.sel.has(G.id) || enc.sel.size === 0)) { G.reserve = false; G.order = "charge"; k++; }
@@ -1146,6 +1285,9 @@ function battleKey(e: KeyboardEvent) {
       }
       say(L(`Grupy ${[...enc.sel].join(", ")}: ${ORDER_NAMES[ord].pl}!`, `Groups ${[...enc.sel].join(", ")}: ${ORDER_NAMES[ord].en}!`));
     }
+  } else if (enc.menu === "fire") {
+    const m = n === 1 ? "free" : n === 2 ? "hold" : n === 3 ? "volley" : null;
+    if (m) { for (const G of sel) { G.fire = m; G.volleyT = 2; } say(L(`Strzelcy: ${FIRE_NAMES[m].pl}!`, `Shooters: ${FIRE_NAMES[m].en}!`)); }
   } else if (enc.menu === "form") {
     const f = FORMATIONS[n - 1];
     if (f) { for (const G of sel) { G.formation = f; if (G.order === "charge") { G.order = "hold"; const mem = groupMembers().get(G.id) ?? []; G.ax = mem.reduce((a, q) => a + q.x, 0) / (mem.length || 1); G.az = mem.reduce((a, q) => a + q.z, 0) / (mem.length || 1); G.ayaw = player.yaw; } } say(L(`Formacja: ${FORM_NAMES[f].pl}`, `Formation: ${FORM_NAMES[f].en}`)); }
@@ -1155,7 +1297,7 @@ function battleKey(e: KeyboardEvent) {
 function startFight() {
   if (!enc) return;
   enc.deploy = false; camOverride = null;
-  banner(enc.enemy.name, L("F1 ruch · F2 formacja · F3 rezerwa · 1–9 grupy · X okrzyk", "F1 move · F2 formation · F3 reserve · 1–9 groups · X war cry"));
+  banner(enc.enemy.name, L("F1 ruch · F2 formacja · F3 rezerwa · F4 ogień · 1–9 grupy · X okrzyk", "F1 move · F2 formation · F3 reserve · F4 fire · 1–9 groups · X war cry"));
   tryLock();
 }
 /** Mouse → point on the battlefield ground (deployment). */
@@ -1209,14 +1351,17 @@ function orderHud() {
     const n = (mem.get(G.id)?.length ?? 0), w = counts.get(G.id) ?? 0;
     if (!n && !w) continue;
     const names = [...new Set((mem.get(G.id) ?? []).map((f) => enc!.troopOf.get(f.id)!))].map((t) => TROOPS[t].name[lang].split(" ")[0]).join(", ");
-    rows.push(`<div class="${enc.sel.has(G.id) ? "sel" : ""}"><b>${G.id}</b> ${names || "—"} <span>${n}${w ? "+" + w : ""} · ${G.reserve ? L("rezerwa", "reserve") : ORDER_NAMES[G.order][lang]} · ${FORM_NAMES[G.formation][lang]}</span></div>`);
+    const shooters = (mem.get(G.id) ?? []).filter((f) => f.primary);
+    const ammo = shooters.reduce((a, f) => a + f.ammo, 0);
+    rows.push(`<div class="${enc.sel.has(G.id) ? "sel" : ""}"><b>${G.id}</b> ${names || "—"} <span>${n}${w ? "+" + w : ""} · ${G.reserve ? L("rezerwa", "reserve") : ORDER_NAMES[G.order][lang]} · ${FORM_NAMES[G.formation][lang]}${shooters.length ? ` · ${FIRE_NAMES[G.fire][lang]} · ${L("pocisków", "ammo")} ${ammo}` : ""}</span></div>`);
   }
   const fled = enc.routed[0].length;
   let menu = "";
   if (enc.deploy) menu = L("Rozstawienie · klik: ustaw · F2 formacja · R rezerwa · spacja: do boju", "Deploy · click: place · F2 formation · R reserve · space: fight");
   else if (enc.menu === "move") menu = "F1 " + L("stać tutaj", "hold here") + " · F2 " + L("za mną", "follow") + " · F3 " + L("naprzód", "charge") + " · F4 " + L("cofnąć się", "fall back");
   else if (enc.menu === "form") menu = FORMATIONS.map((f, i) => `F${i + 1} ${FORM_NAMES[f][lang]}`).join(" · ");
-  else menu = L("F1 ruch · F2 formacja · F3 rezerwa · X okrzyk", "F1 move · F2 formation · F3 reserve · X war cry") + (enc.cryCD > 0 ? ` (${Math.ceil(enc.cryCD)} s)` : "") + (camp?.co.hero.necro ? " · N " + L("wskrześ", "raise") + (enc.raiseCD > 0 ? ` (${Math.ceil(enc.raiseCD)} s)` : "") : "");
+  else if (enc.menu === "fire") menu = "F1 " + FIRE_NAMES.free[lang] + " · F2 " + FIRE_NAMES.hold[lang] + " · F3 " + FIRE_NAMES.volley[lang];
+  else menu = L("F1 ruch · F2 formacja · F3 rezerwa · F4 ogień · X okrzyk", "F1 move · F2 formation · F3 reserve · F4 fire · X war cry") + (enc.cryCD > 0 ? ` (${Math.ceil(enc.cryCD)} s)` : "") + (camp?.co.hero.necro ? " · N " + L("wskrześ", "raise") + (enc.raiseCD > 0 ? ` (${Math.ceil(enc.raiseCD)} s)` : "") : "");
   el.innerHTML = rows.join("") + (fled ? `<div class="fled">${L("uciekło", "fled")}: ${fled}</div>` : "") + `<div class="menu">${menu}</div>`;
 }
 
@@ -1278,7 +1423,7 @@ function loop(now: number) {
 // hooks for automated tests
 (window as unknown as { mb2: unknown }).mb2 = {
   get player() { return player; }, get fighters() { return fighters; },
-  collapse(team: number) { collapseUndead(team); }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnHunters() { if (camp) spawnHunters(camp); },
+  collapse(team: number) { collapseUndead(team); }, projCount: () => projs.filter((q) => q.stuck <= 0).length, projs: () => projs.map((q) => [q.x, q.y, q.z, q.vx, q.vy, q.vz, q.stuck].map((v) => Math.round(v * 100) / 100)), aimAt(o: Warrior) { for (let i = 0; i < 4; i++) { const px = player.x - Math.cos(camYaw) * 0.55, pz = player.z + Math.sin(camYaw) * 0.55; camYaw = Math.atan2(o.x - px, o.z - pz); camPitch = Math.atan2(o.y + 1.25 - (player.y + 1.82), Math.hypot(o.x - px, o.z - pz) + 3.3); } player.yaw = camYaw; }, spawnMonster(id: string) { if (camp) spawnMonster(camp, id); }, spawnLord(id: string) { if (camp) { const q = camp.parties.find((x) => x.lord === id); if (q) return q; camp.fx.lords[id].captive = false; return spawnLord(camp, id, 0.7); } return null; }, spawnHunters() { if (camp) spawnHunters(camp); },
   get camp() { return camp; }, get ui() { return ui; }, get mode() { return mode; }, get enc() { return enc; },
   campaign() { startCampaign(); }, waves() { startWaves(); },
   mapTick(sec: number) { for (let i = 0; i < sec * 30; i++) mapStep(1 / 30); },

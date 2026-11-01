@@ -692,6 +692,15 @@ export function makeTrack(w: WeaponId, cur: WK, kind: "guard" | "ready" | "relea
 }
 export function trackLength(tr: Track) { return tr.segs[tr.segs.length - 1].t; }
 /** Sample a track without wrapping (holds the last pose). */
+/** Ranged weapons (build 11): aim and reload poses, reached by a plain blend from the current pose. */
+export const RANGED_POSE: Record<"bow" | "crossbow" | "arquebus", { aim: WK; reload: WK }> = {
+  bow: { aim: { ...K([-0.08, 0.5, 0.04], [0.12, 0.02, 0.99], [0, 1, 0], -0.25, 0), oh: 0.62 }, reload: { ...K([-0.2, 0.18, 0.18], [0.3, 0.1, 0.95], [0, 1, -0.1], -0.1, 0.05), oh: 0.62 } },
+  crossbow: { aim: { ...K([-0.1, 0.44, 0.26], [0.06, 0.0, 1], [0, 1, 0], -0.15, 0), oh: 0.34 }, reload: { ...K([-0.12, -0.05, 0.3], [0.05, -0.85, 0.52], [0, 0.52, 0.85], 0, 0.35), oh: 0.34 } },
+  arquebus: { aim: { ...K([-0.1, 0.44, 0.24], [0.06, 0.0, 1], [0, 1, 0], -0.15, 0), oh: 0.36 }, reload: { ...K([-0.14, 0.05, 0.22], [0.1, 0.95, 0.28], [0, -0.28, 0.95], 0.1, 0.1), oh: 0.36 } },
+};
+export function poseTrack(w: WeaponId, cur: WK, to: WK, dt: number): Track {
+  return { segs: [{ t: 0, k: withOh(cur, w), ease: "smooth", label: "start" }, { t: Math.max(0.01, dt), k: withOh(to, w), ease: "smooth", label: "celowanie" }], impact: -1 };
+}
 export function sampleTrack(tr: Track, t: number): { k: WK; block: string | null; label: string } {
   const tl = tr.segs;
   if (tl.length === 1) return { k: tl[0].k, block: tl[0].block ?? null, label: tl[0].label };

@@ -7,6 +7,8 @@ import { buildGear, Loadout } from "../char/gear.ts";
 import { buildWeapon, buildShield, WeaponId, WEAPONS } from "../char/weapons.ts";
 import { buildUndead } from "../char/undead.ts";
 import { buildMonster, MonsterKind } from "../char/monster.ts";
+import { RANGED_POSE, poseTrack } from "../char/anim.ts";
+import type { RangedSpec } from "../char/weapons.ts";
 import { frame, makeTrack, sampleTrack, trackLength, guardKey, Track, WK, AttackDir, BlockDir } from "../char/anim.ts";
 import { Armour, DmgType, Dir, DIR } from "./combat.ts";
 
@@ -21,6 +23,10 @@ export const WSTATS: Record<WeaponId, WStats> = {
   greataxe: { mass: 1.6, reach: 1.1, speed: 0.8, swing: { dmg: 46, type: "cut" }, thrust: null },
   spear: { mass: 1.15, reach: 1.85, speed: 0.95, swing: { dmg: 16, type: "blunt" }, thrust: { dmg: 36, type: "pierce" } },
   claws: { mass: 0.7, reach: 0.65, speed: 1.15, swing: { dmg: 22, type: "cut" }, thrust: null },
+  // ranged weapons in melee: a clumsy bash with the stave or stock (the sidearm is better)
+  bow: { mass: 0.8, reach: 0.9, speed: 0.9, swing: { dmg: 10, type: "blunt" }, thrust: null },
+  crossbow: { mass: 1.1, reach: 0.9, speed: 0.85, swing: { dmg: 14, type: "blunt" }, thrust: null },
+  arquebus: { mass: 1.2, reach: 1.0, speed: 0.85, swing: { dmg: 16, type: "blunt" }, thrust: null },
   glaive: { mass: 1.45, reach: 1.95, speed: 0.88, swing: { dmg: 36, type: "cut" }, thrust: { dmg: 28, type: "pierce" } },
 };
 
@@ -28,6 +34,8 @@ export interface Kit {
   name: { pl: string; en: string };
   loadout: Loadout; weapon: WeaponId; shield: boolean;
   armour: Armour; hp: number; skill: number;
+  /** Shooters carry a sidearm for the melee (build 11). */
+  side?: WeaponId;
   /** Undead bodies replace the human mesh (build 8). */
   undead?: "skeleton" | "ghoul" | "zombie" | "necro" | MonsterKind; tier?: number;
 }
@@ -116,6 +124,7 @@ export class Warrior {
   constructor(R: PSX, kit: Kit, x: number, z: number, team: number) {
     this.kit = kit; this.x = x; this.z = z; this.team = team;
     this.hp = this.maxHp = kit.hp;
+    if (WEAPONS[kit.weapon].ranged && kit.side) this.primary = kit.weapon;
     this.cur = guardKey(kit.weapon);
     this.track = makeTrack(kit.weapon, this.cur, "guard");
     this.setKit(R, kit);
@@ -123,6 +132,8 @@ export class Warrior {
 
   setKit(R: PSX, kit: Kit) {
     this.kit = kit; this.mesh = charMesh(R, kit);
+    const rs = WEAPONS[kit.weapon].ranged; if (rs && this.quiver[kit.weapon] === undefined) this.quiver[kit.weapon] = rs.ammo;
+    this.rs = "";
     this.cur = guardKey(kit.weapon); this.go("idle", makeTrack(kit.weapon, this.cur, "guard"));
   }
 
@@ -134,7 +145,49 @@ export class Warrior {
   /** Attack speed: weapon speed, plus a little from skill. */
   get speed() { return TEMPO * this.boost * this.weapon.speed * (0.92 + this.kit.skill * 0.16); }
 
+  // ---------- ranged (build 11): a sub-state of "idle" ----------
+  /** "" = not shooting; draw → ready (held) → release → reload. */
+  rs: "" | "draw" | "ready" | "reload" = "";
+  rt = 0; heldT = 0;
+  /** Missiles left per ranged weapon (a quiver of arrows, a pouch of bolts, a flask of powder and balls). */
+  quiver: Partial<Record<WeaponId, number>> = {};
+  get ammo() { const w = WEAPONS[this.kit.weapon].ranged ? this.kit.weapon : this.primary; return w ? this.quiver[w] ?? 0 : 0; }
+  set ammo(v: number) { const w = WEAPONS[this.kit.weapon].ranged ? this.kit.weapon : this.primary; if (w) this.quiver[w] = v; }
+  /** Set when the AI (or the player) lets fly; main.ts spawns the projectile and clears it. */
+  shot = false;
+  /** The ranged weapon a shooter came with (he switches to kit.side in melee); volley signal from his group. */
+  primary?: WeaponId; fire: "free" | "hold" | "volley" = "free"; volleyGo = false;
+  get ranged(): RangedSpec | undefined { return WEAPONS[this.kit.weapon].ranged; }
+  startAim(): boolean {
+    const r = this.ranged;
+    if (!r || this.state !== "idle" || this.rs !== "" || this.ammo <= 0 || this.cd > 0) return false;
+    this.rs = "draw"; this.rt = r.draw / (0.85 + this.kit.skill * 0.25); this.heldT = 0;
+    this.track = poseTrack(this.kit.weapon, this.cur, RANGED_POSE[r.kind].aim, this.rt); this.trackT = 0;
+    return true;
+  }
+  /** Let go of the trigger/string. Fires only from a full draw; otherwise lowers the weapon. */
+  loose(): boolean {
+    const r = this.ranged; if (!r) return false;
+    if (this.rs === "ready") {
+      this.ammo--; this.shot = true; this.rs = "reload"; this.rt = r.reload / (0.85 + this.kit.skill * 0.2);
+      this.track = poseTrack(this.kit.weapon, this.cur, RANGED_POSE[r.kind].reload, Math.min(0.35, this.rt * 0.4)); this.trackT = 0;
+      return true;
+    }
+    if (this.rs === "draw") { this.rs = ""; this.track = makeTrack(this.kit.weapon, this.cur, "guard"); this.trackT = 0; }
+    return false;
+  }
+  private rangedStep(dt: number) {
+    if (this.state !== "idle") { this.rs = ""; return; }
+    if (this.rs === "draw") { this.rt -= dt; if (this.rt <= 0) this.rs = "ready"; }
+    else if (this.rs === "ready") this.heldT += dt;
+    else if (this.rs === "reload") {
+      this.rt -= dt;
+      if (this.rt <= 0) { this.rs = ""; this.track = makeTrack(this.kit.weapon, this.cur, "guard"); this.trackT = 0; }
+    }
+  }
+
   private go(s: State, tr?: Track) {
+    if (s !== "idle") this.rs = "";
     this.state = s; this.t = 0;
     if (tr) { this.track = tr; this.trackT = 0; }
   }
@@ -193,6 +246,7 @@ export class Warrior {
   get impactNow() { return this.state === "release" && !this.hitDone && this.trackT >= this.track.impact; }
 
   update(dt: number, holdAttack: boolean) {
+    this.rangedStep(dt);
     // body reaction spring (stiff, well damped: snaps out and comes back)
     for (let i = 0; i < 3; i++) {
       this.reactV[i] += (-this.react[i] * 140 - this.reactV[i] * 16) * dt;
@@ -225,7 +279,7 @@ export class Warrior {
     // forward is fastest, sidestep slower, backpedal slowest; running only really helps forward
     const dirK = fwd >= 0 ? 0.74 + 0.26 * fwd : 0.74 - 0.16 * -fwd;
     const runK = this.wish.run ? 1 + 0.62 * Math.max(0, fwd) ** 1.5 + 0.08 : 1;
-    let sp = 3.2 * dirK * runK * this.moveMul;
+    let sp = 3.2 * dirK * runK * this.moveMul * (this.rs === "draw" || this.rs === "ready" ? 0.45 : this.rs === "reload" && this.ranged?.kind !== "bow" ? 0.3 : 1);
     if (this.state === "windup" || this.state === "hold") sp *= 0.7;
     if (this.state === "block") sp *= 0.62;
     if (this.state === "release" || this.state === "stagger" || this.state === "blockstun") sp *= 0.4;

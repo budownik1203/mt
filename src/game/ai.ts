@@ -25,6 +25,7 @@ export class Brain {
     me.faceTo(yawTo, dt, me.attacking ? 2.4 : 6);
 
     if (!target.alive) { me.wish.x = me.wish.z = 0; if (me.state === "block") me.unblock(); return; }
+    if (me.ranged) { this.shoot(dt, target, all, dist, nx, nz); return; }
 
     const range = me.weapon.reach + 0.55;
     // --- movement: approach, keep range, strafe ---
@@ -90,6 +91,30 @@ export class Brain {
         this.cooldown = lerp(2.6, 1.1, skill) + Math.random() * 1.2;
         me.aiToken = false; tokens.used = Math.max(0, tokens.used - 1);
       }
+    }
+  }
+
+  /** Shooter (build 11): keep distance, draw, hold the aim a moment, loose (on the group's volley if ordered). */
+  aimHold = 0;
+  private shoot(dt: number, target: Fighter, all: Fighter[], dist: number, nx: number, nz: number) {
+    const me = this.me, r = me.ranged!;
+    let mx = 0, mz = 0;
+    if (dist < 8) { mx -= nx; mz -= nz; }
+    for (const o of all) {
+      if (o === me || !o.alive || o.team !== me.team) continue;
+      const ox = me.x - o.x, oz = me.z - o.z, od = Math.hypot(ox, oz);
+      if (od < 1.4 && od > 0.01) { mx += (ox / od) * (1.4 - od); mz += (oz / od) * (1.4 - od); }
+    }
+    const ml = Math.hypot(mx, mz);
+    me.wish.x = ml > 0.01 ? mx / Math.max(1, ml) : 0; me.wish.z = ml > 0.01 ? mz / Math.max(1, ml) : 0; me.wish.run = false;
+    if (me.state === "block") me.unblock();
+    this.cooldown -= dt;
+    if (me.fire === "hold") { if (me.rs === "draw" || me.rs === "ready") me.loose(); return; }
+    if (me.rs === "" && this.cooldown <= 0 && dist < r.range && me.ammo > 0) { if (me.startAim()) this.aimHold = lerp(0.9, 0.25, me.kit.skill) + Math.random() * 0.4; }
+    if (me.rs === "ready") {
+      this.aimHold -= dt;
+      const go = me.fire === "volley" ? me.volleyGo : this.aimHold <= 0;
+      if (go && dist < r.range * 1.1) { me.loose(); this.cooldown = 0.3 + Math.random() * 0.8; }
     }
   }
 

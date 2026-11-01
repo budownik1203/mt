@@ -234,6 +234,7 @@ export class Campaign {
     const n = 4 + Math.floor(this.r() * 9);
     const p = this.newParty("bandits", "Rozbójnicy", H.x + (this.r() - 0.5) * 6, H.z + (this.r() - 0.5) * 6, [{ t: "rozbojnik", n, wounded: 0, xp: 0 }]);
     if (n > 8) this.addTroops(p, "herszt", 1);
+    if (n > 5) this.addTroops(p, "chlop_luk", 1 + Math.floor(this.r() * 3));
     p.home = { x: H.x, z: H.z }; p.gold = 20 + n * 6;
   }
   spawn(kind: PartyKind, at?: { x: number; z: number }, n?: number) {
@@ -470,6 +471,7 @@ export class Campaign {
       this.co = { ...d.co, party: me };
       if (!this.co.hero) this.co.hero = newHero();
       this.co.hero.skills.nekromancja ??= 0;
+      this.co.hero.prof.rg ??= 45;
       this.contracts = d.contracts ?? []; this.offers = d.offers ?? [];
       if (d.fx) this.fx = d.fx; else { this.fx = newFx(this); spawnLords(this); }
       this.co.stash = this.co.stash ?? []; this.co.prisoners = this.co.prisoners ?? [];

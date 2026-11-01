@@ -238,7 +238,7 @@ export class MapUI {
   }
   private tavern(s: Settlement) {
     const c = this.c, co = c.co;
-    const offers: [TroopId, number, number][] = [["zbrojny", 60, 3], ["halabardnik", 45, 4]];
+    const offers: [TroopId, number, number][] = [["zbrojny", 60, 3], ["halabardnik", 45, 4], ["kusznik", 70, 3], ...(s.id === "grauburg" ? [["arkebuzer", 120, 2] as [TroopId, number, number]] : []), ["lucznik", 35, 4]];
     const body = `<p>Dym, kwaśne piwo, ludzie z bliznami. Najemnicy biorą wyższy żołd i są wierni tylko srebru.</p>`;
     const full = c.partySize(co.party) >= partyLimit(co.hero);
     const acts: Act[] = offers.map(([t, cost]) => ({ label: `${tn(t)}`, sub: full ? "kompania pełna" : `${cost} gr zaliczki · ${TROOPS[t].wage} gr żołdu tygodniowo`, off: co.party.gold < cost || full, on: () => { co.party.gold -= cost; c.addTroops(co.party, t, 1); c.note(`${tn(t)} dołącza do kompanii.`, "good"); this.tavern(s); } }));

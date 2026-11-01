@@ -20,12 +20,16 @@ export interface Group {
   order: Order; formation: Formation;
   ax: number; az: number; ayaw: number;     // anchor: where the formation stands and which way it faces
   reserve: boolean;           // held back until released
+  /** Shooters (build 11): fire at will, hold fire, or volleys on the group's clock. */
+  fire: "free" | "hold" | "volley"; volleyT: number;
 }
 export function newGroups(): Group[] {
-  return Array.from({ length: 9 }, (_, i) => ({ id: i + 1, order: "charge" as Order, formation: "line" as Formation, ax: 0, az: 0, ayaw: Math.PI, reserve: false }));
+  return Array.from({ length: 9 }, (_, i) => ({ id: i + 1, order: "charge" as Order, formation: "line" as Formation, ax: 0, az: 0, ayaw: Math.PI, reserve: false, fire: "free" as const, volleyT: 0 }));
 }
 
 /** Slot offsets (formation space: x right, z forward) for n soldiers. */
+export const FIRE_NAMES = { free: { pl: "ognia wedle uznania", en: "fire at will" }, hold: { pl: "wstrzymać ogień", en: "hold fire" }, volley: { pl: "salwami", en: "volleys" } };
+
 export function slots(f: Formation, n: number): [number, number][] {
   const out: [number, number][] = [];
   if (f === "hedgehog") {

@@ -10,12 +10,15 @@ export const GRIP = (): Mat4 => trs(m4(), 0, -0.07, 0.004);
 
 /** Weapon classes share one set of animations, exactly like Mount & Blade: only the model in the hand changes. */
 export type WClass = "oh" | "th" | "pa";
-export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive" | "claws";
+export type WeaponId = "sword" | "kord" | "hatchet" | "mace" | "longsword" | "greataxe" | "spear" | "glaive" | "claws" | "bow" | "crossbow" | "arquebus";
+/** Ranged weapons (build 11): projectile speed (m/s), damage, draw/aim and reload times (s), ammo per battle, base spread (rad). */
+export interface RangedSpec { kind: "bow" | "crossbow" | "arquebus"; speed: number; grav: number; dmg: number; armourK: number; draw: number; reload: number; ammo: number; spread: number; range: number; ammoName: string }
 export interface WeaponSpec {
   id: WeaponId; name: string; cls: WClass;
   thrust: boolean;          // weapons that cannot thrust turn the thrust into an overhead (M&B rule)
   offhand: number;          // left fist position along the weapon's Z from the right fist (0 = one-handed)
   tip: number;
+  ranged?: RangedSpec;
 }
 export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   sword: { id: "sword", name: "Miecz", cls: "oh", thrust: true, offhand: 0, tip: 0.92 },
@@ -27,6 +30,12 @@ export const WEAPONS: Record<WeaponId, WeaponSpec> = {
   spear: { id: "spear", name: "Włócznia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.6 },
   glaive: { id: "glaive", name: "Glewia", cls: "pa", thrust: true, offhand: 0.4, tip: 1.75 },
   claws: { id: "claws", name: "Pazury", cls: "oh", thrust: false, offhand: 0, tip: 0.3 },
+  bow: { id: "bow", name: "Łuk", cls: "pa", thrust: false, offhand: 0.62, tip: 0.7,
+    ranged: { kind: "bow", speed: 46, grav: 9.8, dmg: 30, armourK: 1, draw: 0.75, reload: 0.55, ammo: 24, spread: 0.022, range: 55, ammoName: "strzał" } },
+  crossbow: { id: "crossbow", name: "Kusza", cls: "pa", thrust: false, offhand: 0.34, tip: 0.6,
+    ranged: { kind: "crossbow", speed: 60, grav: 9.8, dmg: 44, armourK: 0.75, draw: 0.3, reload: 3.2, ammo: 16, spread: 0.012, range: 60, ammoName: "bełtów" } },
+  arquebus: { id: "arquebus", name: "Arkebuz", cls: "pa", thrust: false, offhand: 0.36, tip: 1.05,
+    ranged: { kind: "arquebus", speed: 140, grav: 2, dmg: 62, armourK: 0.45, draw: 0.45, reload: 5.5, ammo: 12, spread: 0.035, range: 50, ammoName: "kul" } },
 };
 export const CLASS_NAME: Record<WClass, string> = { oh: "jednoręczna", th: "dwuręczna", pa: "drzewcowa" };
 
@@ -99,6 +108,42 @@ export function buildWeapon(id: WeaponId, smooth: boolean, detail: number): TMes
       // knife-like single-edged head with a back spike
       zl(t, I, [[1.33, 0.008, 0.03, 0, 0.006], [1.55, 0.007, 0.042, 0, -0.008], [1.7, 0.005, 0.03, 0, -0.012], [1.76, 0.001, 0.004, 0, 0.012]], 4, GREG.blade, { smooth: false });
       t.box(trs(m4(), 0, 0.05, 1.38, 0, -0.5, 0), 0.012, 0.012, 0.08, GREG.steelDark);
+      break;
+    }
+    case "bow": {
+      // grip = the string hand at full draw; the riser is held by the left hand 0.62 forward
+      t.mat = 0;
+      for (const sg of [1, -1]) {
+        t.box(trs(m4(), 0, sg * 0.2, 0.62, 0, sg * -0.12, 0), 0.03, 0.4, 0.035, GREG.wood);
+        t.box(trs(m4(), 0, sg * 0.53, 0.55, 0, sg * -0.42, 0), 0.022, 0.32, 0.026, GREG.wood);
+        // the string: from the limb tip back to the drawing fist
+        const ty = sg * 0.68, tz = 0.46, L = Math.hypot(ty, tz);
+        t.box(mul(m4(), trs(m4(), 0, ty / 2, tz / 2), trs(m4(), 0, 0, 0, 0, -Math.atan2(ty, tz), 0)), 0.006, 0.006, L, GREG.grip);
+      }
+      t.box(trs(m4(), 0, 0, 0.62), 0.04, 0.12, 0.045, GREG.leather);                              // grip wrap
+      t.box(trs(m4(), 0, 0.01, 0.36), 0.008, 0.008, 0.76, GREG.wood);                             // nocked arrow
+      t.mat = 2; t.box(trs(m4(), 0, 0.01, 0.76), 0.012, 0.03, 0.05, GREG.steelDark);
+      break;
+    }
+    case "crossbow": {
+      t.mat = 0;
+      t.box(trs(m4(), 0, -0.01, 0.16), 0.05, 0.06, 0.82, GREG.wood);                              // tiller, butt at the shoulder
+      t.box(trs(m4(), 0, -0.05, -0.12), 0.05, 0.1, 0.22, GREG.wood);
+      t.mat = 2;
+      for (const sg of [1, -1]) t.box(mul(m4(), trs(m4(), sg * 0.17, 0.02, 0.55), trs(m4(), sg * -0.28, 0, 0)), 0.34, 0.03, 0.03, GREG.steelDark);   // steel prod
+      t.box(trs(m4(), 0, 0.02, 0.6), 0.06, 0.08, 0.06, GREG.steelDark);
+      t.box(trs(m4(), 0, 0.035, 0.36), 0.66, 0.006, 0.006, GREG.grip);                              // spanned string
+      t.box(trs(m4(), 0, 0.045, 0.48), 0.01, 0.01, 0.26, GREG.wood);                               // bolt
+      break;
+    }
+    case "arquebus": {
+      t.mat = 0;
+      t.box(trs(m4(), 0, -0.03, -0.1), 0.05, 0.09, 0.42, GREG.wood);                              // stock
+      t.box(trs(m4(), 0, -0.005, 0.3), 0.045, 0.05, 0.5, GREG.wood);                               // fore-stock
+      t.mat = 2;
+      zl(t, I, [[0.05, 0.016, 0.016], [1.05, 0.013, 0.013]], 6, GREG.steelDark, { ...o, capTop: true });   // barrel
+      t.box(trs(m4(), 0.03, 0.03, 0.06, 0, 0.5, 0), 0.012, 0.012, 0.09, GREG.brass);              // serpentine with the match
+      t.box(trs(m4(), 0.035, 0.0, 0.08), 0.02, 0.03, 0.07, GREG.steelDark);
       break;
     }
     case "claws": {

@@ -4,7 +4,7 @@ import { ARMOURS } from "../game/combat.ts";
 import type { Kit } from "../game/warrior.ts";
 
 export type TroopId = "chlop" | "pacholek" | "zbrojny" | "halabardnik" | "plytowy" | "rycerz" | "rozbojnik" | "herszt" | "dezerter" | "kupiec" | "zywy_trup"
-  | "szkielet" | "kosciany_wojownik" | "kosciany_straznik" | "rycerz_grobu" | "ghul" | "ghul_cmentarny" | "straznik_krypty" | "nekromanta" | "lowca" | "wilkolak" | "utopiec" | "strzyga";
+  | "szkielet" | "kosciany_wojownik" | "kosciany_straznik" | "rycerz_grobu" | "ghul" | "ghul_cmentarny" | "straznik_krypty" | "nekromanta" | "lowca" | "wilkolak" | "utopiec" | "strzyga" | "lucznik" | "kusznik" | "arkebuzer" | "chlop_luk";
 export interface TroopType {
   id: TroopId; name: { pl: string; en: string };
   kit: Omit<Kit, "name">; wage: number; tier: number; upTo?: TroopId; upCost?: number;
@@ -23,6 +23,11 @@ export const TROOPS: Record<TroopId, TroopType> = {
   halabardnik: { id: "halabardnik", name: { pl: "Halabardnik", en: "Glaiveman" }, kit: k("levy", "glaive", false, "gambeson", 95, 0.55), wage: 6, tier: 2 },
   plytowy: { id: "plytowy", name: { pl: "Zbrojny w płytach", en: "Plated man-at-arms" }, kit: k("plate", "mace", false, "plate", 110, 0.68), wage: 14, tier: 3 },
   rycerz: { id: "rycerz", name: { pl: "Rycerz", en: "Knight" }, kit: k("knight", "longsword", false, "plate", 125, 0.78), wage: 25, tier: 4 },
+  // ---------- shooters (build 11): a ranged weapon and a sidearm for when the enemy closes ----------
+  chlop_luk: { id: "chlop_luk", name: { pl: "Chłop z łukiem", en: "Peasant bowman" }, kit: { ...k("base", "bow", false, "rags", 70, 0.3), side: "hatchet" }, wage: 2, tier: 0, upTo: "lucznik", upCost: 40 },
+  lucznik: { id: "lucznik", name: { pl: "Łucznik", en: "Bowman" }, kit: { ...k("levy", "bow", false, "gambeson", 85, 0.5), side: "kord" }, wage: 4, tier: 1, upTo: "kusznik", upCost: 110 },
+  kusznik: { id: "kusznik", name: { pl: "Kusznik", en: "Crossbowman" }, kit: { ...k("sergeant", "crossbow", false, "mail", 95, 0.55), side: "kord" }, wage: 7, tier: 2, upTo: "arkebuzer", upCost: 200 },
+  arkebuzer: { id: "arkebuzer", name: { pl: "Arkebuzer", en: "Arquebusier" }, kit: { ...k("sergeant", "arquebus", false, "mail", 95, 0.55), side: "sword" }, wage: 10, tier: 3 },
   rozbojnik: { id: "rozbojnik", name: { pl: "Rozbójnik", en: "Brigand" }, kit: k("base", "hatchet", false, "rags", 80, 0.3), wage: 2, tier: 0 },
   herszt: { id: "herszt", name: { pl: "Herszt zbójców", en: "Brigand chief" }, kit: k("sergeant", "kord", true, "gambeson", 110, 0.55), wage: 10, tier: 2 },
   dezerter: { id: "dezerter", name: { pl: "Dezerter", en: "Deserter" }, kit: k("levy", "spear", false, "gambeson", 90, 0.45), wage: 4, tier: 1 },
@@ -51,4 +56,4 @@ export function power(t: TroopId): number {
 }
 
 /** Default battle group per troop type (1 melee, 2 polearms, 3 heavy). */
-export const DEFAULT_GROUP: Partial<Record<TroopId, number>> = { chlop: 1, pacholek: 2, zbrojny: 1, halabardnik: 2, plytowy: 3, rycerz: 3, kupiec: 1, rozbojnik: 1, dezerter: 2, herszt: 1, zywy_trup: 1, szkielet: 4, kosciany_wojownik: 4, kosciany_straznik: 4, rycerz_grobu: 4, ghul: 5, ghul_cmentarny: 5, straznik_krypty: 5, lowca: 1, nekromanta: 1 };
+export const DEFAULT_GROUP: Partial<Record<TroopId, number>> = { chlop: 1, pacholek: 2, zbrojny: 1, halabardnik: 2, plytowy: 3, rycerz: 3, kupiec: 1, rozbojnik: 1, dezerter: 2, herszt: 1, zywy_trup: 1, szkielet: 4, kosciany_wojownik: 4, kosciany_straznik: 4, rycerz_grobu: 4, ghul: 5, ghul_cmentarny: 5, straznik_krypty: 5, lowca: 1, nekromanta: 1, chlop_luk: 6, lucznik: 6, kusznik: 6, arkebuzer: 6 };

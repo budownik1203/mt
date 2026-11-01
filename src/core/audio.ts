@@ -82,5 +82,7 @@ export class Audio {
     const g = c.createGain(); g.gain.setValueAtTime(0.12 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
     o.connect(f).connect(g).connect(this.master); o.start(t); o.stop(t + 0.4);
   }
+  shot(vol = 1) { this.burst(0.9, 140, 0.9, 1.6, "lowpass", vol); this.burst(0.25, 2400, 1.2, 0.9, "highpass", vol); }
+  loose(heavy: boolean, vol = 1) { this.burst(heavy ? 0.14 : 0.2, heavy ? 500 : 900, 3, heavy ? 0.6 : 0.35, "bandpass", vol); }
   thunder() { this.burst(2.5, 90, 0.7, 1.4, "lowpass"); }
 }
