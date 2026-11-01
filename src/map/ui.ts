@@ -62,6 +62,8 @@ export class MapUI {
     const acts: Act[] = [];
     acts.push({ label: co.camp ? "Zwiń obóz" : "Rozbij obóz", sub: co.camp ? "ruszacie dalej" : "odpoczynek, ognisko, rytuały", on: () => { this.toggleCamp(); this.campMenu(); } });
     for (const pa of placeActs(c)) acts.push({ label: pa.label, sub: pa.sub, off: pa.off, on: () => this.campMenu(pa.run()) });
+    const border = c.w.pois.find((q) => q.kind === "border" && Math.hypot(q.x - co.party.x, q.z - co.party.z) < 8);
+    if (border) acts.push({ label: `Przekrocz granicę: ${c.regionName(c.region === "popiel" ? "szare" : "popiel")}`, sub: "2 dni gościńcem · inne frakcje, inni lordowie, inne ceny · świat za plecami stoi w miejscu", kind: "go", on: () => { this.close(); c.crossBorder(); } });
     for (const pa of [...placeFaithActs(c), ...campRites(c)]) acts.push({ label: pa.label, sub: pa.sub, off: pa.off, kind: pa.kind, on: () => this.campMenu(pa.run()) });
     const ff = faithOf(c);
     body += `<p class="meta">Wiara: ${FAITH_NAME[ff.hero]} · pobożność ${Math.round(ff.piety)} · łaska bogów ${Math.round(ff.favor)}${ff.excom ? " · <b class=\"bad\">ekskomunika</b>" : ""}${ff.boon && ff.boon.until >= c.day ? ` · <b>${BOONS[ff.boon.id].name}</b>: ${BOONS[ff.boon.id].effect} (do dnia ${ff.boon.until % 30 + 1})` : ""}</p>`;
@@ -72,7 +74,7 @@ export class MapUI {
 
   hud() {
     const c = this.c, co = c.co;
-    { const dt = c.dateText(lang), i = dt.lastIndexOf("·"); $("mdate").innerHTML = `${esc(dt.slice(i + 1).trim())}<small>${esc(dt.slice(0, i).trim())}</small>`; }
+    { const dt = c.dateText(lang), i = dt.lastIndexOf("·"); $("mdate").innerHTML = `${esc(dt.slice(i + 1).trim())}<small>${esc(dt.slice(0, i).trim())} · ${esc(c.regionName())}</small>`; }
     const fd = c.foodDays;
     const moraleWord = co.morale > 75 ? "wysokie" : co.morale > 50 ? "znośne" : co.morale > 25 ? "niskie" : "bliskie buntu";
     const chip = (label: string, val: string, title: string, warn = false, bar = -1) => `<span class="chip${warn ? " warn" : ""}" title="${title}"><i>${label}</i><b>${val}</b>${bar >= 0 ? `<span class="mbar"><span style="width:${Math.round(bar)}%"></span></span>` : ""}</span>`;
@@ -167,7 +169,8 @@ export class MapUI {
     }
     if (und) body += `<p class="meta">Nieumarli (${und}) czekają za ${s.kind === "town" ? "murami" : "opłotkami"}. ${s.kind === "village" ? "Wieś patrzy na nich zza okiennic." : "Strażnicy na bramie patrzą na ciebie dłużej niż trzeba."}</p>`;
     const room = partyLimit(c.co.hero) - (c.partySize(c.co.party) - undeadCount(c));
-    if (s.kind === "village" && cor >= 75) acts.push({ label: "Werbuj ochotników", sub: "nikt nie chce iść za kimś, od kogo czuć grób", off: true, on: () => {} });
+    if (s.kind === "village" && s.culture === "lich") acts.push({ label: "Werbuj ochotników", sub: "tu nikt nie żyje: chłopi pracują w polu, ale nie oddychają", off: true, on: () => {} });
+    else if (s.kind === "village" && cor >= 75) acts.push({ label: "Werbuj ochotników", sub: "nikt nie chce iść za kimś, od kogo czuć grób", off: true, on: () => {} });
     else if (s.kind === "village") acts.push({ label: `Werbuj ochotników`, sub: room <= 0 ? "kompania pełna (limit z Dowodzenia i sławy)" : `${s.recruits} chętnych · 10 gr za głowę`, off: s.recruits <= 0 || c.co.party.gold < 10 || room <= 0, on: () => this.recruit(s) });
     if (s.kind !== "castle") acts.push({ label: s.kind === "town" ? "Targ" : "Kup żywność", sub: "jedzenie, piwo, futra, bukłaki", on: () => this.market(s) });
     if (s.kind === "town") {
@@ -357,7 +360,8 @@ export class MapUI {
       if (letter) acts.push({ label: "Oddaj list", sub: `nagroda ${letter.reward} gr`, kind: "go", on: () => { deliverLetter(c, letter); this.encounter(p); } });
       if (!quests(c).some((q) => q.giverLord === L.id) && fx.lords[L.id].rel >= -10) acts.push({ label: "Masz dla mnie zadanie?", sub: "list albo banda do rozbicia", on: () => this.offerQuest(L.id, lordQuest(c, L.id), () => this.encounter(p)) });
       acts.push({ label: "Rozmowa", sub: `relacja ${fx.lords[L.id].rel} (${relWord(fx.lords[L.id].rel)})`, on: () => { this.show(p.name, `<p>„${esc(L.line)}”</p>`, [{ label: "Wróć", on: () => this.encounter(p) }]); } });
-      if (!fx.join && fx.rel[f] >= -5) acts.push({ label: "Zaciągnij się jako najemnik", sub: `30 dni · żołd ${4 * c.men} gr/tydz. · ${enemies.length ? "wrogowie: " + enemies.join(", ") : "teraz bez wojny"}`, on: () => { hire(c, f); lordRel(c, L.id, 3); this.encounter(p); } });
+      if (f === "licz" && !c.co.hero.necro) acts.push({ label: "Zaciągnij się jako najemnik", sub: "martwi nie biorą żywych na służbę (chyba że znasz ich mowę: nekromancja)", off: true, on: () => {} });
+      else if (!fx.join && fx.rel[f] >= -5) acts.push({ label: "Zaciągnij się jako najemnik", sub: `30 dni · żołd ${4 * c.men} gr/tydz. · ${enemies.length ? "wrogowie: " + enemies.join(", ") : "teraz bez wojny"}`, on: () => { hire(c, f); lordRel(c, L.id, 3); this.encounter(p); } });
       if (isRuler && fx.join?.f !== f || isRuler && fx.join?.role === "mercenary") {
         const ok = c.co.hero.renown >= vassalNeeds.renown && fx.rel[f] >= vassalNeeds.rel && (!fx.join || fx.join.f === f);
         acts.push({ label: "Złóż hołd lenny", sub: ok ? "zostajesz wasalem: wieś w lenno, czynsze, ziemie ze zdobyczy" : `wymaga: sława ${vassalNeeds.renown} (masz ${c.co.hero.renown}), relacja z frakcją ≥ ${vassalNeeds.rel} (${fx.rel[f]}), wolna ręka`, off: !ok, on: () => { if (fx.join) fx.join = undefined; vassal(c, f); lordRel(c, L.id, 10); this.encounter(p); } });
@@ -607,8 +611,9 @@ export class MapUI {
   }
   private smith(s: Settlement) {
     const c = this.c, co = c.co;
-    const weapons: WeaponId[] = s.culture === "german" ? ["sword", "longsword", "greataxe", "mace", "kord", "crossbow", "arquebus", "lance"] : s.culture === "church" ? ["mace", "sword", "glaive", "spear", "crossbow", "lance"] : ["hatchet", "spear", "kord", "greataxe", "sword", "bow"];
-    const armours: Loadout[] = s.culture === "german" ? ["levy", "sergeant", "plate"] : s.culture === "church" ? ["levy", "sergeant", "knight"] : ["levy", "sergeant"];
+    const cu = s.culture === "league" ? "german" : s.culture === "order" ? "church" : s.culture;
+    const weapons: WeaponId[] = cu === "german" ? ["sword", "longsword", "greataxe", "mace", "kord", "crossbow", "arquebus", "lance"] : cu === "church" ? ["mace", "sword", "glaive", "spear", "crossbow", "lance"] : cu === "lich" ? ["kord", "glaive", "greataxe"] : ["hatchet", "spear", "kord", "greataxe", "sword", "bow"];
+    const armours: Loadout[] = cu === "german" ? ["levy", "sergeant", "plate"] : cu === "church" ? ["levy", "sergeant", "knight"] : ["levy", "sergeant"];
     const acts: Act[] = [];
     for (const w of weapons) { const it: Item = { kind: "weapon", id: w }, pr = this.buyPrice(it); acts.push({ label: WEAPONS[w].name, sub: `${pr} gr · ${PROFS[profOf(w)].toLowerCase()}${WEAPONS[w].ranged ? ` · ${WEAPONS[w].ranged!.ammo} ${WEAPONS[w].ranged!.ammoName} na bitwę` : ""}`, off: co.party.gold < pr, on: () => { co.party.gold -= pr; co.stash = [...(co.stash ?? []), it]; c.note(`Kupujesz: ${WEAPONS[w].name}. Leży na wozie (Ekwipunek).`, "good"); this.smith(s); } }); }
     for (const a of armours) { const it: Item = { kind: "armour", id: a }, pr = this.buyPrice(it); acts.push({ label: ARMOUR_NAME[a], sub: `${pr} gr`, off: co.party.gold < pr, on: () => { co.party.gold -= pr; co.stash = [...(co.stash ?? []), it]; c.note(`Kupujesz: ${ARMOUR_NAME[a]}.`, "good"); this.smith(s); } }); }
@@ -631,11 +636,11 @@ export class MapUI {
   factionsPanel() {
     const c = this.c, fx = c.fx, j = fx.join;
     const dot = (f: FactionId) => `<span class="fdot" style="background:#${FACTIONS[f].color.toString(16).padStart(6, "0")}"></span>`;
-    const land = (f: FactionId) => { const ss = c.w.settlements.filter((s) => fx.owner[s.id] === f); return ss.length ? `${ss.filter((s) => s.kind === "town").length} m. · ${ss.filter((s) => s.kind === "castle").length} z. · ${ss.filter((s) => s.kind === "village").length} w.` : "brak ziem"; };
+    const land = (f: FactionId) => { const ss = c.all.filter((s) => fx.owner[s.id] === f); return ss.length ? `${ss.filter((s) => s.kind === "town").length} m. · ${ss.filter((s) => s.kind === "castle").length} z. · ${ss.filter((s) => s.kind === "village").length} w.` : "brak ziem"; };
     const frows = FIDS.map((f) => { const wars = FIDS.filter((g) => atWar(fx, f, g)).map((g) => FACTIONS[g].short); const R = lordDef(FACTIONS[f].ruler);
       return `<tr><td>${dot(f)}${FACTIONS[f].name}<small>${R.title} ${R.name}</small></td><td>${land(f)}</td><td>${wars.length ? `<b class="bad">wojna:</b> ${wars.join(", ")}` : "pokój"}</td><td class="num">${fx.rel[f]}<small>${hostileTo(c, f) ? "wróg" : relWord(fx.rel[f])}</small></td></tr>`; }).join("");
-    const where = (pid: number) => { const p = c.parties.find((q) => q.id === pid); if (!p) return "—"; const s = [...c.w.settlements].sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0]; const raid = p.raid ? " (grabi)" : p.dest && p.mode === "wait" ? " (oblężenie)" : ""; return `koło: ${s.name}${raid}`; };
-    const lrows = LORDS.map((L) => { const st = fx.lords[L.id], p = c.parties.find((q) => q.id === st.party);
+    const where = (pid: number) => { const p = c.allParties.find((q) => q.id === pid); if (!p) return "—"; if (!c.parties.includes(p)) return `region: ${c.regionName(c.regionOf(seatOf(c, p.lord!)))}`; const s = [...c.w.settlements].sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0]; const raid = p.raid ? " (grabi)" : p.dest && p.mode === "wait" ? " (oblężenie)" : ""; return `koło: ${s.name}${raid}`; };
+    const lrows = LORDS.map((L) => { const st = fx.lords[L.id], p = c.allParties.find((q) => q.id === st.party);
       const fiefs = c.w.settlements.filter((s) => fx.fief[s.id] === L.id).map((s) => s.name).join(", ") || "bez ziemi";
       const army = st.captive ? "w twojej niewoli" : p ? `${c.partySize(p)} ludzi` : st.down < 0 ? "w niewoli" : `rozbity (wraca za ${Math.max(0, 5 - st.down)} d)`;
       return `<tr><td>${dot(st.faction)}${L.title} ${L.name}<small>${PERSONA[L.persona].pl}: ${PERSONA[L.persona].hint}</small></td><td>${esc(fiefs)}</td><td>${army}<small>${p ? where(p.id) : ""}</small></td><td class="num">${st.rel}<small>${relWord(st.rel)}</small></td></tr>`; }).join("");
@@ -727,6 +732,13 @@ function flavour(s: Settlement): string {
     straznica: "Czarna Strażnica pilnuje przełęczy. Kasztelan nie lubi gości.",
     gnilowo: "Bagno podchodzi pod same chałupy. Ludzie mają żółte oczy i nie patrzą w stronę cmentarza.",
     krucz: "Bród na rzece i kruki na każdym płocie. Tu zaczyna się droga każdego, kto nie ma nic do stracenia.",
+    hansberg: "Kamienice z cegły, żurawie w porcie rzecznym, cechy z własnymi armiami. Liga liczy wszystko, nawet trupy, i każdy ma swoją cenę.",
+    szarowody: "Miasto na palach nad szarą wodą. Mgła nie schodzi tu nigdy, a kusznicy na wieżach strzelają, zanim zapytają.",
+    komturia: "Szare mury, szare płaszcze, szare twarze. Bracia modlą się w zbrojach i palą wszystko, co wstaje z ziemi.",
+    pokuta: "Samotna wieża nad bagnem. Mówią, że pokutnicy w jej lochach biczują się od stu lat bez przerwy.",
+    martwogrod: "Bramy otwarte, ulice puste. W oknach stoją umarli i patrzą. Gdzieś w środku na tronie siedzi król, który nie pamięta, że umarł.",
+    kostnica: "Wieś, w której nikt nie oddycha. Kosy dzwonią w polu, a w chałupach nie pali się ogień.",
+    popielisko: "Szare pole, szare chaty, szare krowy. Wszystko tu jest martwe od dawna i nikt o tym nie mówi.",
   };
   return `<p>${t[s.id] ?? (s.kind === "village" ? "Kilka chałup, płot z chrustu, pies, który już nie szczeka. Ludzie patrzą na twoją broń, nie na twarz." : "")}</p>`;
 }

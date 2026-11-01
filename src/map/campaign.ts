@@ -1,14 +1,14 @@
 // Campaign rules: the calendar, the player's company (troops, food, water,
 // money, morale), parties roaming the region, settlements, battlefields left
 // behind, and the daily tick that makes hunger, winter and unpaid wages bite.
-import { necroDaily } from "./necro.ts";
+import { necroDaily, spawnNecromancer as spawnNecromancerFn } from "./necro.ts";
 import { TradeState, tradeDaily } from "./trade.ts";
 import { Quest, questsDaily } from "./quests.ts";
 import { FaithState, faithDaily, boon, isDziady } from "./faith.ts";
 import { Contract, MONSTERS, spawnMonster, monstersDaily, monsterThink } from "./monsters.ts";
-import { FxState, FactionId, newFx, spawnLords, factionsDaily, lordThink, hostileTo } from "./factions.ts";
+import { FxState, FactionId, newFx, spawnLords, ensureFx, factionsDaily, lordThink, hostileTo } from "./factions.ts";
 import { clamp, rng } from "../core/math.ts";
-import { World, buildWorld, astar, cellOf, centerOf, pathCost, terrainSpeed, nearRiver, biomeAt, Settlement, MAP } from "./world.ts";
+import { World, buildWorld, REGIONS, astar, cellOf, centerOf, pathCost, terrainSpeed, nearRiver, biomeAt, Settlement, MAP } from "./world.ts";
 import { TROOPS, TroopId, power } from "./troops.ts";
 import { Hero, newHero, Item, prisonerLimit } from "./hero.ts";
 import { pickEvent, TravelEvent } from "./events.ts";
@@ -70,7 +70,7 @@ export interface Company {
 }
 
 export class Campaign {
-  w: World;
+  w!: World;
   day = 20; hour = 8;            // Rok Popiołu 37, spring
   year = 37;
   parties: Party[] = [];
@@ -87,8 +87,39 @@ export class Campaign {
   contracts: Contract[] = [];
   offers: string[] = [];
 
+  /** Regions (build 18): each keeps its own map, parties and battlefields; only the active one moves. */
+  regions: Record<string, { w: World; parties: Party[]; fields: Field[] }> = {};
+  region = "popiel";
+  onRegion: (() => void) | null = null;
+  get all() { return Object.values(this.regions).flatMap((r) => r.w.settlements); }
+  get allParties() { return Object.values(this.regions).flatMap((r) => r.parties); }
+  regionOf(sid: string) { for (const [k, r] of Object.entries(this.regions)) if (r.w.settlements.some((s) => s.id === sid)) return k; return this.region; }
+  regionName(rid = this.region) { return REGIONS[rid].name; }
+  private activate(rid: string) {
+    const cur = this.regions[this.region]; if (cur) { cur.parties = this.parties; cur.fields = this.fields; }
+    const R = this.regions[rid]; this.region = rid; this.w = R.w; this.parties = R.parties; this.fields = R.fields;
+  }
+  inRegion<T>(rid: string, fn: () => T): T { const prev = this.region; if (prev === rid) return fn(); this.activate(rid); try { return fn(); } finally { this.activate(prev); } }
+  /** Ride the border road to the other region: two days on the road. */
+  crossBorder() {
+    const to = this.region === "popiel" ? "szare" : "popiel", me = this.co.party;
+    const i = this.parties.indexOf(me); if (i >= 0) this.parties.splice(i, 1);
+    this.activate(to); this.parties.push(me);
+    const b = this.w.pois.find((q) => q.kind === "border")!;
+    me.x = b.x + (b.x < 0 ? 5 : -5); me.z = b.z; me.path = []; me.goal = undefined; this.co.camp = false; this.co.siegeOf = undefined;
+    this.co.inside = true; this.passHours(36); this.co.inside = false;
+    this.note(`Dwa dni gościńcem. Przekraczasz granicę: ${this.regionName()}.`, "warn");
+    this.onRegion?.();
+  }
+  private populate() {
+    for (let i = 0; i < 3; i++) this.spawnBandits();
+    this.spawn("caravan"); this.spawn("caravan"); this.spawn("peasants"); this.spawn("deserters");
+  }
+
   constructor(seed = 37) {
-    this.w = buildWorld(seed);
+    this.regions.popiel = { w: buildWorld(seed, "popiel"), parties: [], fields: [] };
+    this.regions.szare = { w: buildWorld(seed + 11, "szare"), parties: [], fields: [] };
+    this.activate("popiel");
     const start = this.w.settlements.find((s) => s.id === "krucz")!;
     const party: Party = { id: this.nextId++, kind: "player", name: "Twoja kompania", x: start.x + 3, z: start.z + 2, gold: 260, path: [], mode: "idle", think: 0, stunned: 0,
       troops: [{ t: "chlop", n: 8, wounded: 0, xp: 0 }, { t: "pacholek", n: 4, wounded: 0, xp: 0 }] };
@@ -99,6 +130,7 @@ export class Campaign {
     this.fx = newFx(this); spawnLords(this);
     for (const m of MONSTERS) spawnMonster(this, m.id);
     this.spawn("deserters"); this.spawn("caravan"); this.spawn("caravan"); this.spawn("peasants"); this.spawn("peasants");
+    this.inRegion("szare", () => { this.populate(); spawnNecromancerFn(this); });
     this.note("Rok Popiołu 37. Twoja kompania stoi pod Kruczym Brodem. Zapasy na kilka dni, srebra niewiele.", "");
   }
 
@@ -477,13 +509,22 @@ export class Campaign {
   }
   // ---------- save / load (autosave once a day, browser storage) ----------
   save(): string {
-    return JSON.stringify({ v: 1, day: this.day, hour: this.hour, year: this.year, parties: this.parties, fields: this.fields, notes: this.notes.slice(0, 20), co: { ...this.co, party: undefined }, nextId: this.nextId, fx: this.fx, contracts: this.contracts, offers: this.offers,
+    this.activate(this.region);
+    const regions = Object.fromEntries(Object.entries(this.regions).map(([k, r]) => [k, { parties: r.parties, fields: r.fields, sett: r.w.settlements.map((s) => ({ id: s.id, pop: s.pop, prosperity: s.prosperity, recruits: s.recruits, burned: s.burned })) }]));
+    return JSON.stringify({ v: 1, region: this.region, regions, day: this.day, hour: this.hour, year: this.year, parties: this.parties, fields: this.fields, notes: this.notes.slice(0, 20), co: { ...this.co, party: undefined }, nextId: this.nextId, fx: this.fx, contracts: this.contracts, offers: this.offers,
       sett: this.w.settlements.map((s) => ({ id: s.id, pop: s.pop, prosperity: s.prosperity, recruits: s.recruits, burned: s.burned })) });
   }
   load(json: string): boolean {
     try {
       const d = JSON.parse(json); if (d.v !== 1) return false;
-      this.day = d.day; this.hour = d.hour; this.year = d.year; this.parties = d.parties; this.fields = d.fields; this.notes = d.notes; this.nextId = d.nextId;
+      this.day = d.day; this.hour = d.hour; this.year = d.year; this.notes = d.notes; this.nextId = d.nextId;
+      if (d.regions) {
+        for (const [k, r] of Object.entries(d.regions as Record<string, { parties: Party[]; fields: Field[]; sett: { id: string }[] }>)) {
+          const R = this.regions[k]; if (!R) continue; R.parties = r.parties; R.fields = r.fields;
+          for (const q of r.sett) { const s = R.w.settlements.find((x) => x.id === q.id); if (s) Object.assign(s, q); }
+        }
+        this.region = d.region ?? "popiel"; const R = this.regions[this.region]; this.w = R.w; this.parties = R.parties; this.fields = R.fields;
+      } else { this.regions.popiel.parties = d.parties; this.regions.popiel.fields = d.fields; this.region = "popiel"; this.w = this.regions.popiel.w; this.parties = d.parties; this.fields = d.fields; }
       const me = this.parties.find((p) => p.kind === "player")!;
       this.co = { ...d.co, party: me };
       if (!this.co.hero) this.co.hero = newHero();
@@ -491,9 +532,9 @@ export class Campaign {
       this.co.hero.prof.rg ??= 45;
       this.co.hero.skills.jazda ??= 0;
       this.contracts = d.contracts ?? []; this.offers = d.offers ?? [];
-      if (d.fx) this.fx = d.fx; else { this.fx = newFx(this); spawnLords(this); }
+      if (d.fx) { this.fx = d.fx; ensureFx(this); } else { this.fx = newFx(this); spawnLords(this); }
       this.co.stash = this.co.stash ?? []; this.co.prisoners = this.co.prisoners ?? [];
-      for (const q of d.sett) { const s = this.w.settlements.find((x) => x.id === q.id); if (s) Object.assign(s, q); }
+      if (!d.regions) for (const q of d.sett) { const s = this.w.settlements.find((x) => x.id === q.id); if (s) Object.assign(s, q); }
       return true;
     } catch { return false; }
   }

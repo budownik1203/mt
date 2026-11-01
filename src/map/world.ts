@@ -16,13 +16,14 @@ export interface Settlement {
   prosperity: number;     // 0..1
   recruits: number;       // volunteers waiting now
   burned: boolean;
-  culture: "slav" | "german" | "church";
+  culture: "slav" | "german" | "church" | "league" | "order" | "lich";
 }
-export type PoiKind = "hideout" | "ruin" | "cursed" | "gallows" | "graveyard" | "lair" | "monastery" | "grove";
+export type PoiKind = "hideout" | "ruin" | "cursed" | "gallows" | "graveyard" | "lair" | "monastery" | "grove" | "border";
 export interface Poi { id: string; kind: PoiKind; name: string; x: number; z: number; alive: boolean }
 
 // Hand-placed settlements (the „ręczna podstawa”); y-down on the map = +z.
-const LAYOUT: [string, string, SettlementKind, number, number, Settlement["culture"]][] = [
+type Layout = [string, string, SettlementKind, number, number, Settlement["culture"]][];
+const LAYOUT: Layout = [
   ["grauburg", "Grauburg", "town", 38, -42, "german"],
   ["wronsk", "Wrońsk", "town", -52, 30, "slav"],
   ["morwen", "Sankt Morwen", "town", 10, 66, "church"],
@@ -39,7 +40,58 @@ const LAYOUT: [string, string, SettlementKind, number, number, Settlement["cultu
   ["harz", "Hartzhof", "village", 22, -88, "german"],
 ];
 
+/** Regions (build 18): each is its own map; the border road joins them. */
+export interface RegionDef { id: string; name: string; layout: Layout; pois: Poi[]; cursed: [number, number, number][]; river: (z: number) => number; fords: number[] }
+const LAYOUT2: Layout = [
+  ["hansberg", "Hansberg", "town", 42, -38, "league"],
+  ["szarowody", "Szarowody", "town", -30, 48, "league"],
+  ["komturia", "Komturia Szara", "castle", -56, -58, "order"],
+  ["pokuta", "Wieża Pokuty", "castle", -74, 10, "order"],
+  ["martwogrod", "Martwogród", "town", 70, 40, "lich"],
+  ["altmark", "Altmark", "village", 76, -72, "league"],
+  ["salzdorf", "Salzdorf", "village", 14, -86, "league"],
+  ["kielbruck", "Kielbruck", "village", -6, -20, "league"],
+  ["brzask", "Brzask", "village", -88, -40, "order"],
+  ["swietobor", "Świętobór", "village", -40, -10, "order"],
+  ["graniczna", "Graniczna Wieś", "village", -92, 64, "order"],
+  ["kostnica", "Kostnica", "village", 92, 8, "lich"],
+  ["popielisko", "Popielisko", "village", 50, 88, "lich"],
+];
+export const REGIONS: Record<string, RegionDef> = {
+  popiel: { id: "popiel", name: "Ziemia Popielna", layout: LAYOUT, cursed: [[-60, -52, 14], [44, 84, 11], [88, 28, 9]], fords: [-30, 52],
+    river: (z) => -18 + Math.sin(z * 0.022 + 1.3) * 22 + Math.sin(z * 0.061) * 6,
+    pois: [
+      { id: "hideout1", kind: "hideout", name: "Kryjówka zbójców", x: -86, z: -40, alive: true },
+      { id: "hideout2", kind: "hideout", name: "Kryjówka w łęgach", x: 30, z: 30, alive: true },
+      { id: "ruin1", kind: "ruin", name: "Ruiny cesarskiego fortu", x: 70, z: -20, alive: true },
+      { id: "ruin2", kind: "ruin", name: "Spalona kaplica", x: -40, z: 86, alive: true },
+      { id: "cursed1", kind: "cursed", name: "Trupie Pole", x: -60, z: -52, alive: true },
+      { id: "cursed2", kind: "cursed", name: "Czarny Las", x: 44, z: 84, alive: true },
+      { id: "gallows1", kind: "gallows", name: "Szubienica", x: -2, z: 2, alive: true },
+      { id: "grave1", kind: "graveyard", name: "Stary cmentarz", x: 20, z: 48, alive: true },
+      { id: "monastery", kind: "monastery", name: "Klasztor Świętego Męczennika", x: 32, z: 78, alive: true },
+      { id: "grove", kind: "grove", name: "Święty Gaj Peruna", x: -70, z: 46, alive: true },
+      { id: "lair_wolf", kind: "lair", name: "Wilcza Jama", x: 88, z: 30, alive: true },
+      { id: "lair_water", kind: "lair", name: "Topiel", x: -36, z: 56, alive: true },
+      { id: "lair_strzyga", kind: "lair", name: "Kurhan pod Ostrowiem", x: -88, z: 78, alive: true },
+      { id: "border_e", kind: "border", name: "Szlak na wschód: Marchia Szarych Wód", x: 100, z: -4, alive: true },
+    ] },
+  szare: { id: "szare", name: "Marchia Szarych Wód", layout: LAYOUT2, cursed: [[80, 60, 16], [66, -6, 10], [96, 30, 8]], fords: [-50, 20],
+    river: (z) => 16 + Math.sin(z * 0.02 + 0.4) * 18 + Math.sin(z * 0.07) * 5,
+    pois: [
+      { id: "border_w", kind: "border", name: "Szlak na zachód: Ziemia Popielna", x: -100, z: 20, alive: true },
+      { id: "hideout3", kind: "hideout", name: "Spalony młyn", x: 4, z: 30, alive: true },
+      { id: "cursed3", kind: "cursed", name: "Pola Umarłego Króla", x: 80, z: 60, alive: true },
+      { id: "cursed4", kind: "cursed", name: "Kościane Wzgórza", x: 66, z: -6, alive: true },
+      { id: "grave2", kind: "graveyard", name: "Cmentarz Pokutników", x: 28, z: 66, alive: true },
+      { id: "monastery2", kind: "monastery", name: "Klasztor Szarego Płaszcza", x: -64, z: -30, alive: true },
+      { id: "ruin3", kind: "ruin", name: "Zatopiony kościół", x: -22, z: 88, alive: true },
+      { id: "gallows2", kind: "gallows", name: "Szubienica cechowa", x: 12, z: -52, alive: true },
+    ] },
+};
+
 export interface World {
+  region: string;
   height: (x: number, z: number) => number;
   biome: Biome[];            // per cell
   road: Uint8Array;          // per cell: 1 road, 2 bridge
@@ -56,11 +108,12 @@ export const cellOf = (x: number, z: number): [number, number] => [clamp(Math.fl
 export const centerOf = (i: number, j: number): [number, number] => [-HALF + (i + 0.5) * CELL, -HALF + (j + 0.5) * CELL];
 const idx = (i: number, j: number) => j * N + i;
 
-export function buildWorld(seed = 37): World {
+export function buildWorld(seed = 37, region = "popiel"): World {
+  const R0 = REGIONS[region];
   const r = rng(seed);
-  const cursedSpots: [number, number, number][] = [[-60, -52, 14], [44, 84, 11], [88, 28, 9]];
-  // river: meanders from north to south a little west of centre
-  const riverX = (z: number) => -18 + Math.sin(z * 0.022 + 1.3) * 22 + Math.sin(z * 0.061) * 6;
+  const cursedSpots: [number, number, number][] = R0.cursed;
+  // river: meanders from north to south
+  const riverX = R0.river;
   const height = (x: number, z: number) => {
     let h = fbm(x * 0.012, z * 0.012, 4, seed) * 9 + fbm(x * 0.05, z * 0.05, 2, seed + 3) * 1.2;
     h += Math.max(0, fbm(x * 0.02 + 5, z * 0.02, 3, seed + 9)) * 10;             // hill country
@@ -84,7 +137,7 @@ export function buildWorld(seed = 37): World {
     biome[idx(i, j)] = b;
   }
   // settlements clear the land around them into fields
-  const settlements: Settlement[] = LAYOUT.map(([id, name, kind, x, z, culture]) => ({
+  const settlements: Settlement[] = R0.layout.map(([id, name, kind, x, z, culture]) => ({
     id, name, kind, x, z, culture, burned: false,
     pop: kind === "town" ? 900 + Math.floor(r() * 500) : kind === "castle" ? 160 : 90 + Math.floor(r() * 120),
     prosperity: 0.35 + r() * 0.4, recruits: 0,
@@ -106,7 +159,7 @@ export function buildWorld(seed = 37): World {
   }
   // two fords
   const fords: [number, number][] = [];
-  for (const fz of [-30, 52]) {
+  for (const fz of R0.fords) {
     fords.push([riverX(fz), fz]);
     for (let dz = -2; dz <= 2; dz += 1) for (let dx = -2; dx <= 2; dx += 1) { const [i, j] = cellOf(riverX(fz) + dx, fz + dz); if (river[idx(i, j)] === 1) river[idx(i, j)] = 2; }
   }
@@ -142,23 +195,8 @@ export function buildWorld(seed = 37): World {
     }
     roadLines.push(smoothLine(line));
   }
-  // points of interest
-  const pois: Poi[] = [
-    { id: "hideout1", kind: "hideout", name: "Kryjówka zbójców", x: -86, z: -40, alive: true },
-    { id: "hideout2", kind: "hideout", name: "Kryjówka w łęgach", x: 30, z: 30, alive: true },
-    { id: "ruin1", kind: "ruin", name: "Ruiny cesarskiego fortu", x: 70, z: -20, alive: true },
-    { id: "ruin2", kind: "ruin", name: "Spalona kaplica", x: -40, z: 86, alive: true },
-    { id: "cursed1", kind: "cursed", name: "Trupie Pole", x: -60, z: -52, alive: true },
-    { id: "cursed2", kind: "cursed", name: "Czarny Las", x: 44, z: 84, alive: true },
-    { id: "gallows1", kind: "gallows", name: "Szubienica", x: -2, z: 2, alive: true },
-    { id: "grave1", kind: "graveyard", name: "Stary cmentarz", x: 20, z: 48, alive: true },
-    { id: "monastery", kind: "monastery", name: "Klasztor Świętego Męczennika", x: 32, z: 78, alive: true },
-    { id: "grove", kind: "grove", name: "Święty Gaj Peruna", x: -70, z: 46, alive: true },
-    { id: "lair_wolf", kind: "lair", name: "Wilcza Jama", x: 88, z: 30, alive: true },
-    { id: "lair_water", kind: "lair", name: "Topiel", x: -36, z: 56, alive: true },
-    { id: "lair_strzyga", kind: "lair", name: "Kurhan pod Ostrowiem", x: -88, z: 78, alive: true },
-  ];
-  return { height, biome, road, river, settlements, pois, roadLines, riverLine, cursedSpots, fords };
+  const pois: Poi[] = R0.pois.map((p) => ({ ...p }));
+  return { region, height, biome, road, river, settlements, pois, roadLines, riverLine, cursedSpots, fords };
 }
 
 function smoothLine(l: [number, number][]): [number, number][] {

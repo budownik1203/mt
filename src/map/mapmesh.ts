@@ -96,7 +96,7 @@ function hut(b: MeshBuilder, x: number, y: number, z: number, rot: number, s: nu
 export function settlementModel(w: World, s: Settlement): MeshBuilder {
   const b = new MeshBuilder(); b.jitter = 0.08;
   const r = rng(s.x * 13 + s.z * 7 + 3), y = w.height(s.x, s.z);
-  const roof = s.culture === "german" ? C.roof : s.culture === "church" ? C.roofD : C.thatch;
+  const roof = s.culture === "german" || s.culture === "league" ? C.roof : s.culture === "church" || s.culture === "order" ? C.roofD : s.culture === "lich" ? C.black : C.thatch;
   if (s.kind === "village") {
     const n = 5 + Math.floor(s.pop / 60);
     for (let i = 0; i < n; i++) {
@@ -117,7 +117,8 @@ export function settlementModel(w: World, s: Settlement): MeshBuilder {
       if (!s.burned) b.cyl(T(x, w.height(x, z) + 1.4, z, r() * 3 + Math.PI / 4), 0.8, 0, 0.8, 4, roof, false);
     }
     // the church: nave and a tall spire (taller for Sankt Morwen)
-    const sp = s.culture === "church" ? 5.5 : 3.6;
+    const sp = s.culture === "church" || s.culture === "order" ? 5.5 : 3.6;
+    if (s.culture === "lich" && !s.burned) for (let i = 0; i < 6; i++) { const a = i * 1.05; b.box(T(s.x + Math.cos(a) * 7, y + 1.4, s.z + Math.sin(a) * 7), 0.15, 2.8, 0.15, C.woodD); b.rock(T(s.x + Math.cos(a) * 7, y + 2.95, s.z + Math.sin(a) * 7), 0.2, C.bone, 0.2, i); }
     b.box(T(s.x, y + 1, s.z, 0.3), 1.4, 2, 3, C.stoneD);
     b.box(T(s.x + 0.5, y + sp / 2, s.z - 1.2, 0.3), 0.9, sp, 0.9, C.stoneD);
     b.cyl(T(s.x + 0.5, y + sp, s.z - 1.2, 0.3 + Math.PI / 4), 0.7, 0, 1.6, 4, C.roofD, false);
@@ -152,6 +153,12 @@ function poiModel(b: MeshBuilder, w: World, p: Poi) {
   } else if (p.kind === "gallows") {
     b.box(T(p.x, y + 1.6, p.z), 0.2, 3.2, 0.2, C.woodD); b.box(T(p.x + 0.6, y + 3.1, p.z), 1.4, 0.15, 0.15, C.woodD);
     b.box(T(p.x + 1.1, y + 2.4, p.z), 0.25, 0.7, 0.18, C.black);
+  } else if (p.kind === "border") {
+    // a border road: stone marker, gallows-like arch and a wayside cross of the old empire
+    b.box(T(p.x - 1.2, y + 1.5, p.z), 0.4, 3, 0.4, C.stoneD); b.box(T(p.x + 1.2, y + 1.5, p.z), 0.4, 3, 0.4, C.stoneD);
+    b.box(T(p.x, y + 3.1, p.z), 3, 0.35, 0.45, C.stoneD);
+    b.box(T(p.x, y + 3.6, p.z), 0.7, 0.5, 0.2, hex(0x7a1a14));
+    b.rock(T(p.x + 2.5, y + 0.4, p.z + 1), 0.6, C.stone, 0.3, 3);
   } else if (p.kind === "monastery") {
     b.box(T(p.x, y + 1.2, p.z), 4.2, 2.4, 2.4, C.stoneD);
     b.cyl(T(p.x, y + 2.4, p.z, 0, 0, 0), 2.3, 0.1, 1.4, 4, C.black, false);

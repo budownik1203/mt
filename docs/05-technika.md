@@ -29,6 +29,7 @@ Zmienna `CHROME` wskazuje własną przeglądarkę dla Playwrighta.
 | `game/gore.ts` | strefy trafień (kapsuły), mapa odcinania (`SEVER`), latające części (`Gib`) |
 | `game/tactics.ts` | grupy, rozkazy, formacje i sloty, promień walki, progi morale |
 | `world/terrain.ts`, `props.ts` | teren i dekoracje pola bitwy; `setBattlefield(biome, seed, zima, droga)` dla bitew z mapy, `setClassicField()` dla próbnej bitwy |
+| `map/world.ts` (regiony) | `REGIONS` (układ osad, miejsca, rzeka, brody na region), `buildWorld(seed, region)`; `Campaign.regions`, `region`, `all`, `allParties`, `regionOf`, `inRegion`, `crossBorder`, `onRegion` (przebudowa mapy w main.ts) |
 | `map/world.ts` | region kampanii: wysokości, biomy, rzeka z brodami, drogi (MST + A*), osady (ręczny układ), punkty POI, A* i koszty ruchu |
 | `map/campaign.ts` | reguły kampanii: kalendarz (`HOUR_SECONDS = 2.5` → 1 min = 1 doba), kompania, jedzenie/woda/zima/żołd/morale, AI band, spotkania, autoresolve, pobojowiska i wstający umarli, zapis/odczyt |
 | `world/terrain.ts` (siege) | `BF.siege`, `WALL`, `siegeLift` (wysokość chodnika, drabin, schodów); `props.ts`: `siegeWorks` (mur, baszty, drabiny, schody, kolizje lica) |
@@ -55,6 +56,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
 - `ui.mjs` zrzuty wszystkich ekranów (menu główne, opcje, tworzenie postaci, mapa, osady, okna, obóz, spotkanie, rozstawienie, bitwa) do przeglądu interfejsu.
+- `b18.mjs` dwa regiony, przejście granicą, nowe frakcje i osady, 20 dni symulacji, zapis/odczyt, powrót.
 - `b16.mjs` handel (kupno, sprzedaż z zyskiem, pamięć cen), zadania (dostawa/banda, list), turniej 3 walki.
 - `b15.mjs` dołączenie do bitwy lordów, obrona murów (role odwrócone), głodzenie miasta.
 - `b14.mjs` szturm: obrońcy na murach, wspinaczka po drabinach, walka na murach, wyłom w bramie.

@@ -106,6 +106,7 @@ kbd{font-family:var(--body);font-weight:700;color:var(--ember)}
 .lbl.town{font-size:20px} .lbl.castle{font-size:18px;color:#c9c2b0} .lbl.burned{color:#7a6f63;text-decoration:line-through}
 .lbl.party{font-family:var(--body);font-size:12px;color:#cfc6b0;background:#0009;padding:1px 6px}
 .fdot{display:inline-block;width:10px;height:10px;margin-right:6px;border:1px solid #0008;vertical-align:baseline}
+.lbl.poi{font-size:14px;color:#c8b896;font-style:italic} .lbl.poi.border{color:var(--gold);font-style:normal;font-size:15px;background:#0008;padding:1px 8px;border:1px solid #c8a25e55}
 .lbl.party.hostile{color:#e6a090;border-bottom:1px solid var(--blood)}
 #mapHud{position:fixed;left:0;right:0;top:0;pointer-events:none;padding-top:env(safe-area-inset-top,0px)}
 #mapHud .bar{pointer-events:auto;display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;background:linear-gradient(#0e0f11f2,#0e0f11c0);border-bottom:1px solid #ffffff1a;padding:8px max(16px,env(safe-area-inset-right,0px)) 8px max(16px,env(safe-area-inset-left,0px))}
@@ -216,6 +217,7 @@ body.menu-open #mnotes,body.menu-open #mkeys{opacity:0}
 #banner span{display:block;margin-top:4px;font-size:14px}
 #hp .lbl{position:static;font-family:var(--body);text-shadow:none;white-space:normal}
 #log:empty{display:none}
+body:has(#mapHud:not([hidden])) .build{display:none}
 body:has(#title:not([hidden])) .hud, body:has(#title:not([hidden])) #orders{display:none!important}
 #menu.wide #macts{background:var(--panel)}
 </style>

@@ -19,7 +19,12 @@ const ECON: Record<string, { make: Good[]; want: Good[] }> = {
   lindenau: { make: ["zelazo"], want: ["sol"] }, harz: { make: ["sukno"], want: ["smola"] },
   popielec: { make: ["wino"], want: ["sukno"] }, zablocie: { make: ["wosk"], want: ["zelazo"] },
   gnilowo: { make: ["smola"], want: ["sol"] }, brzezie: { make: ["futra"], want: ["sol"] }, ostrowie: { make: ["futra", "wosk"], want: ["zelazo"] },
-  mokradle: { make: ["sol"], want: ["sukno"] }, wilcze: { make: ["futra"], want: ["wino"] }, krucz: { make: ["smola"], want: ["sukno"] },
+  mokradle: { make: ["sol"], want: ["sukno"] },
+  hansberg: { make: ["sukno", "sol", "wino"], want: ["futra", "smola", "wosk"] }, szarowody: { make: ["sol", "smola"], want: ["zelazo", "wino"] },
+  komturia: { make: [], want: ["zelazo", "wino", "wosk"] }, pokuta: { make: [], want: ["smola", "sol"] }, martwogrod: { make: ["wosk"], want: ["sol", "smola"] },
+  altmark: { make: ["sukno"], want: ["futra"] }, salzdorf: { make: ["sol"], want: ["zelazo"] }, kielbruck: { make: ["smola"], want: ["wino"] },
+  brzask: { make: ["futra"], want: ["sukno"] }, swietobor: { make: ["wosk"], want: ["sol"] }, graniczna: { make: ["futra"], want: ["zelazo"] },
+  kostnica: { make: ["wosk"], want: ["sol"] }, popielisko: { make: ["smola"], want: ["sukno"] }, wilcze: { make: ["futra"], want: ["wino"] }, krucz: { make: ["smola"], want: ["sukno"] },
 };
 export const econOf = (sid: string) => ECON[sid] ?? { make: [], want: [] };
 

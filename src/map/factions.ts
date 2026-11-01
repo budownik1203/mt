@@ -6,7 +6,7 @@ import type { Campaign, Party, Stack } from "./campaign.ts";
 import type { TroopId } from "./troops.ts";
 import type { Settlement } from "./world.ts";
 
-export type FactionId = "cesarstwo" | "arcybiskupstwo" | "wronsk";
+export type FactionId = "cesarstwo" | "arcybiskupstwo" | "wronsk" | "liga" | "zakon" | "licz";
 export type Persona = "honorowy" | "okrutny" | "chciwy" | "ostrozny" | "fanatyk";
 export const PERSONA: Record<Persona, { pl: string; hint: string }> = {
   honorowy: { pl: "honorowy", hint: "ceni dane słowo i uwolnionych jeńców; nie znosi grabieży" },
@@ -24,6 +24,13 @@ export const FACTIONS: Record<FactionId, FactionDef> = {
     troops: [["zbrojny", 4], ["lowca", 1], ["pacholek", 2], ["kusznik", 1.5], ["chlop", 2], ["rycerz", 0.8], ["jezdziec", 1]] },
   wronsk: { id: "wronsk", name: "Księstwo Wrońskie", short: "Wrońsk", color: 0x2a4a6a, culture: "slav", ruler: "wsiewolod", title: "kniaź",
     troops: [["chlop", 4], ["pacholek", 3], ["lucznik", 3], ["zbrojny", 2], ["halabardnik", 1], ["rycerz", 0.8], ["jezdziec", 1.5], ["rycerz_konny", 0.3]] },
+  // ---------- Marchia Szarych Wód (build 18) ----------
+  liga: { id: "liga", name: "Liga Wolnych Miast", short: "Liga", color: 0xb07a20, culture: "league", ruler: "hans", title: "burmistrz",
+    troops: [["halabardnik", 3], ["kusznik", 3], ["arkebuzer", 2], ["zbrojny", 2], ["jezdziec", 0.8]] },
+  zakon: { id: "zakon", name: "Zakon Szarego Płaszcza", short: "Zakon", color: 0x9a9a92, culture: "order", ruler: "otto", title: "wielki komtur",
+    troops: [["zbrojny", 3], ["plytowy", 2], ["rycerz", 1], ["rycerz_konny", 1], ["kusznik", 1.5], ["kapelan", 0.3]] },
+  licz: { id: "licz", name: "Władztwo Umarłego Króla", short: "Licz", color: 0x3a5a2a, culture: "lich", ruler: "wenzel", title: "umarły król",
+    troops: [["szkielet", 4], ["kosciany_wojownik", 3], ["kosciany_straznik", 1.5], ["rycerz_grobu", 0.6], ["ghul", 2], ["ghul_cmentarny", 1]] },
 };
 export const FIDS = Object.keys(FACTIONS) as FactionId[];
 
@@ -38,6 +45,12 @@ export const LORDS: LordDef[] = [
   { id: "wsiewolod", name: "Wsiewołod Wroński", title: "Kniaź", faction: "wronsk", persona: "chciwy", size: 48, seat: "wronsk", line: "Wrońsk stał, zanim przyszli Niemcy i księża. Będzie stał, gdy odejdą." },
   { id: "bratumil", name: "Bratumił z Brzezia", title: "Wojewoda", faction: "wronsk", persona: "honorowy", size: 36, seat: "straznica", line: "Strażnica trzyma granicę z Trupim Polem. Ktoś musi." },
   { id: "zyroslaw", name: "Żyrosław Czarny", title: "Bojar", faction: "wronsk", persona: "okrutny", size: 30, seat: "gnilowo", line: "Na moich ziemiach wieszamy na wierzbach. Tańsze niż szubienica." },
+  { id: "hans", name: "Hans Kettler", title: "Burmistrz", faction: "liga", persona: "chciwy", size: 44, seat: "hansberg", line: "Hansberg płaci najemnikom lepiej niż królowie. I dłużej pamięta długi." },
+  { id: "jost", name: "Jost Wending", title: "Kapitan", faction: "liga", persona: "ostrozny", size: 34, seat: "szarowody", line: "Moi kusznicy stoją za palisadą, nie przed nią. Dlatego jeszcze żyją." },
+  { id: "otto", name: "Otto von Grauen", title: "Wielki Komtur", faction: "zakon", persona: "fanatyk", size: 46, seat: "komturia", line: "Każdy umarły, który wstaje, to nasza porażka. Każdy żywy, który pomaga umarłym, to nasz cel." },
+  { id: "wilhelm", name: "Brat Wilhelm Żelazny", title: "Komtur", faction: "zakon", persona: "honorowy", size: 34, seat: "pokuta", line: "Wieża Pokuty nie upadła od stu lat. Nie upadnie za mojej warty." },
+  { id: "wenzel", name: "Wenzel", title: "Umarły Król", faction: "licz", persona: "okrutny", size: 52, seat: "martwogrod", line: "Byłem królem, gdy twoi dziadowie byli w pieluchach. Będę nim, gdy twoje wnuki zgniją." },
+  { fem: true, id: "morana", name: "Morana", title: "Nekromantka", faction: "licz", persona: "okrutny", size: 34, seat: "kostnica", line: "Przyjdź bliżej. Martwi lubią towarzystwo." },
   { fem: true, id: "dobroslawa", name: "Dobrosława z Ostrowia", title: "Bojarka", faction: "wronsk", persona: "ostrozny", size: 26, seat: "ostrowie", line: "Mój mąż poległ pod Grauburgiem. Teraz to ja prowadzę jego ludzi." },
 ];
 export const lordDef = (id: string) => LORDS.find((l) => l.id === id)!;
@@ -60,18 +73,27 @@ const pair = (a: FactionId, b: FactionId) => [a, b].sort().join("|");
 export const atWar = (fx: FxState, a: FactionId, b: FactionId) => a !== b && fx.wars.includes(pair(a, b));
 
 export function newFx(c: Campaign): FxState {
-  const fx: FxState = { owner: {}, fief: {}, garrison: {}, looted: {}, wars: [pair("cesarstwo", "wronsk")], warDay: {}, rel: { cesarstwo: 0, arcybiskupstwo: 5, wronsk: 0 }, lords: {}, captives: [] };
-  for (const s of c.w.settlements) {
+  const fx: FxState = { owner: {}, fief: {}, garrison: {}, looted: {}, wars: [pair("cesarstwo", "wronsk"), pair("zakon", "licz"), pair("liga", "licz")], warDay: {}, rel: { cesarstwo: 0, arcybiskupstwo: 5, wronsk: 0, liga: 0, zakon: 0, licz: -30 }, lords: {}, captives: [] };
+  for (const s of c.all) {
     const f = FIDS.find((id) => FACTIONS[id].culture === s.culture)!;
     fx.owner[s.id] = f;
     fx.garrison[s.id] = s.kind === "town" ? 40 : s.kind === "castle" ? 30 : 0;
   }
   for (const l of LORDS) { fx.fief[l.seat] = l.id; fx.lords[l.id] = { id: l.id, rel: 0, party: 0, down: 0, captive: false, faction: l.faction }; }
   // remaining villages go to the ruler
-  for (const s of c.w.settlements) if (!fx.fief[s.id]) fx.fief[s.id] = FACTIONS[fx.owner[s.id]].ruler;
+  for (const s of c.all) if (!fx.fief[s.id]) fx.fief[s.id] = FACTIONS[fx.owner[s.id]].ruler;
   return fx;
 }
 
+/** Older saves (before build 18): add the new region's settlements, factions and lords. */
+export function ensureFx(c: Campaign) {
+  const fx = c.fx;
+  for (const f of FIDS) if (fx.rel[f] === undefined) fx.rel[f] = f === "licz" ? -30 : 0;
+  for (const w of [pair("zakon", "licz"), pair("liga", "licz")]) if (!fx.wars.includes(w)) fx.wars.push(w);
+  for (const s of c.all) if (!fx.owner[s.id]) { fx.owner[s.id] = FIDS.find((id) => FACTIONS[id].culture === s.culture)!; fx.garrison[s.id] = s.kind === "town" ? 40 : s.kind === "castle" ? 30 : 0; }
+  for (const l of LORDS) if (!fx.lords[l.id]) { fx.lords[l.id] = { id: l.id, rel: 0, party: 0, down: 0, captive: false, faction: l.faction }; fx.fief[l.seat] = l.id; spawnLord(c, l.id, 0.7); }
+  for (const s of c.all) if (!fx.fief[s.id]) fx.fief[s.id] = FACTIONS[fx.owner[s.id]].ruler;
+}
 /** Spawn every lord's army at his seat (start of a campaign). */
 export function spawnLords(c: Campaign) {
   for (const l of LORDS) spawnLord(c, l.id, 0.7);
@@ -82,8 +104,8 @@ function armyFor(f: FactionId, n: number): Stack[] {
 }
 export function spawnLord(c: Campaign, id: string, frac = 0.5) {
   const fx = c.fx, d = lordDef(id), st = fx.lords[id];
-  const seat = c.w.settlements.find((s) => s.id === seatOf(c, id)) ?? c.w.settlements.find((s) => fx.owner[s.id] === st.faction) ?? c.w.settlements[0];
-  const p = c.newParty("lord", `${d.title} ${d.name}`, seat.x + 3, seat.z - 2, armyFor(st.faction, Math.round(d.size * frac)));
+  const seat = c.all.find((s) => s.id === seatOf(c, id)) ?? c.all.find((s) => fx.owner[s.id] === st.faction) ?? c.w.settlements[0];
+  const p = c.inRegion(c.regionOf(seat.id), () => c.newParty("lord", `${d.title} ${d.name}`, seat.x + 3, seat.z - 2, armyFor(st.faction, Math.round(d.size * frac))));
   p.lord = id; p.faction = st.faction; p.gold = 200; p.home = { x: seat.x, z: seat.z }; p.mode = "idle";
   st.party = p.id; st.down = 0;
   return p;
@@ -92,7 +114,7 @@ export function spawnLord(c: Campaign, id: string, frac = 0.5) {
 export function seatOf(c: Campaign, id: string) {
   const own = Object.keys(c.fx.fief).filter((s) => c.fx.fief[s] === id);
   const d = lordDef(id);
-  return own.includes(d.seat) ? d.seat : own[0] ?? c.w.settlements.find((s) => c.fx.owner[s.id] === c.fx.lords[id].faction && s.kind !== "village")?.id ?? d.seat;
+  return own.includes(d.seat) ? d.seat : own[0] ?? c.all.find((s) => c.fx.owner[s.id] === c.fx.lords[id].faction && s.kind !== "village")?.id ?? d.seat;
 }
 
 // ---------- the player and the realms ----------
@@ -125,7 +147,7 @@ export function vassal(c: Campaign, f: FactionId) {
   changeRel(c, f, 10);
   // a village fief from the ruler's own hand
   const r = FACTIONS[f].ruler;
-  const v = c.w.settlements.find((s) => s.kind === "village" && c.fx.owner[s.id] === f && c.fx.fief[s.id] === r && !s.burned);
+  const v = c.all.find((s) => s.kind === "village" && c.fx.owner[s.id] === f && c.fx.fief[s.id] === r && !s.burned);
   if (v) { c.fx.fief[v.id] = "player"; c.note(`Hołd lenny złożony. ${lordDef(r).title} ${lordDef(r).name} nadaje ci wieś ${v.name}.`, "good"); }
   else c.note(`Hołd lenny złożony. Na nadanie ziemi trzeba poczekać.`, "good");
 }
@@ -145,7 +167,7 @@ export function factionsDaily(c: Campaign) {
   const fx = c.fx;
   // the player starving a town or castle out
   if (c.co.siegeOf) {
-    const s = c.w.settlements.find((q) => q.id === c.co.siegeOf)!, me = c.co.party;
+    const s = c.all.find((q) => q.id === c.co.siegeOf)!, me = c.co.party;
     if (Math.hypot(s.x - me.x, s.z - me.z) > 10 || !c.co.camp || !fx.join || !hostileTo(c, fx.owner[s.id])) { c.note(`Oblężenie ${s.name} przerwane.`, "warn"); c.co.siegeOf = undefined; }
     else {
       c.co.siegeDays = (c.co.siegeDays ?? 0) + 1;
@@ -162,6 +184,8 @@ export function factionsDaily(c: Campaign) {
   for (let i = 0; i < FIDS.length; i++) for (let j = i + 1; j < FIDS.length; j++) {
     const a = FIDS[i], b = FIDS[j], k = pair(a, b), since = c.day - (fx.warDay[k] ?? -99);
     if (since < 20) continue;
+    if (k === pair("zakon", "licz")) continue;   // the Order never makes peace with the dead
+    if (!fx.wars.includes(k) && c.regionOf(lordDef(FACTIONS[a].ruler).seat) !== c.regionOf(lordDef(FACTIONS[b].ruler).seat)) continue;   // realms of different regions do not meet
     if (fx.wars.includes(k)) { if (c.rand() < 0.035) { fx.wars = fx.wars.filter((w) => w !== k); fx.warDay[k] = c.day; c.note(`Pokój: ${FACTIONS[a].short} i ${FACTIONS[b].short} podpisują rozejm.`, "warn"); } }
     else if (c.rand() < 0.012) { fx.wars.push(k); fx.warDay[k] = c.day; c.note(`Wojna! ${FACTIONS[a].name} i ${FACTIONS[b].name} chwytają za broń.`, "bad"); }
   }
@@ -176,11 +200,11 @@ export function factionsDaily(c: Campaign) {
   }
   if (c.day % 7 === 0) {
     let rent = 0;
-    for (const s of c.w.settlements) if (fx.fief[s.id] === "player" && !s.burned) rent += Math.round((s.kind === "town" ? 120 : s.kind === "castle" ? 50 : 30) * (0.5 + s.prosperity));
+    for (const s of c.all) if (fx.fief[s.id] === "player" && !s.burned) rent += Math.round((s.kind === "town" ? 120 : s.kind === "castle" ? 50 : 30) * (0.5 + s.prosperity));
     if (rent) { me.gold += rent; c.note(`Czynsze z twoich lenn: ${rent} gr.`, "good"); }
   }
   // looted villages rebuild, garrisons refill
-  for (const s of c.w.settlements) {
+  for (const s of c.all) {
     if (fx.looted[s.id] > 0 && --fx.looted[s.id] <= 0) { s.burned = false; delete fx.looted[s.id]; c.note(`${s.name} odbudowuje się po grabieży.`, ""); }
     const cap = s.kind === "town" ? 40 : s.kind === "castle" ? 30 : 0;
     if (fx.garrison[s.id] < cap) fx.garrison[s.id]++;
@@ -189,7 +213,7 @@ export function factionsDaily(c: Campaign) {
   for (const l of LORDS) {
     const st = fx.lords[l.id];
     if (st.captive) continue;
-    if (!c.parties.some((p) => p.id === st.party)) { st.down++; if (st.down >= 5) { spawnLord(c, l.id, 0.4); c.note(`${l.title} ${l.name} ${l.fem ? "zebrała" : "zebrał"} nowe wojsko.`, ""); } }
+    if (!c.allParties.some((p) => p.id === st.party)) { st.down++; if (st.down >= 5) { spawnLord(c, l.id, 0.4); c.note(`${l.title} ${l.name} ${l.fem ? "zebrała" : "zebrał"} nowe wojsko.`, ""); } }
   }
   // the factions' leftover land when a faction holds nothing
 }
@@ -256,7 +280,7 @@ function go(c: Campaign, p: Party, x: number, z: number) { p.path = c.route(p, x
 export function lordArrived(c: Campaign, p: Party) {
   const fx = c.fx;
   if (p.raid) {
-    const s = c.w.settlements.find((q) => q.id === p.raid)!;
+    const s = c.all.find((q) => q.id === p.raid)!;
     p.raid = undefined;
     if (atWar(fx, p.faction!, fx.owner[s.id]) && !s.burned) {
       s.burned = true; fx.looted[s.id] = 12; s.prosperity = Math.max(0.1, s.prosperity - 0.15); s.recruits = 0;
@@ -268,13 +292,13 @@ export function lordArrived(c: Campaign, p: Party) {
     p.mode = "wait"; p.think = 3;
   } else if (p.siege) {
     p.dest = p.siege; p.siege = undefined; p.mode = "wait"; p.think = 48;
-    const s = c.w.settlements.find((q) => q.id === p.dest)!;
+    const s = c.all.find((q) => q.id === p.dest)!;
     if (fx.fief[s.id] === "player" || fx.owner[s.id] === fx.join?.f) { p.think = 72; c.note(`${p.name} oblega ${s.name}${fx.fief[s.id] === "player" ? " — twoje lenno" : ""}! Mury padną za 3 dni. Wejdź do osady, by bronić murów.`, "bad"); return; }
-    c.note(`${p.name} oblega ${c.w.settlements.find((q) => q.id === p.dest)!.name}.`, "warn"); }
+    c.note(`${p.name} oblega ${c.all.find((q) => q.id === p.dest)!.name}.`, "warn"); }
   else { p.mode = "wait"; p.think = 2 + c.rand() * 6; }
 }
 function finishSiege(c: Campaign, p: Party) {
-  const fx = c.fx, s = c.w.settlements.find((q) => q.id === p.dest)!;
+  const fx = c.fx, s = c.all.find((q) => q.id === p.dest)!;
   const from = fx.owner[s.id];
   if (!atWar(fx, p.faction!, from)) return;
   const def = wallPower(fx.garrison[s.id], s.kind), att = c.partyPower(p);

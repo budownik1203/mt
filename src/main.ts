@@ -919,6 +919,7 @@ function startCampaign(fresh = false) {
     ui = new MapUI(camp, { tourney: (sid, r) => startTourney(sid, r), fight: (p, o) => startEncounter(p, o), refresh: () => ui?.hud(), snapshot: (x, z, d) => mapSnapshot(x, z, d) });
     camp.onEncounter = (p) => { ui!.encounter(p); };
     camp.enterSettlement = (id) => ui!.settlement(id);
+    camp.onRegion = () => { freeMapMeshes(); buildMapMeshes(); const m = camp!.co.party; mapCenter[0] = m.x; mapCenter[2] = m.z; ui?.hud(); };
     buildMapMeshes();
     const me = camp.co.party; mapCenter[0] = me.x; mapCenter[2] = me.z;
   }
@@ -930,6 +931,12 @@ function startCampaign(fresh = false) {
   if (created) ui!.creation(() => { ui!.hud(); saveCampaign(); });
 }
 
+function freeMapMeshes() {
+  if (!mapG) return;
+  for (const m of [...mapG.terr, ...mapG.feat]) R.free(m);
+  for (const v of mapG.sett.values()) { R.free(v.ok); R.free(v.burned); }
+  for (const [k, el] of labelEls) { el.remove(); labelEls.delete(k); }
+}
 function buildMapMeshes() {
   const c = camp!;
   const up = (b: MeshBuilder) => R.upload(fromBuilder(b), 3, false);
@@ -953,6 +960,8 @@ function buildMapMeshes() {
   // labels for settlements
   const box = $("labels"); box.textContent = "";
   for (const s of c.w.settlements) { const d = document.createElement("div"); d.className = "lbl " + s.kind; d.textContent = s.name; box.append(d); labelEls.set("s:" + s.id, d); }
+  // named places worth finding: border roads, monasteries, the grove
+  for (const q of c.w.pois) if (q.kind === "border" || q.kind === "monastery" || q.kind === "grove") { const d = document.createElement("div"); d.className = "lbl poi " + q.kind; d.textContent = q.kind === "border" ? "⇄ " + q.name : q.name; box.append(d); labelEls.set("q:" + q.id, d); }
 }
 
 function mapStep(dt: number) {
@@ -979,7 +988,10 @@ function mapSnapshot(x: number, z: number, dist: number): string | null {
   const y = camp.w.height(x, z);
   const yaw = mapYaw + 0.5;
   snapCam = { eye: [x + Math.sin(yaw) * dist, y + dist * 0.42, z + Math.cos(yaw) * dist], target: [x, y + 1.2, z] };
+  // menu pictures are painted in a grey afternoon light, whatever the hour (readability)
+  const h0 = camp.hour; camp.hour = Math.min(Math.max(h0, 9), 16);
   renderMap(performance.now());
+  camp.hour = h0;
   snapCam = null;
   try { return canvas.toDataURL("image/jpeg", 0.82); } catch { return null; }
 }
@@ -1031,6 +1043,7 @@ function mapLabels(sight: number) {
     const el = labelEls.get("s:" + s.id)!, p = project(s.x, c.w.height(s.x, s.z) + (s.kind === "town" ? 7 : 4), s.z);
     el.hidden = !p; if (p) { el.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; el.classList.toggle("burned", s.burned); el.style.borderBottom = `2px solid #${FACTIONS[c.fx.owner[s.id]].color.toString(16).padStart(6, "0")}`; }
   }
+  for (const q of c.w.pois) { const el = labelEls.get("q:" + q.id); if (!el) continue; const p = project(q.x, c.w.height(q.x, q.z) + 4, q.z); el.hidden = !p; if (p) el.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; }
   const seen = new Set<string>();
   for (const p of c.parties) {
     if (p === me || Math.hypot(p.x - me.x, p.z - me.z) > sight) continue;

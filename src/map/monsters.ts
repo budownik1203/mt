@@ -65,7 +65,7 @@ export function monsterThink(c: Campaign, p: Party, h: number, dPlayer: number) 
 
 /** Daily: lairs refill; contracts run out. */
 export function monstersDaily(c: Campaign) {
-  for (const d of MONSTERS) if (!monsterParty(c, d.id) && c.rand() < 0.04) { spawnMonster(c, d.id); c.note(`Mówią, że w miejscu zwanym ${c.w.pois.find((q) => q.id === d.lair)!.name} znów coś się zalęgło.`, "warn"); }
+  for (const d of MONSTERS) if (c.w.pois.some((q) => q.id === d.lair) && !monsterParty(c, d.id) && c.rand() < 0.04) { spawnMonster(c, d.id); c.note(`Mówią, że w miejscu zwanym ${c.w.pois.find((q) => q.id === d.lair)!.name} znów coś się zalęgło.`, "warn"); }
   for (const k of [...c.contracts]) if (c.day > k.until) {
     c.contracts.splice(c.contracts.indexOf(k), 1);
     const s = c.w.settlements.find((q) => q.id === k.from)!;
@@ -78,6 +78,7 @@ export function monstersDaily(c: Campaign) {
 /** Who has a job here: a beast that has hit this place or is within reach. */
 export function offerAt(c: Campaign, sid: string) {
   const s = c.w.settlements.find((q) => q.id === sid)!;
+  if (!s) return null;
   for (const d of MONSTERS) {
     if (c.contracts.some((k) => k.monster === d.id)) continue;
     const p = monsterParty(c, d.id); if (!p) continue;
