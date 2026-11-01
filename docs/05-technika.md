@@ -53,6 +53,7 @@ Skrypty w `tools/` uruchamiane przez `tools/shot.mjs` sterują grą przez `windo
 - `g4.mjs` ścięcie głowy / odcięcie ręki / nogi; `g5.mjs` strefy wg pochylenia + prędkości ruchu; `g6.mjs` blokada po sparowaniu i okno kontry; `g7.mjs` dym-test AI (40 s, zero błędów).
 - `m1–m5.mjs` mapa: start, podróż, spotkanie → bitwa → po bitwie, głód, wstający umarli, zima, targ, zapis.
 - `b6.mjs` rozstawienie, formacje, rozkazy, morale i ucieczki.
+- `b15.mjs` dołączenie do bitwy lordów, obrona murów (role odwrócone), głodzenie miasta.
 - `b14.mjs` szturm: obrońcy na murach, wspinaczka po drabinach, walka na murach, wyłom w bramie.
 - `b13.mjs` koń w próbnej bitwie, galop, kopia, śmierć konia, targ koński, kompania konna na mapie, bitwa jazdy z AI.
 - `b12.mjs` klasztor, gaj, kapłani, obrzędy, łaski, ofiara z jeńca → ekskomunika → pokuta, wiara w panelu, wydarzenia, Dziady, morale w bitwie z błogosławieństwem.

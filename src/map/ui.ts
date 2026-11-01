@@ -23,7 +23,7 @@ const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt
 const tn = (t: TroopId) => TROOPS[t].name[lang];
 
 export interface Act { label: string; sub?: string; on: () => void; off?: boolean; kind?: "go" | "bad" | "" }
-export interface Hooks { fight: (p: Party) => void; refresh: () => void; snapshot: (x: number, z: number, dist: number) => string | null }
+export interface Hooks { fight: (p: Party, o?: { ally?: Party; defend?: string }) => void; refresh: () => void; snapshot: (x: number, z: number, dist: number) => string | null }
 
 export class MapUI {
   open = false;
@@ -132,12 +132,26 @@ export class MapUI {
     const lordName = lid === "player" ? "ty" : `${lordDef(lid).title} ${lordDef(lid).name}`;
     let body = `<p class="meta">${kind} · ${s.pop} dusz · ludność ${mood}</p><p class="meta"><span class="fdot" style="background:#${FACTIONS[of].color.toString(16).padStart(6, "0")}"></span>${FACTIONS[of].name} · pan: <b>${esc(lordName)}</b>${s.kind !== "village" ? ` · załoga ${fx.garrison[s.id]}` : ""}${hostileTo(c, of) ? ` · <b class="bad">wróg</b>` : ""}</p>` + flavour(s);
     const acts: Act[] = [];
+    // a lord besieges a place of your side: defend the walls
+    const besieger = c.parties.find((q) => q.kind === "lord" && q.mode === "wait" && q.dest === s.id && !q.raid);
+    if (besieger && (fx.fief[s.id] === "player" || fx.owner[s.id] === fx.join?.f) && s.kind !== "village") {
+      const left = Math.max(0, Math.round(besieger.think));
+      this.show(s.name, body + `<p><b>Oblężenie!</b> Pod murami stoi ${esc(besieger.name)}: ${besieger.troops.map((x) => `${x.n} × ${tn(x.t)}`).join(", ")}. Drabiny już leżą w trawie. Do szturmu zostało ok. ${left} h.</p>`, [
+        { label: "Bronić murów", sub: `bitwa na murach razem z załogą (${fx.garrison[s.id]} ludzi, grupa 8) · wygrana zdejmuje oblężenie`, kind: "go", on: () => { this.close(); this.h.fight(besieger, { defend: s.id }); } },
+        { label: "Wyjdź", on: () => this.close() },
+      ]);
+      return;
+    }
     if (hostileTo(c, of)) {
       const wa: Act[] = [];
       if (s.kind === "village") wa.push(this.raidAct(s));
       else {
         const need = fx.garrison[s.id] * 0.75, mine = c.partyPower(c.co.party);
         wa.push({ label: "Szturmuj mury", sub: !fx.join ? "bez seniora zdobytego nie utrzymasz: zaciągnij się do frakcji" : `załoga ${fx.garrison[s.id]} · twoja siła ${mine.toFixed(1)} vs ${need.toFixed(1)} · bitwa`, off: !fx.join || mine < need * 0.6, kind: "go", on: () => this.assault(s) });
+        const starving = c.co.siegeOf === s.id;
+        wa.push({ label: starving ? `Głodzenie trwa (dzień ${c.co.siegeDays ?? 0})` : "Oblegaj: głodzenie", sub: !fx.join ? "tylko w służbie frakcji" : starving ? "obóz pod murami; załoga traci ~10% dziennie; poddaje się poniżej 4" : "rozbij obóz pod murami: załoga traci ~10% dziennie, ty jesz swoje zapasy; odejście przerywa", off: !fx.join || starving, on: () => {
+          c.co.siegeOf = s.id; c.co.siegeDays = 0; c.co.camp = true; c.note(`Zaczynasz oblężenie ${s.name}. Obóz pod murami, nikt nie wejdzie, nikt nie wyjdzie.`, "warn"); this.close(); c.speed = 1;
+        } });
       }
       wa.push({ label: "Odejdź", on: () => this.close() });
       this.show(s.name, body + `<p>${s.kind === "village" ? "Chłopi chowają się po chałupach. Sołtys patrzy na twoje chorągwie i wie, czyje są." : "Bramy zamknięte. Na murach kusznicy. Jesteś tu wrogiem."}</p>`, wa);
@@ -298,6 +312,7 @@ export class MapUI {
   // ---------- encounters ----------
   encounter(p: Party) {
     const c = this.c, me = c.co.party;
+    if (p.fight) { const q = c.parties.find((x) => x.id === p.fight!.with); if (q) { this.joinBattle(p, q); return; } }
     this.picture("p:" + p.id, (p.x + me.x) / 2, (p.z + me.z) / 2, 7);
     const mine = c.partyPower(me), theirs = c.partyPower(p);
     const ratio = theirs / Math.max(0.1, mine);
@@ -343,6 +358,19 @@ export class MapUI {
       acts.push({ label: "Napadnij", sub: "ich srebro i wozy będą twoje; wieść się rozniesie", kind: "bad", on: () => { c.co.morale += p.kind === "caravan" ? 2 : -3; this.close(); this.h.fight(p); } });
     }
     this.show(p.name, body, acts);
+  }
+  /** Two armies fighting on the map (Warband): join one side, or ride on. */
+  private joinBattle(a: Party, b: Party) {
+    const c = this.c;
+    this.picture("p:" + a.id, (a.x + b.x) / 2, (a.z + b.z) / 2, 8);
+    const side = (p: Party) => `<b>${esc(p.name)}</b> (${FACTIONS[p.faction!].short}): ${p.troops.map((x) => `${x.n} × ${tn(x.t)}`).join(", ")}`;
+    const body = `<p>Krzyk, szczęk i dym nad polem. Dwie chorągwie zwarte w błocie.</p><p class="meta">${side(a)}</p><p class="meta">${side(b)}</p><p class="meta">Dołączając, walczysz ze swoimi ludźmi obok sojusznika (grupa 8). Wróg sojusznika staje się twoim wrogiem.</p>`;
+    const act = (ally: Party, foe: Party): Act => {
+      const war = hostileTo(c, ally.faction!);
+      return { label: `Pomóż: ${ally.name}`, sub: war ? `${FACTIONS[ally.faction!].short} jest z tobą w wojnie` : `${FACTIONS[foe.faction!].short}: ${hostileTo(c, foe.faction!) ? "i tak wróg" : "relacja −40 (wojna)"} · ${ally.name}: relacja +10 po zwycięstwie`, off: war, kind: "go",
+        on: () => { if (!hostileTo(c, foe.faction!)) changeRel(c, foe.faction!, -40, "atak w bitwie"); this.close(); this.h.fight(foe, { ally }); } };
+    };
+    this.show("Bitwa w polu", body, [act(a, b), act(b, a), { label: "Odjedź", on: () => { a.stunned = 0; this.close(); } }]);
   }
   private auto(p: Party) {
     const c = this.c;

@@ -143,6 +143,21 @@ export const vassalNeeds = { renown: 100, rel: 0 };
 // ---------- daily: wars, pay, rents, recovery ----------
 export function factionsDaily(c: Campaign) {
   const fx = c.fx;
+  // the player starving a town or castle out
+  if (c.co.siegeOf) {
+    const s = c.w.settlements.find((q) => q.id === c.co.siegeOf)!, me = c.co.party;
+    if (Math.hypot(s.x - me.x, s.z - me.z) > 10 || !c.co.camp || !fx.join || !hostileTo(c, fx.owner[s.id])) { c.note(`Oblężenie ${s.name} przerwane.`, "warn"); c.co.siegeOf = undefined; }
+    else {
+      c.co.siegeDays = (c.co.siegeDays ?? 0) + 1;
+      const g = fx.garrison[s.id], lost = Math.max(2, Math.round(g * 0.12));
+      fx.garrison[s.id] = g - lost - 1; s.prosperity = Math.max(0.1, s.prosperity - 0.03);   // the daily +1 refill is cancelled
+      if (fx.garrison[s.id] <= 3) {
+        transfer(c, s, fx.join.f, fx.join.role === "vassal" ? "player" : FACTIONS[fx.join.f].ruler);
+        c.co.hero.renown += 15; c.co.siegeOf = undefined;
+        c.note(`${s.name} poddaje się z głodu po ${c.co.siegeDays} dniach${fx.join.role === "vassal" ? ". Władca oddaje ją tobie w lenno" : ""}.`, "good");
+      } else c.note(`Oblężenie ${s.name}, dzień ${c.co.siegeDays}: załoga ${fx.garrison[s.id]} (−${lost} z głodu i dezercji).`, "");
+    }
+  }
   // wars are rare but long: at least 20 days either way
   for (let i = 0; i < FIDS.length; i++) for (let j = i + 1; j < FIDS.length; j++) {
     const a = FIDS[i], b = FIDS[j], k = pair(a, b), since = c.day - (fx.warDay[k] ?? -99);
@@ -183,6 +198,11 @@ export function factionsDaily(c: Campaign) {
 export function lordThink(c: Campaign, p: Party, h: number, dPlayer: number) {
   const fx = c.fx, f = p.faction!, me = c.co.party, def = lordDef(p.lord!);
   const pow = c.partyPower(p), size = c.partySize(p);
+  if (p.fight) {
+    const q = c.parties.find((x) => x.id === p.fight!.with);
+    if (!q || !q.fight) { p.fight = undefined; }
+    else { if (c.now >= p.fight.until) { p.fight = undefined; q.fight = undefined; aiBattle(c, p, q); } return; }
+  }
   // the player, if at war with him
   if (hostileTo(c, f) && dPlayer < c.sight(p) && pow > c.partyPower(me) * (def.persona === "ostrozny" ? 1.3 : 0.8)) {
     if (p.mode !== "chase" || p.think <= 0) { p.mode = "chase"; p.path = [[me.x, me.z]]; p.think = 0.5; }
@@ -194,7 +214,14 @@ export function lordThink(c: Campaign, p: Party, h: number, dPlayer: number) {
     const d = Math.hypot(q.x - p.x, q.z - p.z); if (d > 1.6) continue;
     const enemyLord = q.kind === "lord" && atWar(fx, f, q.faction!);
     const scum = q.kind === "bandits" || q.kind === "deserters" || q.kind === "undead" || q.kind === "necro";
-    if (enemyLord || scum) { aiBattle(c, p, q); return; }
+    if (enemyLord && !p.fight && !q.fight) {
+      // armies clash for a few hours: the player can ride in and join either side
+      p.fight = { with: q.id, until: c.now + 3 }; q.fight = { with: p.id, until: c.now + 3 };
+      p.path = []; q.path = []; p.mode = q.mode = "wait";
+      if (Math.hypot(p.x - c.co.party.x, p.z - c.co.party.z) < 45) c.note(`Bitwa! ${p.name} i ${q.name} starli się w polu. Możesz dołączyć.`, "warn");
+      return;
+    }
+    if (scum && !p.fight) { aiBattle(c, p, q); return; }
   }
   if (p.path.length) return;
   if (p.raid || p.siege || p.mode === "travel" || p.mode === "roam") { lordArrived(c, p); return; }
@@ -239,7 +266,11 @@ export function lordArrived(c: Campaign, p: Party) {
       if (fx.fief[s.id] === "player") c.note(`To była twoja wieś.`, "bad");
     }
     p.mode = "wait"; p.think = 3;
-  } else if (p.siege) { p.dest = p.siege; p.siege = undefined; p.mode = "wait"; p.think = 48; c.note(`${p.name} oblega ${c.w.settlements.find((q) => q.id === p.dest)!.name}.`, "warn"); }
+  } else if (p.siege) {
+    p.dest = p.siege; p.siege = undefined; p.mode = "wait"; p.think = 48;
+    const s = c.w.settlements.find((q) => q.id === p.dest)!;
+    if (fx.fief[s.id] === "player" || fx.owner[s.id] === fx.join?.f) { p.think = 72; c.note(`${p.name} oblega ${s.name}${fx.fief[s.id] === "player" ? " — twoje lenno" : ""}! Mury padną za 3 dni. Wejdź do osady, by bronić murów.`, "bad"); return; }
+    c.note(`${p.name} oblega ${c.w.settlements.find((q) => q.id === p.dest)!.name}.`, "warn"); }
   else { p.mode = "wait"; p.think = 2 + c.rand() * 6; }
 }
 function finishSiege(c: Campaign, p: Party) {
@@ -264,6 +295,7 @@ export function transfer(c: Campaign, s: Settlement, f: FactionId, lord: string)
 
 /** Two AI parties meet: quick Lanchester on the spot. */
 export function aiBattle(c: Campaign, a: Party, b: Party) {
+  a.fight = undefined; b.fight = undefined;
   let pa = c.partyPower(a), pb = c.partyPower(b);
   const a0 = pa, b0 = pb;
   while (pa > a0 * 0.3 && pb > b0 * 0.3) { pa -= pb * 0.1; pb -= pa * 0.1; }

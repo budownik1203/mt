@@ -20,7 +20,7 @@ import { settings, saveSettings, RES } from "./core/settings.ts";
 import { openOptions } from "./core/optionsui.ts";
 import { heroHp, profOf, undeadLimit } from "./map/hero.ts";
 import { undeadCount, corrupt, spawnHunters } from "./map/necro.ts";
-import { FACTIONS, FIDS, spawnLord } from "./map/factions.ts";
+import { FACTIONS, FIDS, spawnLord, lordRel, changeRel, transfer } from "./map/factions.ts";
 import { spawnMonster } from "./map/monsters.ts";
 import { HORSES, SADDLE } from "./char/horse.ts";
 import { boon, troopFaith } from "./map/faith.ts";
@@ -83,15 +83,15 @@ function hitGate(att: Warrior, dmg: number) {
 /** Where an attacker outside the wall should go: the nearest ladder foot, or the gate. */
 function siegeSteer() {
   if (!BF.siege || !enc) return;
-  const front = WALL.z + WALL.front;
+  const front = WALL.z + WALL.front, atk = enc.defend ? 1 : 0;
   for (const f of fighters) {
     if (!f.alive || f.fleeing || f === player) continue;
     const tg = targets.get(f.id); if (!tg) continue;
     const outside = f.z > front + 0.3, tgInside = tg.z < front + 0.6;
     // on a ladder: keep climbing, whatever the target
-    const onLadder = f.team === 0 && outside && f.z < front + 4.8 && WALL.ladders.some((lx) => Math.abs(f.x - lx) < 0.9);
+    const onLadder = f.team === atk && outside && f.z < front + 4.8 && WALL.ladders.some((lx) => Math.abs(f.x - lx) < 0.9);
     if (onLadder) { const lx = WALL.ladders.find((q) => Math.abs(f.x - q) < 0.9)!; f.wish.x = (lx - f.x) * 1.5; f.wish.z = -1; f.wish.run = false; if (f.state === "block") f.unblock(); continue; }
-    if (f.team === 0 && outside && tgInside) {
+    if (f.team === atk && outside && tgInside) {
       // pick the closest way in: ladders always, the gate (to break or pass)
       const ways: [number, number, boolean][] = WALL.ladders.map((lx) => [lx, front + 4.6, false] as [number, number, boolean]);
       ways.push([0, front + 1.2, true]);
@@ -108,7 +108,7 @@ function siegeSteer() {
       }
     }
     // defenders on the wall walk stay on it while the enemy is below
-    if (f.team === 1 && f.y - height(f.x, f.z) > 2.5 && tg.z > front + 0.6 && !f.ranged) {
+    if (f.team !== atk && f.y - height(f.x, f.z) > 2.5 && tg.z > front + 0.6 && !f.ranged) {
       const dx = clamp(tg.x - f.x, -1, 1); f.wish.x = Math.abs(tg.x - f.x) > 1.2 ? dx : 0; f.wish.z = (WALL.z - f.z) * 0.5;
     }
   }
@@ -167,7 +167,7 @@ let mode: Mode = "title";
 let battleKind: "waves" | "encounter" = "waves";
 let camp: Campaign | null = null;
 let ui: MapUI | null = null;
-interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form" | "fire"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number; raiseCD: number; raised: Set<number>; risen: Set<number>; weak?: boolean }
+interface Enc { enemy: Party; allyQ: { t: TroopId; g: number }[]; enemyQ: { t: TroopId; g: number }[]; reserveQ: { t: TroopId; g: number }[]; troopOf: Map<number, TroopId>; groups: Group[]; sel: Set<number>; menu: null | "move" | "form" | "fire"; deploy: boolean; cryCD: number; routed: { 0: TroopId[]; 1: TroopId[] }; startHour: number; startDay: number; done: boolean; moraleT: number; raiseCD: number; raised: Set<number>; risen: Set<number>; weak?: boolean; allyParty?: Party; defend?: string; allied: Map<number, number>; garrison0: number }
 let enc: Enc | null = null;
 let wave = 0, kills = 0, waveBreak = 0, started = false, paused = false;
 let hour = 16.8;
@@ -911,7 +911,7 @@ function startCampaign(fresh = false) {
     if (!fresh) { try { const sv = localStorage.getItem(SAVE_KEY); if (sv && camp.load(sv)) { camp.note("Wczytano zapis kampanii.", ""); loaded = true; } } catch { /* */ } }
     created = !loaded;
     camp.onDay = () => saveCampaign();
-    ui = new MapUI(camp, { fight: (p) => startEncounter(p), refresh: () => ui?.hud(), snapshot: (x, z, d) => mapSnapshot(x, z, d) });
+    ui = new MapUI(camp, { fight: (p, o) => startEncounter(p, o), refresh: () => ui?.hud(), snapshot: (x, z, d) => mapSnapshot(x, z, d) });
     camp.onEncounter = (p) => { ui!.encounter(p); };
     camp.enterSettlement = (id) => ui!.settlement(id);
     buildMapMeshes();
@@ -1119,12 +1119,12 @@ let CAP = settings.battleSize;            // fighters per side in the scene at o
 function groupOfTroop(t: TroopId) { return camp?.co.groups?.[t] ?? DEFAULT_GROUP[t] ?? 1; }
 const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
-function startEncounter(p: Party) {
+function startEncounter(p: Party, opts: { ally?: Party; defend?: string } = {}) {
   const c = camp!, me = c.co.party;
   const mb = biomeAt(c.w, me.x, me.z);
   const biome: BattleBiome = mb === "edge" ? "hills" : mb;
   const [i, j] = cellOf(me.x, me.z);
-  const siege = p.kind === "garrison";
+  const siege = p.kind === "garrison" || !!opts.defend;
   setBattlefield(siege ? "fields" : biome, p.id + c.day * 7, c.winter, siege ? false : !!c.w.road[cellIndex(i, j)], siege);
   rebuildField();
   gateCols.length = 0; gateHp = gateMax = 0;
@@ -1136,12 +1136,19 @@ function startEncounter(p: Party) {
   const allyQ: Q[] = [], enemyQ: Q[] = [];
   for (const s of me.troops) for (let k = 0; k < s.n - s.wounded; k++) allyQ.push({ t: s.t, g: groupOfTroop(s.t) });
   for (const s of p.troops) for (let k = 0; k < s.n - s.wounded; k++) enemyQ.push({ t: s.t, g: 1 });
+  // allies: a lord whose battle you joined, or the garrison of the walls you defend (group 8)
+  if (opts.ally) for (const s of opts.ally.troops) for (let k = 0; k < s.n - s.wounded; k++) allyQ.push({ t: s.t, g: 8, ally: 1 });
+  let garrison0 = 0;
+  if (opts.defend) {
+    const sid = opts.defend, f = c.fx.owner[sid], mix = FACTIONS[f].troops, tot = mix.reduce((a, m) => a + m[1], 0), n = c.fx.garrison[sid];
+    for (const [t, w] of mix) for (let k = 0; k < Math.round(n * w / tot); k++) { allyQ.push({ t, g: 8, ally: 2 }); garrison0++; }
+  }
   // strongest first into the scene, reserve groups stay behind
   allyQ.sort((a, b) => TROOPS[b.t].tier - TROOPS[a.t].tier);
   const groups = newGroups();
   const used = [...new Set(allyQ.map((q) => q.g))].sort();
   used.forEach((g, k) => { const G = groups[g - 1]; G.ax = (k - (used.length - 1) / 2) * 9; G.az = 6; G.ayaw = Math.PI; G.order = "hold"; G.formation = g === 2 ? "line" : "line"; });
-  enc = { enemy: p, allyQ, enemyQ, reserveQ: [], troopOf: new Map(), groups, sel: new Set(used), menu: null, deploy: true, cryCD: 0, routed: { 0: [], 1: [] }, startHour: c.hour, startDay: c.day, done: false, moraleT: 0, raiseCD: 0, raised: new Set(), risen: new Set(), weak: p.kind === "monster" && c.contracts.some((k) => k.monster === p.monster && k.steps >= 3) };
+  enc = { enemy: p, allyQ, enemyQ, reserveQ: [], troopOf: new Map(), groups, sel: new Set(used), menu: null, deploy: true, cryCD: 0, routed: { 0: [], 1: [] }, startHour: c.hour, startDay: c.day, done: false, moraleT: 0, raiseCD: 0, raised: new Set(), risen: new Set(), allyParty: opts.ally, defend: opts.defend, allied: new Map(), garrison0, weak: p.kind === "monster" && c.contracts.some((k) => k.monster === p.monster && k.steps >= 3) };
   mode = "battle"; battleKind = "encounter"; started = true; hour = c.hour;
   $("mapHud").hidden = true; $("labels").hidden = true; setBattleHud(true);
   fighters = []; brains.clear(); targets.clear(); tokens.used = 0; tokens.max = 2; parts.length = 0; projs.length = 0; smokes.length = 0; decals.length = 0; gibs.length = 0; spurts.length = 0; hurt = 0; kills = 0; wave = 0;
@@ -1162,11 +1169,19 @@ function startEncounter(p: Party) {
   if (p.kind === "necro" || p.kind === "undead") banner(p.name, L("Zabij nekromantę, a jego martwi padną", "Kill the necromancer and his dead fall"));
   $("dead").hidden = true; log.length = 0; renderLog();
   $("glabels").hidden = false;
+  if (opts.defend) {
+    // defending the walls: no deployment, everyone already at his post
+    player.x = 0; player.z = WALL.z - 6; player.yaw = 0; camYaw = 0; player.y = ground(player.x, player.z);
+    enc.deploy = false; for (const G of enc.groups) G.order = "charge";
+    banner(L("Obrona murów", "Defend the walls"), L(`${p.name} szturmuje. Utrzymaj drabiny i bramę.`, `${p.name} storms the walls. Hold the ladders and the gate.`));
+    tryLock(); return;
+  }
+  if (opts.ally) pushLog(L(`Walczysz u boku: ${opts.ally.name} (grupa 8)`, `You fight beside ${opts.ally.name} (group 8)`), "good");
   camOverride = [[0, 19, 27], [0, 0, 3]];
   banner(p.name, L("Rozstawienie: 1–9 wybór grupy · klik: ustaw grupę · F2 formacja · R rezerwa · spacja: do boju", "Deployment: 1–9 select group · click: place · F2 formation · R reserve · space: fight"));
   try { document.exitPointerLock(); } catch { /* */ }
 }
-interface Q { t: TroopId; g: number }
+interface Q { t: TroopId; g: number; ally?: number }
 
 function moraleBase(team: 0 | 1, t: TroopId): number {
   if (TROOPS[t].undead || TROOPS[t].beast) return 100;
@@ -1187,11 +1202,12 @@ function reinforce(team: 0 | 1, first = false) {
     take.push(q.splice(k, 1)[0]);
   }
   if (!take.length) return;
-  const z0 = team === 0 ? 15 : -16, dir = team === 0 ? 1 : -1;
+  const outsideTeam = enc.defend ? 1 : 0;
+  const z0 = team === outsideTeam ? 15 : -16, dir = team === outsideTeam ? 1 : -1;
   take.forEach((it, k) => {
     const row = Math.floor(k / 7), col = (k % 7) - 3;
     let x = col * 1.6 + (Math.random() - 0.5) * 0.4, z = z0 + dir * row * 1.6 + (first ? 0 : dir * 10);
-    if (BF.siege && team === 1) {
+    if (BF.siege && team !== outsideTeam) {
       // defenders: shooters along the wall walk, the rest split between the ladders and the gate yard
       const sh = !!WEAPONS[TROOPS[it.t].kit.weapon].ranged, slot = k % 3;
       if (sh) { x = (k % 2 ? 1 : -1) * (4 + Math.floor(k / 2) * 1.6); z = WALL.z - 0.3; }
@@ -1199,16 +1215,17 @@ function reinforce(team: 0 | 1, first = false) {
       else { x = (Math.random() - 0.5) * 5; z = WALL.z - 5 - Math.random() * 3; }
     }
     const f = new Warrior(R, kitOf(it.t), x, z, team);
-    f.yaw = team === 0 ? Math.PI : 0; f.group = it.g; f.y = ground(f.x, f.z);
+    f.yaw = team === outsideTeam ? Math.PI : 0; f.group = it.g; f.y = ground(f.x, f.z);
     f.noMorale = !!TROOPS[it.t].undead || !!TROOPS[it.t].beast;
     if (team === 1 && TROOPS[it.t].beast && enc!.weak) { f.maxHp = Math.round(f.maxHp * 0.75); f.hp = f.maxHp; }
     f.morale = f.baseMorale = moraleBase(team, it.t);
     if (f.kit.horse) { f.setMount(R, f.kit.horse); f.mount!.yaw = f.yaw; }
     fighters.push(f); brains.set(f.id, new Brain(f)); enc!.troopOf.set(f.id, it.t);
+    if (it.ally) enc!.allied.set(f.id, it.ally);
     if (it.t === "nekromanta") f.leader = true;
   });
   if (!first) banner(L("Posiłki", "Reinforcements"), team === 0 ? L("twoi ludzie", "your men") : L("wroga", "the enemy's"));
-  if (first && team === 0) placeDeployed();
+  if (first && team === 0 && !enc.defend) placeDeployed();
 }
 
 /** Members of each of the player's groups, in a stable order (their slots). */
@@ -1502,10 +1519,14 @@ function endEncounter(win: boolean | null) {
     const t = enc.troopOf.get(f.id); if (!t || enc.risen.has(f.id)) continue;
     let how: "dead" | "wounded" = fate(f);
     if (f.team === 0 && how === "dead" && f.severed.size === 0 && Math.random() < surg) how = "wounded";   // the surgeon saves one
-    if (f.team === 0) { lose(me, t, how); if (how === "dead") myDead++; else myWounded++; }
+    const al = enc.allied.get(f.id);
+    if (f.team === 0 && al === 1 && enc.allyParty) lose(enc.allyParty, t, how);
+    else if (f.team === 0 && al === 2) { if (how === "dead") enc.garrison0--; }
+    else if (f.team === 0) { lose(me, t, how); if (how === "dead") myDead++; else myWounded++; }
     else { lose(p, t, how); if (how === "dead") theirDead++; }
   }
   me.troops = me.troops.filter((s) => s.n > 0); p.troops = p.troops.filter((s) => s.n > 0);
+  if (enc.allyParty) enc.allyParty.troops = enc.allyParty.troops.filter((s) => s.n > 0);
   let body = "";
   const stood = fighters.filter((f) => f.alive && enc!.risen.has(f.id)).length;
   if (stood && win !== false) { c.addTroops(me, "zywy_trup", stood); body += `<p class="meta">${stood} wskrzeszonych idzie za tobą dalej (żywe trupy).</p>`; }
@@ -1527,6 +1548,16 @@ function endEncounter(win: boolean | null) {
   $("mapHud").hidden = false; $("labels").hidden = false; $("glabels").hidden = true; ($("orders") as HTMLElement).hidden = true; setBattleHud(false); $("banner").hidden = true;
   try { document.exitPointerLock(); } catch { /* */ }
   fighters = []; brains.clear(); player = undefined as unknown as Warrior;
+  if (e.allyParty) {
+    const a = e.allyParty; a.fight = undefined; e.enemy.fight = undefined;
+    if (win && a.lord) { lordRel(c, a.lord, 10); changeRel(c, a.faction!, 4); c.co.hero.renown += 10; body += `<p class="meta">${a.name} dziękuje za pomoc: relacja z nim +10, z frakcją +4, sława +10.</p>`; }
+    if (c.partySize(a) === 0) c.removeParty(a);
+  }
+  if (e.defend) {
+    const s = c.w.settlements.find((q) => q.id === e.defend)!;
+    if (win) { c.fx.garrison[s.id] = Math.max(5, e.garrison0); e.enemy.dest = undefined; c.co.hero.renown += 20; if (c.fx.join) changeRel(c, c.fx.join.f, 6); c.note(`Oblężenie ${s.name} zdjęte. Załoga: ${c.fx.garrison[s.id]}.`, "good"); body += `<p><b>${s.name}</b> obroniona. Sława +20.</p>`; }
+    else if (e.enemy.faction && e.enemy.lord) { transfer(c, s, e.enemy.faction, e.enemy.lord); e.enemy.dest = undefined; c.note(`${s.name} pada. ${e.enemy.name} wchodzi przez wyłom.`, "bad"); body += `<p><b>${s.name}</b> stracona.</p>`; }
+  }
   ui.after(e.enemy, win, myDead, theirDead, 0, body);
   saveCampaign();
 }

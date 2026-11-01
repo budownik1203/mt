@@ -26,6 +26,8 @@ export interface Party {
   /** Lord armies (build 9). */
   lord?: string; faction?: FactionId; raid?: string; siege?: string;
   monster?: string;
+  /** Two lord armies locked in battle (build 15) until this hour (day*24+hour); the player may join. */
+  fight?: { with: number; until: number };
 }
 export type FoodType = "grain" | "meat" | "fish" | "beer";
 export const FOOD: Record<FoodType, { pl: string; en: string; price: number; spoil: number }> = {
@@ -59,6 +61,8 @@ export interface Company {
   /** Necromancy materials (build 8): corpses rot (−30%/day), bones keep. */
   corpses?: number; bones?: number; foundBook?: boolean; dugDay?: number;
   faith?: FaithState;
+  /** Starving a settlement out (build 15). */
+  siegeOf?: string; siegeDays?: number;
 }
 
 export class Campaign {
@@ -112,6 +116,7 @@ export class Campaign {
   get men() { return this.co.party.troops.reduce((a, s) => a + (TROOPS[s.t].undead ? 0 : s.n), 0) + 1; }
   /** Everyone alive rides (and the hero has a horse): the company moves 20% faster. */
   get mountedCompany() { return !!this.co.hero.horse && this.co.party.troops.every((s) => TROOPS[s.t].undead || TROOPS[s.t].beast || !!TROOPS[s.t].kit.horse || s.n === 0); }
+  get now() { return this.day * 24 + this.hour; }
   get prisonerCount() { return (this.co.prisoners ?? []).reduce((a, p) => a + p.n, 0); }
   get mouths() { return this.men + this.prisonerCount; }
   get able() { return this.co.party.troops.reduce((a, s) => a + s.n - s.wounded, 0); }

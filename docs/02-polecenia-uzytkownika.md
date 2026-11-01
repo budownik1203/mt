@@ -37,3 +37,4 @@ Wszystkie ważne polecenia, po kolei, możliwie dosłownie (pisane głosem, stą
 28. „Połącz się z GitHubem i **przenieś tam wszystko** co do projektu, żebym na następnym AI miał wszystko i mógł pracować jak teraz, **bez wprowadzeń**. Możesz zrobić specjalny dokument dla innego AI.” → `docs/00-START-DLA-AI.md`, push na `budownik1203/mt`.
 29. „Jak skończysz, **pracuj dalej**: build 11.”
 30. „Nie czekaj na mnie z następnymi buildami, **po prostu je rób**.” (powtórzone po build 11)
+31. „No to działaj dalej, nie czekaj na mnie.” (po build 14)
